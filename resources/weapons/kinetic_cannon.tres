@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Weapon" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectile.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Kinetic Cannon"
+damage = 10.0
+fire_rate = 2.0
+range = 300.0
+projectile_scene = ExtResource("2")

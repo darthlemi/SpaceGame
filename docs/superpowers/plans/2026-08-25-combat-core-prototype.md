@@ -315,21 +315,23 @@ git commit -m "Add Hull and Shield components"
 
 ---
 
-### Task 3: `Engine` component (steering math)
+### Task 3: `ShipEngine` component (steering math)
+
+**Note:** the class is named `ShipEngine`, not `Engine` — `Engine` is a reserved built-in singleton in Godot 4.x and `class_name Engine` fails to compile ("Cannot construct native class 'Engine' because it is an engine singleton"). The `engine` property name on `Ship` (Task 5) is unaffected; only the type name changes.
 
 **Files:**
-- Create: `scripts/ship/engine.gd`
-- Create: `tests/test_engine.gd`
+- Create: `scripts/ship/ship_engine.gd`
+- Create: `tests/test_ship_engine.gd`
 - Modify: `tests/run_tests.gd`
 
 **Interfaces:**
-- Produces: `class_name Engine` (extends `Node`) with `max_speed: float`, `turn_rate: float`, `acceleration: float`, `velocity: Vector2`, `steer_toward(current_pos: Vector2, current_rotation: float, target_pos: Vector2, delta: float) -> Dictionary` returning `{"rotation": float, "velocity": Vector2}`, and static `Engine.rotate_toward_angle(current: float, target: float, max_delta: float) -> float`.
+- Produces: `class_name ShipEngine` (extends `Node`) with `max_speed: float`, `turn_rate: float`, `acceleration: float`, `velocity: Vector2`, `steer_toward(current_pos: Vector2, current_rotation: float, target_pos: Vector2, delta: float) -> Dictionary` returning `{"rotation": float, "velocity": Vector2}`, and static `ShipEngine.rotate_toward_angle(current: float, target: float, max_delta: float) -> float`.
 
-- [ ] **Step 1: Write `Engine`**
+- [ ] **Step 1: Write `ShipEngine`**
 
-`scripts/ship/engine.gd`:
+`scripts/ship/ship_engine.gd`:
 ```gdscript
-class_name Engine
+class_name ShipEngine
 extends Node
 
 @export var max_speed: float = 200.0
@@ -344,7 +346,7 @@ func steer_toward(current_pos: Vector2, current_rotation: float, target_pos: Vec
 		velocity = velocity.move_toward(Vector2.ZERO, acceleration * delta)
 		return {"rotation": current_rotation, "velocity": velocity}
 	var desired_angle := to_target.angle()
-	var new_rotation := Engine.rotate_toward_angle(current_rotation, desired_angle, turn_rate * delta)
+	var new_rotation := ShipEngine.rotate_toward_angle(current_rotation, desired_angle, turn_rate * delta)
 	var forward := Vector2.RIGHT.rotated(new_rotation)
 	velocity = velocity.move_toward(forward * max_speed, acceleration * delta)
 	return {"rotation": new_rotation, "velocity": velocity}
@@ -356,39 +358,39 @@ static func rotate_toward_angle(current: float, target: float, max_delta: float)
 	return current + sign(diff) * max_delta
 ```
 
-- [ ] **Step 2: Write the `Engine` test**
+- [ ] **Step 2: Write the `ShipEngine` test**
 
-`tests/test_engine.gd`:
+`tests/test_ship_engine.gd`:
 ```gdscript
 extends RefCounted
 
 static func run() -> Array[String]:
 	var failures: Array[String] = []
 
-	var result := Engine.rotate_toward_angle(0.0, PI / 2.0, 0.1)
+	var result := ShipEngine.rotate_toward_angle(0.0, PI / 2.0, 0.1)
 	if not is_equal_approx(result, 0.1):
 		failures.append("rotate_toward_angle: expected small step of 0.1, got %s" % result)
 
-	result = Engine.rotate_toward_angle(0.0, 0.05, 0.1)
+	result = ShipEngine.rotate_toward_angle(0.0, 0.05, 0.1)
 	if not is_equal_approx(result, 0.05):
 		failures.append("rotate_toward_angle: expected snap to target 0.05, got %s" % result)
 
-	var engine := Engine.new()
-	engine.max_speed = 100.0
-	engine.acceleration = 1000.0
-	engine.turn_rate = 10.0
-	var steer := engine.steer_toward(Vector2.ZERO, 0.0, Vector2(100, 0), 1.0)
+	var ship_engine := ShipEngine.new()
+	ship_engine.max_speed = 100.0
+	ship_engine.acceleration = 1000.0
+	ship_engine.turn_rate = 10.0
+	var steer := ship_engine.steer_toward(Vector2.ZERO, 0.0, Vector2(100, 0), 1.0)
 	var vel: Vector2 = steer["velocity"]
 	if vel.length() < 50.0:
 		failures.append("steer_toward: expected ship to accelerate toward target, velocity length was %s" % vel.length())
 
-	engine.free()
+	ship_engine.free()
 	return failures
 ```
 
 - [ ] **Step 3: Register the test in the runner**
 
-In `tests/run_tests.gd`, add `preload("res://tests/test_engine.gd"),` to `test_scripts`.
+In `tests/run_tests.gd`, add `preload("res://tests/test_ship_engine.gd"),` to `test_scripts`.
 
 - [ ] **Step 4: Run tests and verify they pass**
 
@@ -398,8 +400,8 @@ Expected: `All tests passed.`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/ship/engine.gd tests/test_engine.gd tests/run_tests.gd
-git commit -m "Add Engine steering component"
+git add scripts/ship/ship_engine.gd tests/test_ship_engine.gd tests/run_tests.gd
+git commit -m "Add ShipEngine steering component"
 ```
 
 ---
@@ -526,8 +528,10 @@ git commit -m "Add Weapon resource, WeaponMount, and kinetic Projectile"
 - Create: `scenes/ship/ship.tscn`
 
 **Interfaces:**
-- Consumes: `Hull`, `Shield`, `Engine` (Task 2/3), `WeaponMount` (Task 4), `Order` (Task 1).
-- Produces: `class_name Ship` (extends `CharacterBody2D`) with `hull: Hull`, `shield: Shield`, `engine: Engine`, `weapon_mounts: Array[WeaponMount]`, `execute_order(order: Order) -> void`, `receive_damage(amount: float) -> void`, `attack_range() -> float`, `control_mode: ControlMode` enum `{ORDER_BASED, DIRECT}` (default `ORDER_BASED`, used starting Task 8).
+- Consumes: `Hull`, `Shield`, `ShipEngine` (Task 2/3), `WeaponMount` (Task 4), `Order` (Task 1).
+- Produces: `class_name Ship` (extends `CharacterBody2D`) with `hull: Hull`, `shield: Shield`, `engine: ShipEngine`, `weapon_mounts: Array[WeaponMount]`, `execute_order(order: Order) -> void`, `receive_damage(amount: float) -> void`, `attack_range() -> float`, `control_mode: ControlMode` enum `{ORDER_BASED, DIRECT}` (default `ORDER_BASED`, used starting Task 8).
+
+Note: the property is named `engine` (lowercase, unaffected by the rename) but its type is `ShipEngine` — `Engine` is a reserved built-in singleton in Godot 4.x.
 
 - [ ] **Step 1: Write `Ship`**
 
@@ -540,7 +544,7 @@ enum ControlMode { ORDER_BASED, DIRECT }
 
 @onready var hull: Hull = $Hull
 @onready var shield: Shield = $Shield
-@onready var engine: Engine = $Engine
+@onready var engine: ShipEngine = $Engine
 
 var weapon_mounts: Array[WeaponMount] = []
 var current_order: Order
@@ -610,7 +614,7 @@ func _on_hull_destroyed() -> void:
 
 - [ ] **Step 2: Build the `Ship` scene**
 
-In the Godot editor: create a new scene, root node `CharacterBody2D` named `Ship`, attach `scripts/ship/ship.gd`. Add children: `CollisionShape2D` (a small capsule/circle), `Sprite2D` or `Polygon2D` for the ship body (e.g. a simple triangle polygon pointing along `+X`, since `Engine`'s forward direction is `Vector2.RIGHT.rotated(rotation)`), `Hull` node (attach `hull.gd`), `Shield` node (attach `shield.gd`), `Engine` node (attach `engine.gd`), and one `WeaponMount` node (attach `weapon_mount.gd`, assign `resources/weapons/kinetic_cannon.tres` as its `weapon`). Save as `scenes/ship/ship.tscn`.
+In the Godot editor: create a new scene, root node `CharacterBody2D` named `Ship`, attach `scripts/ship/ship.gd`. Add children: `CollisionShape2D` (a small capsule/circle), `Sprite2D` or `Polygon2D` for the ship body (e.g. a simple triangle polygon pointing along `+X`, since `ShipEngine`'s forward direction is `Vector2.RIGHT.rotated(rotation)`), a `Node` named `Hull` (attach `hull.gd`), a `Node` named `Shield` (attach `shield.gd`), a `Node` named `Engine` (attach `ship_engine.gd` — the node's instance name stays `Engine` to match `$Engine` in the script; only the script's class name is `ShipEngine`), and one `WeaponMount` node (attach `weapon_mount.gd`, assign `resources/weapons/kinetic_cannon.tres` as its `weapon`). Save as `scenes/ship/ship.tscn`.
 
 - [ ] **Step 3: Manual verification**
 

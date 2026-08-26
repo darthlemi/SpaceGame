@@ -62,8 +62,8 @@ static func _check_scene_structure(failures: Array[String]) -> void:
 		failures.append("ship.tscn: expected exactly 1 WeaponMount child, got %d" % mount_count)
 	if mount_weapon == null:
 		failures.append("ship.tscn: expected the WeaponMount's weapon to be assigned (kinetic_cannon.tres)")
-	elif not is_equal_approx(mount_weapon.range, 300.0):
-		failures.append("ship.tscn: expected mounted weapon range 300.0, got %s" % mount_weapon.range)
+	elif not is_equal_approx(mount_weapon.weapon_range, 300.0):
+		failures.append("ship.tscn: expected mounted weapon range 300.0, got %s" % mount_weapon.weapon_range)
 
 	if not (ship.get_child_count() >= 1):
 		failures.append("ship.tscn: root has no children")
@@ -92,7 +92,7 @@ static func _check_ship_logic(failures: Array[String]) -> void:
 	weapon.weapon_name = "Kinetic Cannon"
 	weapon.damage = 10.0
 	weapon.fire_rate = 2.0
-	weapon.range = 300.0
+	weapon.weapon_range = 300.0
 	var mount := WeaponMount.new()
 	mount.weapon = weapon
 	ship.weapon_mounts = [mount]

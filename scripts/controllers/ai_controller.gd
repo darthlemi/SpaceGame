@@ -16,7 +16,7 @@ func setup(p_ship: Ship, p_enemy: Ship) -> void:
 func _physics_process(_delta: float) -> void:
 	if not is_instance_valid(ship) or not is_instance_valid(enemy):
 		return
-	var hp_ratio: float = ship.hull.current_hp / ship.hull.max_hp
+	var hp_ratio: float = ship.hull.current_hp / ship.hull.max_hp if ship.hull.max_hp > 0.0 else 0.0
 	var in_range: bool = ship.global_position.distance_to(enemy.global_position) <= ship.attack_range()
 	state = AIController.next_state(state, hp_ratio, retreat_hp_ratio, in_range)
 	match state:

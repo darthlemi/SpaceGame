@@ -20,6 +20,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		ship.velocity = ship.velocity.move_toward(Vector2.ZERO, ship.engine.acceleration * delta)
 	ship.move_and_slide()
+	ship.engine.velocity = ship.velocity
 	if Input.is_action_pressed("pilot_fire") and is_instance_valid(enemy):
 		for mount in ship.weapon_mounts:
 			mount.try_fire(enemy)

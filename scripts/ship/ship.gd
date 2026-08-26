@@ -25,7 +25,7 @@ func attack_range() -> float:
 	var max_range := 0.0
 	for mount in weapon_mounts:
 		if mount.weapon:
-			max_range = max(max_range, mount.weapon.range)
+			max_range = max(max_range, mount.weapon.weapon_range)
 	return max_range
 
 func receive_damage(amount: float) -> void:
@@ -37,7 +37,7 @@ func _physics_process(delta: float) -> void:
 	if control_mode == ControlMode.ORDER_BASED:
 		_process_order_movement(delta)
 		move_and_slide()
-	_process_weapons()
+		_process_weapons()
 
 func _process_order_movement(delta: float) -> void:
 	match current_order.type:
@@ -52,11 +52,13 @@ func _process_order_movement(delta: float) -> void:
 				_steer_to(target_pos, delta)
 			else:
 				velocity = velocity.move_toward(Vector2.ZERO, engine.acceleration * delta)
+				engine.velocity = velocity
 		Order.Type.RETREAT:
 			var away := global_position + (global_position - current_order.target_position).normalized() * 500.0
 			_steer_to(away, delta)
 		Order.Type.HOLD:
 			velocity = velocity.move_toward(Vector2.ZERO, engine.acceleration * delta)
+			engine.velocity = velocity
 
 func _steer_to(target_pos: Vector2, delta: float) -> void:
 	var result := engine.steer_toward(global_position, rotation, target_pos, delta)

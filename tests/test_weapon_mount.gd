@@ -10,7 +10,7 @@ static func run() -> Array[String]:
 	weapon.weapon_name = "Kinetic Cannon"
 	weapon.damage = 10.0
 	weapon.fire_rate = 2.0
-	weapon.range = 300.0
+	weapon.weapon_range = 300.0
 
 	var mount := WeaponMount.new()
 	mount.weapon = weapon

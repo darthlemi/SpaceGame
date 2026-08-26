@@ -81,4 +81,30 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(scene) and not scene.is_queued_for_deletion():
 		scene.queue_free()
 
+	# Defeat path: mirror the Victory check above with a fresh scene instance so it
+	# doesn't collide with/reuse state from the Victory assertions (the first scene's
+	# tree is already paused by that point, which would confuse a shared-instance check).
+	var defeat_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(defeat_scene)
+
+	await tree.process_frame
+
+	var defeat_player: Ship = defeat_scene.player_ship
+	if defeat_player != null and defeat_player.hull != null:
+		defeat_player.hull.apply_damage(defeat_player.hull.max_hp)
+		if defeat_scene.result_label != null:
+			if defeat_scene.result_label.text != "Defeat":
+				failures.append("run_async: expected result_label.text == 'Defeat' after player hull destroyed, got '%s'" % defeat_scene.result_label.text)
+			if not defeat_scene.result_label.visible:
+				failures.append("run_async: expected result_label.visible == true after player hull destroyed")
+	else:
+		failures.append("run_async: expected player_ship.hull resolved on defeat_scene, cannot exercise destroyed wiring")
+
+	if is_instance_valid(defeat_scene) and not defeat_scene.is_queued_for_deletion():
+		defeat_scene.queue_free()
+	# The tree-pause triggered by the Defeat result would otherwise freeze the test
+	# runner's own process_frame loop for any tests that run after this one, so restore
+	# it before returning control.
+	tree.paused = false
+
 	return failures

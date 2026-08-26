@@ -8,6 +8,8 @@ extends Node2D
 @onready var ai_controller: AIController = $AIController
 @onready var result_label: Label = $ResultLabel
 
+var _resolved := false
+
 func _ready() -> void:
 	result_label.visible = false
 	rts_commander.setup(player_ship, enemy_ship)
@@ -25,6 +27,9 @@ func _on_enemy_destroyed() -> void:
 	_show_result("Victory")
 
 func _show_result(text: String) -> void:
+	if _resolved:
+		return
+	_resolved = true
 	result_label.text = text
 	result_label.visible = true
-	set_physics_process(false)
+	get_tree().paused = true

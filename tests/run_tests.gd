@@ -1,6 +1,9 @@
 extends SceneTree
 
 func _initialize() -> void:
+	_run_all()
+
+func _run_all() -> void:
 	var test_scripts := [
 		preload("res://tests/test_order.gd"),
 		preload("res://tests/test_hull.gd"),
@@ -15,6 +18,15 @@ func _initialize() -> void:
 		for f in failures:
 			print("FAIL [%s]: %s" % [script.resource_path, f])
 		total_failures += failures.size()
+
+	# Async integration test: requires a live SceneTree and a process frame for
+	# _ready() to actually run, so it can't use the synchronous run() pattern above.
+	var ship_test = preload("res://tests/test_ship.gd")
+	var async_failures: Array[String] = await ship_test.run_async(self)
+	for f in async_failures:
+		print("FAIL [%s]: %s" % [ship_test.resource_path, f])
+	total_failures += async_failures.size()
+
 	if total_failures == 0:
 		print("All tests passed.")
 	else:

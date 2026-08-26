@@ -35,9 +35,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if player != null and enemy != null and player == enemy:
 		failures.append("run_async: expected player_ship and enemy_ship to be distinct instances")
 
-	if player != null and not player.global_position.is_equal_approx(Vector2(200, 300)):
+	# Use a loose distance tolerance rather than is_equal_approx: a physics tick can
+	# land inside the awaited process_frame and nudge a ship a few pixels toward its
+	# target before this assertion runs, which made an exact-position check flaky.
+	const SPAWN_POSITION_TOLERANCE := 20.0
+	if player != null and player.global_position.distance_to(Vector2(200, 300)) > SPAWN_POSITION_TOLERANCE:
 		failures.append("run_async: expected player_ship near (200, 300), got %s" % player.global_position)
-	if enemy != null and not enemy.global_position.is_equal_approx(Vector2(800, 300)):
+	if enemy != null and enemy.global_position.distance_to(Vector2(800, 300)) > SPAWN_POSITION_TOLERANCE:
 		failures.append("run_async: expected enemy_ship near (800, 300), got %s" % enemy.global_position)
 
 	if scene.result_label == null:

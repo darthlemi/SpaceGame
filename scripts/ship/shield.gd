@@ -1,13 +1,11 @@
 class_name Shield
-extends RefCounted
+extends Node
 
 @export var max_shield: float = 50.0
 @export var regen_rate: float = 5.0
 var current_shield: float
 
-func _init(p_max_shield: float = 50.0, p_regen_rate: float = 5.0) -> void:
-	max_shield = p_max_shield
-	regen_rate = p_regen_rate
+func _ready() -> void:
 	current_shield = max_shield
 
 func _physics_process(delta: float) -> void:

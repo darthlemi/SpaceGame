@@ -24,4 +24,5 @@ static func run() -> Array[String]:
 	if overflow != 10.0:
 		failures.append("absorb: expected full passthrough at 0 shield, got %s" % overflow)
 
+	shield.free()
 	return failures

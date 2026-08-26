@@ -28,4 +28,5 @@ static func run() -> Array[String]:
 	if not tracker.fired:
 		failures.append("apply_damage: destroyed signal did not fire at 0 hp")
 
+	hull.free()
 	return failures

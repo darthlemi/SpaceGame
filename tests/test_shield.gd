@@ -1,5 +1,7 @@
 extends RefCounted
 
+const Shield = preload("res://scripts/ship/shield.gd")
+
 static func run() -> Array[String]:
 	var failures: Array[String] = []
 	var shield := Shield.new()
@@ -22,5 +24,4 @@ static func run() -> Array[String]:
 	if overflow != 10.0:
 		failures.append("absorb: expected full passthrough at 0 shield, got %s" % overflow)
 
-	shield.free()
 	return failures

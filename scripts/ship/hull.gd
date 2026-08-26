@@ -1,5 +1,5 @@
 class_name Hull
-extends Node
+extends RefCounted
 
 signal destroyed
 signal damaged(amount: float, remaining: float)
@@ -7,7 +7,8 @@ signal damaged(amount: float, remaining: float)
 @export var max_hp: float = 100.0
 var current_hp: float
 
-func _ready() -> void:
+func _init(p_max_hp: float = 100.0) -> void:
+	max_hp = p_max_hp
 	current_hp = max_hp
 
 func apply_damage(amount: float) -> void:

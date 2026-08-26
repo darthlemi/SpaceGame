@@ -3,6 +3,8 @@ extends SceneTree
 func _init() -> void:
 	var test_scripts := [
 		preload("res://tests/test_order.gd"),
+		preload("res://tests/test_hull.gd"),
+		preload("res://tests/test_shield.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:

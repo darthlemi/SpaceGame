@@ -5,6 +5,7 @@ func _init() -> void:
 		preload("res://tests/test_order.gd"),
 		preload("res://tests/test_hull.gd"),
 		preload("res://tests/test_shield.gd"),
+		preload("res://tests/test_ship_engine.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:

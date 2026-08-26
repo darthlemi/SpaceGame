@@ -1,0 +1,4 @@
+[application]
+
+config/name="SpaceGame"
+config/features=PackedStringArray("4.2")

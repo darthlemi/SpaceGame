@@ -1,0 +1,39 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/combat_scene.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/ship/ship.tscn" id="2"]
+[ext_resource type="Script" path="res://scripts/controllers/rts_commander.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/controllers/direct_pilot.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/controllers/control_toggle.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/controllers/ai_controller.gd" id="6"]
+
+[node name="CombatScene" type="Node2D"]
+script = ExtResource("1")
+
+[node name="PlayerShip" parent="." instance=ExtResource("2")]
+position = Vector2(200, 300)
+
+[node name="EnemyShip" parent="." instance=ExtResource("2")]
+position = Vector2(800, 300)
+rotation = 3.14159265
+
+[node name="RTSCommander" type="Node" parent="."]
+script = ExtResource("3")
+
+[node name="DirectPilot" type="Node" parent="."]
+script = ExtResource("4")
+
+[node name="ControlToggle" type="Node" parent="."]
+script = ExtResource("5")
+
+[node name="AIController" type="Node" parent="."]
+script = ExtResource("6")
+
+[node name="ResultLabel" type="Label" parent="."]
+offset_left = 400.0
+offset_top = 100.0
+offset_right = 700.0
+offset_bottom = 160.0
+theme_override_font_sizes/font_size = 48
+text = ""
+visible = false

@@ -1,9 +1,9 @@
 class_name FleetCommander
 extends Node2D
 
-const SELECT_RADIUS := 24.0
-const CLICK_TARGET_RADIUS := 40.0
-const DRAG_THRESHOLD := 6.0
+@export var select_radius: float = 24.0
+@export var click_target_radius: float = 40.0
+@export var drag_threshold: float = 6.0
 
 @export var formation_spacing: float = 60.0
 @export var formation_slop: float = 0.15
@@ -44,8 +44,8 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_dragging = true
 		else:
 			_dragging = false
-			if _drag_start.distance_to(world_pos) < DRAG_THRESHOLD:
-				var picked := FleetCommander.ship_at_point(ships, world_pos, SELECT_RADIUS)
+			if _drag_start.distance_to(world_pos) < drag_threshold:
+				var picked := FleetCommander.ship_at_point(ships, world_pos, select_radius)
 				selected_ships = [picked] if picked != null else []
 			else:
 				var rect := Rect2(_drag_start, Vector2.ZERO).expand(world_pos)
@@ -55,10 +55,11 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_issue_order(world_pos)
 
 func _issue_order(world_pos: Vector2) -> void:
+	selected_ships = selected_ships.filter(func(s): return is_instance_valid(s) and not s.is_queued_for_deletion())
 	if selected_ships.is_empty():
 		return
 	var enemy_candidates: Array = get_tree().get_nodes_in_group(enemy_group)
-	var target_enemy := FleetCommander.ship_at_point(enemy_candidates, world_pos, CLICK_TARGET_RADIUS)
+	var target_enemy := FleetCommander.ship_at_point(enemy_candidates, world_pos, click_target_radius)
 	if target_enemy != null:
 		for ship in selected_ships:
 			ship.execute_order(Order.attack_target(target_enemy))
@@ -92,7 +93,7 @@ func _group_facing(world_pos: Vector2) -> Vector2:
 func _draw() -> void:
 	for ship in selected_ships:
 		if is_instance_valid(ship):
-			draw_arc(ship.global_position, SELECT_RADIUS, 0, TAU, 24, Color(0.2, 1.0, 0.4), 2.0)
+			draw_arc(ship.global_position, select_radius, 0, TAU, 24, Color(0.2, 1.0, 0.4), 2.0)
 	if _dragging:
 		var rect := Rect2(_drag_start, Vector2.ZERO).expand(get_global_mouse_position())
 		draw_rect(rect, Color(0.2, 1.0, 0.4, 0.3), false, 2.0)

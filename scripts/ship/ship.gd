@@ -1,15 +1,12 @@
 class_name Ship
 extends CharacterBody2D
 
-enum ControlMode { ORDER_BASED, DIRECT }
-
 @onready var hull: Hull = $Hull
 @onready var shield: Shield = $Shield
 @onready var engine: ShipEngine = $Engine
 
 var weapon_mounts: Array[WeaponMount] = []
 var current_order: Order
-var control_mode: ControlMode = ControlMode.ORDER_BASED
 
 @export var enemy_group: StringName = &""
 @export var arrival_radius: float = 20.0
@@ -52,10 +49,9 @@ func receive_damage(amount: float) -> void:
 		hull.apply_damage(overflow)
 
 func _physics_process(delta: float) -> void:
-	if control_mode == ControlMode.ORDER_BASED:
-		_process_order_movement(delta)
-		move_and_slide()
-		_process_weapons()
+	_process_order_movement(delta)
+	move_and_slide()
+	_process_weapons()
 
 func _process_order_movement(delta: float) -> void:
 	match current_order.type:

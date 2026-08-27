@@ -36,6 +36,7 @@ static func run() -> Array[String]:
 	_check_scene_structure(failures)
 	_check_ship_logic(failures)
 	_check_autofire_targeting(failures)
+	_check_disengage_rule(failures)
 
 	return failures
 
@@ -224,3 +225,12 @@ static func _check_autofire_targeting(failures: Array[String]) -> void:
 	near.free()
 	far.free()
 	explicit_target.free()
+
+static func _check_disengage_rule(failures: Array[String]) -> void:
+	var hold_center := Vector2.ZERO
+	if Ship.should_disengage(Vector2(10, 0), Vector2(20, 0), hold_center, 100.0, 250.0):
+		failures.append("should_disengage: expected false when target is within aggro_range and ship within leash")
+	if not Ship.should_disengage(Vector2(10, 0), Vector2(300, 0), hold_center, 100.0, 250.0):
+		failures.append("should_disengage: expected true when target exceeds aggro_range")
+	if not Ship.should_disengage(Vector2(300, 0), Vector2(310, 0), hold_center, 100.0, 250.0):
+		failures.append("should_disengage: expected true when ship exceeds leash_distance from hold_center")

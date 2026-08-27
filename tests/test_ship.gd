@@ -35,6 +35,7 @@ static func run() -> Array[String]:
 
 	_check_scene_structure(failures)
 	_check_ship_logic(failures)
+	_check_autofire_targeting(failures)
 
 	return failures
 
@@ -192,3 +193,34 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		ship.queue_free()
 
 	return failures
+
+static func _check_autofire_targeting(failures: Array[String]) -> void:
+	var near := Node2D.new()
+	near.global_position = Vector2(20, 0)
+	var far := Node2D.new()
+	far.global_position = Vector2(80, 0)
+	var candidates: Array = [far, near]
+
+	var nearest := Ship.nearest_in_range(candidates, Vector2.ZERO, 100.0)
+	if nearest != near:
+		failures.append("nearest_in_range: expected the closer candidate, got %s" % nearest)
+
+	var out_of_range := Ship.nearest_in_range(candidates, Vector2.ZERO, 10.0)
+	if out_of_range != null:
+		failures.append("nearest_in_range: expected null when all candidates exceed max_range, got %s" % out_of_range)
+
+	var explicit_target := Node2D.new()
+	explicit_target.global_position = Vector2(500, 0)
+	var attack_order := Order.attack_target(explicit_target)
+	var picked := Ship.pick_autofire_target(attack_order, candidates, Vector2.ZERO, 100.0)
+	if picked != explicit_target:
+		failures.append("pick_autofire_target: expected ATTACK_TARGET to override nearest-in-range, got %s" % picked)
+
+	var hold_order := Order.hold()
+	var auto_picked := Ship.pick_autofire_target(hold_order, candidates, Vector2.ZERO, 100.0)
+	if auto_picked != near:
+		failures.append("pick_autofire_target: expected HOLD to auto-target the nearest in range, got %s" % auto_picked)
+
+	near.free()
+	far.free()
+	explicit_target.free()

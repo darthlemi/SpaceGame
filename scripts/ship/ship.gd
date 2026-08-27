@@ -11,6 +11,8 @@ var weapon_mounts: Array[WeaponMount] = []
 var current_order: Order
 var control_mode: ControlMode = ControlMode.ORDER_BASED
 
+@export var enemy_group: StringName = &""
+
 func _ready() -> void:
 	for child in get_children():
 		if child is WeaponMount:
@@ -66,10 +68,31 @@ func _steer_to(target_pos: Vector2, delta: float) -> void:
 	velocity = result["velocity"]
 
 func _process_weapons() -> void:
-	if current_order.type != Order.Type.ATTACK_TARGET or not is_instance_valid(current_order.target_ship):
+	if weapon_mounts.is_empty():
+		return
+	var max_range := attack_range()
+	var candidates: Array = get_tree().get_nodes_in_group(enemy_group) if enemy_group != &"" else []
+	var target := Ship.pick_autofire_target(current_order, candidates, global_position, max_range)
+	if target == null:
 		return
 	for mount in weapon_mounts:
-		mount.try_fire(current_order.target_ship)
+		mount.try_fire(target)
 
 func _on_hull_destroyed() -> void:
 	queue_free()
+
+static func nearest_in_range(candidates: Array, own_position: Vector2, max_range: float) -> Node2D:
+	var nearest: Node2D = null
+	var nearest_dist := max_range
+	for c in candidates:
+		if c is Node2D and is_instance_valid(c):
+			var d: float = own_position.distance_to(c.global_position)
+			if d <= nearest_dist:
+				nearest_dist = d
+				nearest = c
+	return nearest
+
+static func pick_autofire_target(order: Order, candidates: Array, own_position: Vector2, max_range: float) -> Node2D:
+	if order.type == Order.Type.ATTACK_TARGET:
+		return order.target_ship if is_instance_valid(order.target_ship) else null
+	return Ship.nearest_in_range(candidates, own_position, max_range)

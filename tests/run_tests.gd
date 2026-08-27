@@ -29,11 +29,11 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [ship_test.resource_path, f])
 	total_failures += async_failures.size()
 
-	var combat_scene_test = preload("res://tests/test_combat_scene.gd")
-	var combat_scene_failures: Array[String] = await combat_scene_test.run_async(self)
-	for f in combat_scene_failures:
-		print("FAIL [%s]: %s" % [combat_scene_test.resource_path, f])
-	total_failures += combat_scene_failures.size()
+	var ai_targeting_test = preload("res://tests/test_ai_controller_targeting.gd")
+	var ai_targeting_failures: Array[String] = await ai_targeting_test.run_async(self)
+	for f in ai_targeting_failures:
+		print("FAIL [%s]: %s" % [ai_targeting_test.resource_path, f])
+	total_failures += ai_targeting_failures.size()
 
 	if total_failures == 0:
 		print("All tests passed.")

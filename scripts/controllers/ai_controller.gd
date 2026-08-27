@@ -7,14 +7,18 @@ enum State { APPROACH, ENGAGE, RETREAT }
 
 var state: State = State.APPROACH
 var ship: Ship
-var enemy: Ship
+var enemy_group: StringName
 
-func setup(p_ship: Ship, p_enemy: Ship) -> void:
+func setup(p_ship: Ship, p_enemy_group: StringName) -> void:
 	ship = p_ship
-	enemy = p_enemy
+	enemy_group = p_enemy_group
 
 func _physics_process(_delta: float) -> void:
-	if not is_instance_valid(ship) or not is_instance_valid(enemy):
+	if not is_instance_valid(ship):
+		return
+	var candidates: Array = get_tree().get_nodes_in_group(enemy_group)
+	var enemy := Ship.nearest_in_range(candidates, ship.global_position, INF)
+	if enemy == null:
 		return
 	var hp_ratio: float = ship.hull.current_hp / ship.hull.max_hp if ship.hull.max_hp > 0.0 else 0.0
 	var in_range: bool = ship.global_position.distance_to(enemy.global_position) <= ship.attack_range()

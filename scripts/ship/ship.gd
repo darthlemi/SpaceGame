@@ -17,6 +17,7 @@ var control_mode: ControlMode = ControlMode.ORDER_BASED
 @export var leash_distance: float = 250.0
 @export var loiter_radius: float = 40.0
 @export var loiter_interval: float = 3.0
+@export var loiter_arrival_radius: float = 5.0
 
 var _hold_center: Vector2 = Vector2.ZERO
 var _loiter_target: Vector2 = Vector2.ZERO
@@ -108,7 +109,7 @@ func _process_hold(delta: float) -> void:
 	_process_loiter(delta)
 
 func _process_loiter(delta: float) -> void:
-	if global_position.distance_to(_loiter_target) < 5.0:
+	if global_position.distance_to(_loiter_target) < loiter_arrival_radius:
 		_loiter_timer -= delta
 		if _loiter_timer <= 0.0:
 			_loiter_target = _hold_center + Vector2(randf_range(-loiter_radius, loiter_radius), randf_range(-loiter_radius, loiter_radius))

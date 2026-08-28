@@ -1,7 +1,14 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/combat/combat_scene.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/controllers/fleet_commander.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/ui/debug_console.tscn" id="3"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal"]
+size = Vector2(1160, 50)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_vertical"]
+size = Vector2(50, 660)
 
 [node name="CombatScene" type="Node2D"]
 script = ExtResource("1")
@@ -17,3 +24,31 @@ offset_bottom = 160.0
 theme_override_font_sizes/font_size = 48
 text = ""
 visible = false
+
+[node name="DebugConsole" parent="." instance=ExtResource("3")]
+
+[node name="Bounds" type="Node2D" parent="."]
+
+[node name="TopWall" type="StaticBody2D" parent="Bounds"]
+position = Vector2(570, 15)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/TopWall"]
+shape = SubResource("RectangleShape2D_horizontal")
+
+[node name="BottomWall" type="StaticBody2D" parent="Bounds"]
+position = Vector2(570, 625)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/BottomWall"]
+shape = SubResource("RectangleShape2D_horizontal")
+
+[node name="LeftWall" type="StaticBody2D" parent="Bounds"]
+position = Vector2(15, 320)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/LeftWall"]
+shape = SubResource("RectangleShape2D_vertical")
+
+[node name="RightWall" type="StaticBody2D" parent="Bounds"]
+position = Vector2(1125, 320)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/RightWall"]
+shape = SubResource("RectangleShape2D_vertical")

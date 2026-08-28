@@ -2,7 +2,7 @@ class_name FleetCommander
 extends Node2D
 
 @export var select_radius: float = 24.0
-@export var click_target_radius: float = 40.0
+@export var click_target_radius: float = 24.0
 @export var drag_threshold: float = 6.0
 
 @export var formation_spacing: float = 60.0
@@ -19,6 +19,10 @@ var _dragging: bool = false
 func setup(p_ships: Array[Ship], p_enemy_group: StringName) -> void:
 	ships = p_ships
 	enemy_group = p_enemy_group
+
+func _process(_delta: float) -> void:
+	if not selected_ships.is_empty() or _dragging:
+		queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("formation_none"):

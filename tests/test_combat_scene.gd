@@ -64,7 +64,5 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if is_instance_valid(defeat_scene) and not defeat_scene.is_queued_for_deletion():
 		defeat_scene.queue_free()
-	# Tree-pause from the Defeat result would otherwise freeze later tests' process_frame loop.
-	tree.paused = false
 
 	return failures

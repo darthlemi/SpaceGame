@@ -9,6 +9,7 @@ const ENEMY_GROUP := &"enemy_fleet"
 
 @onready var fleet_commander: FleetCommander = $FleetCommander
 @onready var result_label: Label = $ResultLabel
+@onready var debug_console: Control = $DebugConsole/Panel
 
 var player_ships: Array[Ship] = []
 var enemy_ships: Array[Ship] = []
@@ -29,11 +30,10 @@ func _ready() -> void:
 		ship.hull.destroyed.connect(_on_ship_destroyed.bind(PLAYER_GROUP))
 	for ship in enemy_ships:
 		ship.hull.destroyed.connect(_on_ship_destroyed.bind(ENEMY_GROUP))
-		var ai := AIController.new()
-		ship.add_child(ai)
-		ai.setup(ship, PLAYER_GROUP)
+		_wire_ai(ship)
 
 	fleet_commander.setup(player_ships, ENEMY_GROUP)
+	debug_console.command_entered.connect(_on_debug_command)
 
 func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
@@ -46,6 +46,58 @@ func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group:
 		ship.add_to_group(own_group)
 		spawned.append(ship)
 	return spawned
+
+func _wire_ai(ship: Ship) -> void:
+	var ai := AIController.new()
+	ship.add_child(ai)
+	ai.setup(ship, PLAYER_GROUP)
+
+func _on_debug_command(command: String) -> void:
+	match command:
+		"AddFriend":
+			await _spawn_extra_ship(PLAYER_GROUP, ENEMY_GROUP, 0.0, player_ships)
+		"AddEnemy":
+			await _spawn_extra_ship(ENEMY_GROUP, PLAYER_GROUP, PI, enemy_ships)
+		"GodMode":
+			_toggle_god_mode()
+		"KillAll":
+			_kill_all_enemies()
+
+func _spawn_extra_ship(own_group: StringName, opposing_group: StringName, facing_rotation: float, fleet: Array[Ship]) -> void:
+	var spawn_base := _fleet_centroid(fleet)
+	var ship: Ship = ShipScene.instantiate()
+	add_child(ship)
+	ship.global_position = spawn_base + Vector2(randf_range(-60.0, 60.0), randf_range(-60.0, 60.0))
+	ship.rotation = facing_rotation
+	ship.enemy_group = opposing_group
+	ship.add_to_group(own_group)
+
+	await get_tree().process_frame
+
+	ship.hull.destroyed.connect(_on_ship_destroyed.bind(own_group))
+	fleet.append(ship)
+	if own_group == ENEMY_GROUP:
+		_wire_ai(ship)
+
+func _fleet_centroid(fleet: Array[Ship]) -> Vector2:
+	var sum := Vector2.ZERO
+	var count := 0
+	for ship in fleet:
+		if is_instance_valid(ship):
+			sum += ship.global_position
+			count += 1
+	return sum / count if count > 0 else Vector2(500, 300)
+
+func _toggle_god_mode() -> void:
+	for ship in fleet_commander.selected_ships:
+		if is_instance_valid(ship):
+			ship.hull.invulnerable = not ship.hull.invulnerable
+
+func _kill_all_enemies() -> void:
+	for ship in enemy_ships.duplicate():
+		if is_instance_valid(ship):
+			ship.hull.invulnerable = false
+			ship.hull.apply_damage(ship.hull.max_hp)
 
 func _on_ship_destroyed(dying_group: StringName) -> void:
 	if _resolved:
@@ -61,4 +113,7 @@ func _show_result(text: String) -> void:
 	_resolved = true
 	result_label.text = text
 	result_label.visible = true
-	get_tree().paused = true
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		get_tree().quit()

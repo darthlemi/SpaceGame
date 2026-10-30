@@ -41,4 +41,27 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(ship) and not ship.is_queued_for_deletion():
 		ship.queue_free()
 
+	await _check_explosion_on_destroyed(tree, failures)
+
 	return failures
+
+static func _check_explosion_on_destroyed(tree: SceneTree, failures: Array[String]) -> void:
+	var ship: Ship = ShipScene.instantiate()
+	tree.root.add_child(ship)
+	await tree.process_frame
+
+	var last_position: Vector2 = ship.global_position
+	var explosion_script: Script = preload("res://scripts/vfx/explosion.gd")
+	var explosions_before := tree.root.get_children().filter(func(c): return c.get_script() == explosion_script).size()
+
+	ship.hull.apply_damage(ship.hull.max_hp)
+
+	var explosions_after: Array = tree.root.get_children().filter(func(c): return c.get_script() == explosion_script)
+	if explosions_after.size() != explosions_before + 1:
+		failures.append("ShipVfx: expected exactly one new explosion added to the ship's parent on hull.destroyed, got %d new" % (explosions_after.size() - explosions_before))
+	elif not explosions_after[explosions_after.size() - 1].global_position.is_equal_approx(last_position):
+		failures.append("ShipVfx: expected explosion spawned at the ship's last position %s, got %s" % [last_position, explosions_after[explosions_after.size() - 1].global_position])
+
+	for e in explosions_after:
+		if is_instance_valid(e):
+			e.queue_free()

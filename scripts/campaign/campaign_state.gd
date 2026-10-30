@@ -95,11 +95,11 @@ func _resolve_skirmish(skirmish: Skirmish) -> void:
 	active_skirmishes.erase(skirmish)
 	skirmish.fleet_winner.apply_fractional_damage(skirmish.winner_damage_fraction)
 	enemy_fleets.erase(skirmish.fleet_loser)
-	skirmish_resolved.emit(skirmish.fleet_winner, skirmish.fleet_loser)
 	if is_instance_valid(skirmish.icon_loser):
 		skirmish.icon_loser.queue_free()
 	if is_instance_valid(skirmish.icon_winner):
 		skirmish.icon_winner.frozen = false
+	skirmish_resolved.emit(skirmish.fleet_winner, skirmish.fleet_loser)
 
 func _is_power_faction(faction: CampaignFleet.Faction) -> bool:
 	return faction == CampaignFleet.Faction.DOMINION or faction == CampaignFleet.Faction.FREEHOLD

@@ -55,18 +55,18 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("expected overlapping hostile power-faction icons to start a skirmish")
 		else:
 			var skirmish: Skirmish = campaign_state.active_skirmishes[0]
-			var loser_id := skirmish.icon_loser.get_instance_id()
+			var enemy_icons_before_resolve: int = scene.enemy_icons.size()
 			skirmish.remaining_time = 0.01
 			await tree.physics_frame
 			await tree.physics_frame
 			if campaign_state.active_skirmishes.size() != 0:
 				failures.append("expected CampaignScene._physics_process to tick and resolve the skirmish")
-			var still_present := false
+			if scene.enemy_icons.size() != enemy_icons_before_resolve - 1:
+				failures.append("expected enemy_icons to shrink by exactly 1 after the skirmish resolved, had %d before and %d after" % [enemy_icons_before_resolve, scene.enemy_icons.size()])
 			for icon in scene.enemy_icons:
-				if icon.get_instance_id() == loser_id:
-					still_present = true
-			if still_present:
-				failures.append("expected CampaignScene to prune the freed loser icon from enemy_icons after skirmish_resolved")
+				if not is_instance_valid(icon):
+					failures.append("expected CampaignScene to prune the freed loser icon from enemy_icons after skirmish_resolved, found a freed entry still present")
+					break
 
 	# Simulate the player clicking to engage: directly overlap player_icon with
 	# the first enemy icon's position and let physics process the area_entered signal.

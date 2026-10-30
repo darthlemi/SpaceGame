@@ -143,8 +143,8 @@ func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
 			CampaignState.start_skirmish(icon, other)
 
 func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignFleet) -> void:
-	enemy_icons = enemy_icons.filter(func(icon): return is_instance_valid(icon))
-	if _pending_enemy_icon != null and not is_instance_valid(_pending_enemy_icon):
+	enemy_icons = enemy_icons.filter(func(icon): return is_instance_valid(icon) and not icon.is_queued_for_deletion())
+	if _pending_enemy_icon != null and (not is_instance_valid(_pending_enemy_icon) or _pending_enemy_icon.is_queued_for_deletion()):
 		_pending_enemy_icon = null
 
 func _physics_process(delta: float) -> void:

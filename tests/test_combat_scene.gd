@@ -65,4 +65,50 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(defeat_scene) and not defeat_scene.is_queued_for_deletion():
 		defeat_scene.queue_free()
 
+	# Campaign-driven battle: CombatScene should spawn from CampaignState
+	# fleet data and report results back instead of using fixed spawn points.
+	var campaign_state = tree.root.get_node("/root/CampaignState")
+	campaign_state.reset()
+
+	var CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
+	var player_fleet := CampaignFleet.new()
+	player_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	var enemy_fleet := CampaignFleet.new()
+	enemy_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	campaign_state.player_fleet = player_fleet
+	campaign_state.start_engagement(enemy_fleet)
+
+	var campaign_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(campaign_scene)
+	await tree.process_frame
+	await tree.process_frame
+
+	if campaign_scene.player_ships.size() != 1:
+		failures.append("campaign battle: expected 1 player ship spawned from fleet data, got %d" % campaign_scene.player_ships.size())
+	if campaign_scene.enemy_ships.size() != 1:
+		failures.append("campaign battle: expected 1 enemy ship spawned from fleet data, got %d" % campaign_scene.enemy_ships.size())
+
+	for ship in campaign_scene.enemy_ships.duplicate():
+		ship.hull.apply_damage(ship.hull.max_hp)
+	await tree.process_frame
+
+	if not enemy_fleet.is_destroyed():
+		failures.append("campaign battle: expected enemy_fleet marked destroyed after losing all ships")
+	if campaign_state.active_enemy_fleet != null:
+		failures.append("campaign battle: expected active_enemy_fleet cleared after resolution")
+
+	campaign_state.reset()
+	if is_instance_valid(campaign_scene) and not campaign_scene.is_queued_for_deletion():
+		campaign_scene.queue_free()
+
+	# _report_to_campaign() above called change_scene_to_file, which swaps in
+	# res://scenes/campaign/campaign_scene.tscn as tree.current_scene. Free it so it
+	# doesn't linger in the tree (and keep bootstrapping/wandering fleets) for the
+	# rest of the --script test run.
+	var leaked_scene: Node = tree.current_scene
+	if leaked_scene != null and leaked_scene != campaign_scene:
+		tree.current_scene = null
+		if is_instance_valid(leaked_scene) and not leaked_scene.is_queued_for_deletion():
+			leaked_scene.queue_free()
+
 	return failures

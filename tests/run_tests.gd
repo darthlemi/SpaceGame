@@ -49,7 +49,13 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [ship_vfx_test.resource_path, f])
 	total_failures += ship_vfx_failures.size()
 
-	var combat_scene_test = preload("res://tests/test_combat_scene.gd")
+	# Loaded (not preloaded) because combat_scene.gd now bare-references the
+	# CampaignState autoload at the top of its _ready(); preload() would resolve
+	# this chain at compile-time of run_tests.gd itself, before any frame has
+	# elapsed and before CampaignState is registered as a global identifier in
+	# --script mode. By this point several run_async calls above have already
+	# awaited frames, so the autoload is registered by the time load() runs.
+	var combat_scene_test = load("res://tests/test_combat_scene.gd")
 	var combat_scene_failures: Array[String] = await combat_scene_test.run_async(self)
 	for f in combat_scene_failures:
 		print("FAIL [%s]: %s" % [combat_scene_test.resource_path, f])

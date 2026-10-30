@@ -17,14 +17,22 @@ var _resolved := false
 
 func _ready() -> void:
 	result_label.visible = false
-	player_ships = _spawn_fleet(player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
-	enemy_ships = _spawn_fleet(enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
+	if CampaignState.active_enemy_fleet != null:
+		player_ships = _spawn_fleet_from_data(CampaignState.player_fleet, player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
+		enemy_ships = _spawn_fleet_from_data(CampaignState.active_enemy_fleet, enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
+	else:
+		player_ships = _spawn_fleet(player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
+		enemy_ships = _spawn_fleet(enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
 
 	# Ships are instantiated dynamically here rather than as static scene children, so
 	# their own _ready() (which resolves @onready hull/shield/engine) hasn't run yet at
 	# this point in the same frame -- wait for it before touching ship.hull below. See
 	# tests/test_ship.gd's run_async note for the general rule this follows.
 	await get_tree().process_frame
+
+	if CampaignState.active_enemy_fleet != null:
+		_apply_fleet_data(player_ships, CampaignState.player_fleet)
+		_apply_fleet_data(enemy_ships, CampaignState.active_enemy_fleet)
 
 	for ship in player_ships:
 		ship.hull.destroyed.connect(_on_ship_destroyed.bind(PLAYER_GROUP))
@@ -46,6 +54,27 @@ func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group:
 		ship.add_to_group(own_group)
 		spawned.append(ship)
 	return spawned
+
+func _spawn_fleet_from_data(fleet_data: CampaignFleet, points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
+	var spawned: Array[Ship] = []
+	for i in fleet_data.ship_compositions.size():
+		var point: Vector2 = points[i % points.size()]
+		var ship: Ship = ShipScene.instantiate()
+		add_child(ship)
+		ship.global_position = point
+		ship.rotation = facing_rotation
+		ship.enemy_group = opposing_group
+		ship.add_to_group(own_group)
+		spawned.append(ship)
+	return spawned
+
+func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
+	for i in ships.size():
+		var comp: Dictionary = fleet_data.ship_compositions[i]
+		ships[i].hull.max_hp = comp["max_hp"]
+		ships[i].hull.current_hp = comp["current_hp"]
+		ships[i].shield.max_shield = comp["max_shield"]
+		ships[i].shield.current_shield = comp["current_shield"]
 
 func _wire_ai(ship: Ship) -> void:
 	var ai := AIController.new()
@@ -113,6 +142,27 @@ func _show_result(text: String) -> void:
 	_resolved = true
 	result_label.text = text
 	result_label.visible = true
+	if CampaignState.active_enemy_fleet != null:
+		call_deferred("_report_to_campaign")
+
+func _report_to_campaign() -> void:
+	CampaignState.resolve_engagement(_collect_survivor_data(player_ships), _collect_survivor_data(enemy_ships))
+	if CampaignState.player_fleet.is_destroyed():
+		get_tree().change_scene_to_file("res://scenes/ui/game_over.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
+
+func _collect_survivor_data(ships: Array[Ship]) -> Array[Dictionary]:
+	var survivors: Array[Dictionary] = []
+	for ship in ships:
+		if is_instance_valid(ship) and not ship.hull.is_destroyed():
+			survivors.append({
+				"max_hp": ship.hull.max_hp,
+				"current_hp": ship.hull.current_hp,
+				"max_shield": ship.shield.max_shield,
+				"current_shield": ship.shield.current_shield,
+			})
+	return survivors
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):

@@ -1,7 +1,7 @@
 class_name CampaignFleet
 extends Resource
 
-enum Faction { PLAYER, NEUTRAL, TRADER, PIRATE }
+enum Faction { PLAYER, NEUTRAL, TRADER, PIRATE, DOMINION }
 
 @export var fleet_id: String = ""
 @export var faction: Faction = Faction.NEUTRAL

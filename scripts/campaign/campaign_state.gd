@@ -92,6 +92,9 @@ func cancel_skirmish_for(icon: CampaignFleetIcon) -> void:
 				other.frozen = false
 
 func _resolve_skirmish(skirmish: Skirmish) -> void:
+	if not (is_instance_valid(skirmish.icon_winner) and is_instance_valid(skirmish.icon_loser)):
+		active_skirmishes.erase(skirmish)
+		return
 	active_skirmishes.erase(skirmish)
 	skirmish.fleet_winner.apply_fractional_damage(skirmish.winner_damage_fraction)
 	enemy_fleets.erase(skirmish.fleet_loser)

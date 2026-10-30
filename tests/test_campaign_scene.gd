@@ -68,6 +68,63 @@ static func run_async(tree: SceneTree) -> Array[String]:
 					failures.append("expected CampaignScene to prune the freed loser icon from enemy_icons after skirmish_resolved, found a freed entry still present")
 					break
 
+	# Finding 1 coverage: if the fleet the Engage prompt is pointing at is
+	# destroyed by an NPC skirmish while the prompt is open, the prompt must
+	# hide itself and _pending_enemy_icon must be cleared -- pressing Engage
+	# afterward must be a no-op, not a null-deref crash.
+	var surviving_power_icon: CampaignFleetIcon = null
+	var pirate_icon: CampaignFleetIcon = null
+	for icon in scene.enemy_icons:
+		if icon.fleet.faction == CampaignFleet.Faction.DOMINION or icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
+			surviving_power_icon = icon
+		elif icon.fleet.faction == CampaignFleet.Faction.PIRATE:
+			pirate_icon = icon
+	if surviving_power_icon == null or pirate_icon == null:
+		failures.append("expected a surviving power-faction icon and a pirate icon to remain for the engage-prompt finding-1 test")
+	else:
+		scene.player_icon.global_position = surviving_power_icon.global_position
+		for i in 5:
+			await tree.physics_frame
+		var engage_prompt_ctrl: Control = scene.get_node("EngagePrompt")
+		if not engage_prompt_ctrl.visible:
+			failures.append("expected EngagePrompt visible after player overlaps the power-faction icon")
+
+		# A full-strength pirate fleet overlapping the already-damaged
+		# survivor (it took winner_damage_fraction damage in the earlier
+		# skirmish above) is stronger, so the survivor is the loser here --
+		# i.e. the icon the Engage prompt is currently pointing at.
+		pirate_icon.global_position = surviving_power_icon.global_position
+		for i in 5:
+			await tree.physics_frame
+		if campaign_state.active_skirmishes.size() != 1:
+			failures.append("expected the pirate/power-faction overlap to start a skirmish")
+		else:
+			var finding1_skirmish: Skirmish = campaign_state.active_skirmishes[0]
+			var pending_is_loser := finding1_skirmish.icon_loser == surviving_power_icon
+			if not pending_is_loser:
+				failures.append("test setup assumption violated: expected the already-damaged survivor to lose this skirmish")
+			finding1_skirmish.remaining_time = 0.01
+			await tree.physics_frame
+			await tree.physics_frame
+			if pending_is_loser:
+				if engage_prompt_ctrl.visible:
+					failures.append("expected EngagePrompt to hide when its pending target icon was destroyed by a skirmish")
+				if scene._pending_enemy_icon != null:
+					failures.append("expected _pending_enemy_icon cleared when its icon was destroyed by a skirmish")
+				var active_enemy_fleet_before = campaign_state.active_enemy_fleet
+				engage_prompt_ctrl.get_node("EngageButton").pressed.emit()
+				if campaign_state.active_enemy_fleet != active_enemy_fleet_before:
+					failures.append("expected pressing Engage with a null pending icon to be a no-op, not a crash")
+
+		# Move the player away from the skirmish site so it's no longer
+		# overlapping pirate_icon (they were teleported to the same spot
+		# above) -- otherwise the next block's teleport onto enemy_icons[0]
+		# (which may now be pirate_icon, since the loser was pruned) would
+		# be a no-op: area_entered only fires on a fresh overlap transition.
+		scene.player_icon.global_position = Vector2(-5000, -5000)
+		for i in 3:
+			await tree.physics_frame
+
 	# Simulate the player clicking to engage: directly overlap player_icon with
 	# the first enemy icon's position and let physics process the area_entered signal.
 	var target_icon: CampaignFleetIcon = scene.enemy_icons[0]

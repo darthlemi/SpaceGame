@@ -137,6 +137,51 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("tick_skirmishes: expected the loser icon to be freed")
 	strong_icon.queue_free()
 
+	# tick_skirmishes should drop (not resolve) a skirmish whose icons were
+	# freed out-of-band (e.g. the scene that owned them was torn down across
+	# a scene reload, as happens after a combat round-trip) -- no damage,
+	# no fleet removal, no signal.
+	var stale_fleet_winner := CampaignFleet.new()
+	stale_fleet_winner.faction = CampaignFleet.Faction.DOMINION
+	stale_fleet_winner.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var stale_fleet_loser := CampaignFleet.new()
+	stale_fleet_loser.faction = CampaignFleet.Faction.FREEHOLD
+	stale_fleet_loser.ship_compositions = [{"max_hp": 20.0, "current_hp": 20.0, "max_shield": 0.0, "current_shield": 0.0}]
+	state.enemy_fleets = [stale_fleet_winner, stale_fleet_loser]
+
+	var stale_winner_icon: Area2D = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(stale_winner_icon)
+	stale_winner_icon.setup(stale_fleet_winner, Vector2.ZERO)
+	var stale_loser_icon: Area2D = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(stale_loser_icon)
+	stale_loser_icon.setup(stale_fleet_loser, Vector2.ZERO)
+
+	var stale_tracker := SkirmishResolvedTracker.new()
+	state.skirmish_resolved.connect(stale_tracker.on_skirmish_resolved)
+
+	state.start_skirmish(stale_winner_icon, stale_loser_icon)
+	if state.active_skirmishes.size() != 1:
+		failures.append("tick_skirmishes (stale icons): expected a skirmish to start")
+	else:
+		var stale_remaining_time: float = state.active_skirmishes[0].remaining_time
+		# Simulate a scene reload: free both icons out-of-band, bypassing
+		# CampaignState entirely, the way a real scene teardown would.
+		stale_winner_icon.queue_free()
+		stale_loser_icon.queue_free()
+		await tree.process_frame
+
+		state.tick_skirmishes(stale_remaining_time + 1.0)
+		if state.active_skirmishes.size() != 0:
+			failures.append("tick_skirmishes (stale icons): expected the stale skirmish to be dropped")
+		if not state.enemy_fleets.has(stale_fleet_loser):
+			failures.append("tick_skirmishes (stale icons): expected the loser fleet NOT erased from enemy_fleets when its icon is stale")
+		if stale_fleet_winner.ship_compositions[0]["current_hp"] != 100.0:
+			failures.append("tick_skirmishes (stale icons): expected no damage applied to the winner when icons are stale")
+		if stale_tracker.fired:
+			failures.append("tick_skirmishes (stale icons): expected skirmish_resolved NOT to fire for a dropped stale skirmish")
+
+	state.skirmish_resolved.disconnect(stale_tracker.on_skirmish_resolved)
+
 	# cancel_skirmish_for: starting a fresh skirmish and cancelling it
 	# should unfreeze the untouched participant without resolving a winner.
 	var fleet_c := CampaignFleet.new()

@@ -92,7 +92,7 @@ func _bootstrap_default_campaign() -> void:
 
 	var dominion_fleet := CampaignFleet.new()
 	dominion_fleet.faction = CampaignFleet.Faction.DOMINION
-	dominion_fleet.position = Vector2(1000, 480)
+	dominion_fleet.position = Vector2(980, 480)
 	dominion_fleet.speed = 100.0
 	dominion_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
@@ -146,11 +146,15 @@ func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignF
 	enemy_icons = enemy_icons.filter(func(icon): return is_instance_valid(icon) and not icon.is_queued_for_deletion())
 	if _pending_enemy_icon != null and (not is_instance_valid(_pending_enemy_icon) or _pending_enemy_icon.is_queued_for_deletion()):
 		_pending_enemy_icon = null
+		engage_prompt.visible = false
 
 func _physics_process(delta: float) -> void:
 	CampaignState.tick_skirmishes(delta)
 
 func _on_engage_pressed() -> void:
+	if _pending_enemy_icon == null:
+		engage_prompt.visible = false
+		return
 	engage_prompt.visible = false
 	CampaignState.cancel_skirmish_for(_pending_enemy_icon)
 	CampaignState.start_engagement(_pending_enemy_icon.fleet)

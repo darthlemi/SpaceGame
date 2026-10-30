@@ -20,6 +20,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		await tree.physics_frame
 	if patrol_icon.global_position.distance_to(Vector2(500, 500)) > 50.0:
 		failures.append("patrol: expected to stay within wander_radius of spawn, got %s" % patrol_icon.global_position)
+	if patrol_icon.global_position.distance_to(Vector2(500, 500)) < 1.0:
+		failures.append("patrol: expected icon to actually wander, but it never left spawn")
 
 	patrol_icon.queue_free()
 

@@ -8,9 +8,11 @@ func start_engagement(enemy_fleet: CampaignFleet) -> void:
 	active_enemy_fleet = enemy_fleet
 
 func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary]) -> void:
-	player_fleet.ship_compositions = player_survivors
+	if player_fleet == null:
+		return
+	player_fleet.ship_compositions = player_survivors.duplicate(true)
 	if active_enemy_fleet != null:
-		active_enemy_fleet.ship_compositions = enemy_survivors
+		active_enemy_fleet.ship_compositions = enemy_survivors.duplicate(true)
 		if active_enemy_fleet.is_destroyed():
 			enemy_fleets.erase(active_enemy_fleet)
 	active_enemy_fleet = null

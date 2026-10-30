@@ -55,7 +55,7 @@ func _process_trader() -> void:
 	_move_target = TraderBehavior.route_target(_route_state, _home_position, _spawn_point)
 
 func _process_pirate() -> void:
-	if player_target != null and is_instance_valid(player_target) and PirateBehavior.in_detection_range(global_position, player_target.global_position, detection_range):
+	if player_target != null and is_instance_valid(player_target) and player_target.fleet != null and PirateBehavior.in_detection_range(global_position, player_target.global_position, detection_range):
 		if PirateBehavior.should_intercept(fleet.total_strength(), player_target.fleet.total_strength()):
 			_move_target = player_target.global_position
 			return

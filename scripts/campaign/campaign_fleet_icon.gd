@@ -16,6 +16,7 @@ enum BehaviorType { PLAYER, PATROL, TRADER, PIRATE }
 
 var fleet: CampaignFleet
 var player_target: CampaignFleetIcon
+var frozen: bool = false
 
 var _move_target: Vector2
 var _spawn_point: Vector2
@@ -33,7 +34,7 @@ func set_move_target(target: Vector2) -> void:
 	_move_target = target
 
 func _physics_process(delta: float) -> void:
-	if fleet == null:
+	if fleet == null or frozen:
 		return
 	match behavior_type:
 		BehaviorType.PATROL:

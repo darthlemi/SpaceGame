@@ -56,4 +56,30 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	pirate_icon.queue_free()
 	target_icon.queue_free()
 
+	# Frozen: a patrol icon should not move at all while frozen, then
+	# should resume wandering once unfrozen.
+	var frozen_fleet := CampaignFleet.new()
+	frozen_fleet.position = Vector2(300, 300)
+	frozen_fleet.speed = 400.0
+	var frozen_icon: Area2D = CampaignFleetIconScene.instantiate()
+	frozen_icon.behavior_type = frozen_icon.BehaviorType.PATROL
+	frozen_icon.wander_radius = 50.0
+	frozen_icon.frozen = true
+	tree.root.add_child(frozen_icon)
+	frozen_icon.setup(frozen_fleet, Vector2.ZERO)
+
+	var frozen_start: Vector2 = frozen_icon.global_position
+	for i in 15:
+		await tree.physics_frame
+	if frozen_icon.global_position != frozen_start:
+		failures.append("frozen: expected icon to hold position while frozen, moved from %s to %s" % [frozen_start, frozen_icon.global_position])
+
+	frozen_icon.frozen = false
+	for i in 30:
+		await tree.physics_frame
+	if frozen_icon.global_position == frozen_start:
+		failures.append("frozen: expected icon to move again once unfrozen, still at %s" % frozen_icon.global_position)
+
+	frozen_icon.queue_free()
+
 	return failures

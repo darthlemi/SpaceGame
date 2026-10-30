@@ -1,0 +1,32 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/campaign/campaign_scene.gd" id="1"]
+
+[node name="CampaignScene" type="Node2D"]
+script = ExtResource("1")
+
+[node name="EngagePrompt" type="Control" parent="."]
+offset_left = 450.0
+offset_top = 250.0
+offset_right = 750.0
+offset_bottom = 350.0
+visible = false
+
+[node name="Label" type="Label" parent="EngagePrompt"]
+offset_top = 0.0
+offset_right = 300.0
+offset_bottom = 30.0
+text = "Engage this fleet?"
+
+[node name="EngageButton" type="Button" parent="EngagePrompt"]
+offset_top = 40.0
+offset_right = 140.0
+offset_bottom = 70.0
+text = "Engage"
+
+[node name="DisengageButton" type="Button" parent="EngagePrompt"]
+offset_left = 160.0
+offset_top = 40.0
+offset_right = 300.0
+offset_bottom = 70.0
+text = "Disengage"

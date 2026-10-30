@@ -1,0 +1,101 @@
+extends Node2D
+
+const CampaignFleetIconScene = preload("res://scenes/campaign/campaign_fleet_icon.tscn")
+const HomeBaseScene = preload("res://scenes/campaign/home_base.tscn")
+const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
+
+const HOME_BASE_POSITION := Vector2(600, 400)
+
+var player_icon: CampaignFleetIcon
+var enemy_icons: Array[CampaignFleetIcon] = []
+
+@onready var engage_prompt: Control = $EngagePrompt
+
+var _pending_enemy_icon: CampaignFleetIcon
+
+func _ready() -> void:
+	if CampaignState.player_fleet == null:
+		_bootstrap_default_campaign()
+
+	var base: Area2D = HomeBaseScene.instantiate()
+	base.global_position = HOME_BASE_POSITION
+	add_child(base)
+
+	player_icon = _spawn_icon(CampaignState.player_fleet, CampaignFleetIcon.BehaviorType.PLAYER)
+	player_icon.area_entered.connect(_on_player_area_entered)
+
+	for enemy_fleet in CampaignState.enemy_fleets:
+		var behavior := _behavior_for_faction(enemy_fleet.faction)
+		var icon := _spawn_icon(enemy_fleet, behavior)
+		icon.player_target = player_icon
+		enemy_icons.append(icon)
+
+	engage_prompt.visible = false
+	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
+	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
+
+func _bootstrap_default_campaign() -> void:
+	var player := CampaignFleet.new()
+	player.faction = CampaignFleet.Faction.PLAYER
+	player.position = HOME_BASE_POSITION
+	player.speed = 120.0
+	player.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	CampaignState.player_fleet = player
+
+	var pirate := CampaignFleet.new()
+	pirate.faction = CampaignFleet.Faction.PIRATE
+	pirate.position = Vector2(1000, 200)
+	pirate.speed = 100.0
+	pirate.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	var trader := CampaignFleet.new()
+	trader.faction = CampaignFleet.Faction.TRADER
+	trader.position = Vector2(200, 700)
+	trader.speed = 80.0
+	trader.ship_compositions = [{"max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0}]
+
+	var patrol := CampaignFleet.new()
+	patrol.faction = CampaignFleet.Faction.NEUTRAL
+	patrol.position = Vector2(900, 800)
+	patrol.speed = 90.0
+	patrol.ship_compositions = [{"max_hp": 80.0, "current_hp": 80.0, "max_shield": 30.0, "current_shield": 30.0}]
+
+	CampaignState.enemy_fleets = [pirate, trader, patrol]
+
+func _behavior_for_faction(faction: CampaignFleet.Faction) -> CampaignFleetIcon.BehaviorType:
+	match faction:
+		CampaignFleet.Faction.PIRATE:
+			return CampaignFleetIcon.BehaviorType.PIRATE
+		CampaignFleet.Faction.TRADER:
+			return CampaignFleetIcon.BehaviorType.TRADER
+		_:
+			return CampaignFleetIcon.BehaviorType.PATROL
+
+func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType) -> CampaignFleetIcon:
+	var icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
+	icon.behavior_type = behavior
+	add_child(icon)
+	icon.setup(fleet, HOME_BASE_POSITION)
+	return icon
+
+func _on_player_area_entered(area: Area2D) -> void:
+	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
+		_pending_enemy_icon = area
+		engage_prompt.visible = true
+
+func _on_engage_pressed() -> void:
+	engage_prompt.visible = false
+	CampaignState.start_engagement(_pending_enemy_icon.fleet)
+	get_tree().change_scene_to_file("res://scenes/combat/combat_scene.tscn")
+
+func _on_disengage_pressed() -> void:
+	engage_prompt.visible = false
+	_pending_enemy_icon = null
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		player_icon.set_move_target(get_global_mouse_position())

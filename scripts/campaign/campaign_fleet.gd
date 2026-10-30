@@ -1,7 +1,7 @@
 class_name CampaignFleet
 extends Resource
 
-enum Faction { PLAYER, NEUTRAL, TRADER, PIRATE, DOMINION }
+enum Faction { PLAYER, NEUTRAL, TRADER, PIRATE, DOMINION, FREEHOLD }
 
 @export var fleet_id: String = ""
 @export var faction: Faction = Faction.NEUTRAL
@@ -26,3 +26,8 @@ func repair_to_full() -> void:
 	for comp in ship_compositions:
 		comp["current_hp"] = comp["max_hp"]
 		comp["current_shield"] = comp["max_shield"]
+
+func apply_fractional_damage(fraction: float) -> void:
+	for comp in ship_compositions:
+		comp["current_hp"] = max(0.0, comp["current_hp"] * (1.0 - fraction))
+		comp["current_shield"] = max(0.0, comp["current_shield"] * (1.0 - fraction))

@@ -28,4 +28,36 @@ static func run() -> Array[String]:
 	if not wiped.is_destroyed():
 		failures.append("is_destroyed: expected true when all ships at 0 hp")
 
+	var dominion_fleet := CampaignFleet.new()
+	dominion_fleet.faction = CampaignFleet.Faction.DOMINION
+	if dominion_fleet.faction != CampaignFleet.Faction.DOMINION:
+		failures.append("Faction enum: expected DOMINION to be a valid value")
+
+	var freehold_fleet := CampaignFleet.new()
+	freehold_fleet.faction = CampaignFleet.Faction.FREEHOLD
+	if freehold_fleet.faction != CampaignFleet.Faction.FREEHOLD:
+		failures.append("Faction enum: expected FREEHOLD to be a valid value")
+
+	var damaged := CampaignFleet.new()
+	damaged.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	damaged.apply_fractional_damage(0.5)
+	var comp: Dictionary = damaged.ship_compositions[0]
+	if abs(comp["current_hp"] - 50.0) > 0.001:
+		failures.append("apply_fractional_damage: expected current_hp halved to 50.0, got %s" % comp["current_hp"])
+	if abs(comp["current_shield"] - 25.0) > 0.001:
+		failures.append("apply_fractional_damage: expected current_shield halved to 25.0, got %s" % comp["current_shield"])
+
+	var overkill := CampaignFleet.new()
+	overkill.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 10.0, "max_shield": 50.0, "current_shield": 5.0},
+	]
+	overkill.apply_fractional_damage(1.0)
+	var overkill_comp: Dictionary = overkill.ship_compositions[0]
+	if overkill_comp["current_hp"] != 0.0:
+		failures.append("apply_fractional_damage: expected current_hp clamped to 0.0 at fraction 1.0, got %s" % overkill_comp["current_hp"])
+	if overkill_comp["current_shield"] != 0.0:
+		failures.append("apply_fractional_damage: expected current_shield clamped to 0.0 at fraction 1.0, got %s" % overkill_comp["current_shield"])
+
 	return failures

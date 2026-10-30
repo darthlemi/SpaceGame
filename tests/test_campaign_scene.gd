@@ -18,6 +18,35 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if campaign_state.player_fleet == null:
 		failures.append("expected CampaignState.player_fleet populated by bootstrap")
 
+	if campaign_state.factions.size() != 2:
+		failures.append("expected 2 PowerFactions created by bootstrap, got %d" % campaign_state.factions.size())
+	var faction_enums: Array = []
+	for faction in campaign_state.factions:
+		faction_enums.append(faction.faction_enum)
+	if not faction_enums.has(CampaignFleet.Faction.DOMINION):
+		failures.append("expected a DOMINION PowerFaction created by bootstrap")
+	if not faction_enums.has(CampaignFleet.Faction.FREEHOLD):
+		failures.append("expected a FREEHOLD PowerFaction created by bootstrap")
+
+	var faction_base_count := 0
+	for child in scene.get_children():
+		if child is FactionBase:
+			faction_base_count += 1
+	if faction_base_count != 2:
+		failures.append("expected 2 FactionBase nodes spawned, got %d" % faction_base_count)
+
+	var dominion_icon: CampaignFleetIcon = null
+	var freehold_icon: CampaignFleetIcon = null
+	for icon in scene.enemy_icons:
+		if icon.fleet.faction == CampaignFleet.Faction.DOMINION:
+			dominion_icon = icon
+		elif icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
+			freehold_icon = icon
+	if dominion_icon == null or freehold_icon == null:
+		failures.append("expected both a DOMINION and a FREEHOLD enemy icon spawned")
+	elif dominion_icon.behavior_type != CampaignFleetIcon.BehaviorType.PATROL:
+		failures.append("expected DOMINION fleet to use PATROL behavior at starting (non-hostile) reputation, got %s" % dominion_icon.behavior_type)
+
 	# Simulate the player clicking to engage: directly overlap player_icon with
 	# the first enemy icon's position and let physics process the area_entered signal.
 	var target_icon: CampaignFleetIcon = scene.enemy_icons[0]

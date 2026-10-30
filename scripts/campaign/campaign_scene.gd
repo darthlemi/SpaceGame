@@ -2,6 +2,7 @@ extends Node2D
 
 const CampaignFleetIconScene = preload("res://scenes/campaign/campaign_fleet_icon.tscn")
 const HomeBaseScene = preload("res://scenes/campaign/home_base.tscn")
+const FactionBaseScene = preload("res://scenes/campaign/faction_base.tscn")
 const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 
 const HOME_BASE_POSITION := Vector2(600, 400)
@@ -20,6 +21,12 @@ func _ready() -> void:
 	var base: Area2D = HomeBaseScene.instantiate()
 	base.global_position = HOME_BASE_POSITION
 	add_child(base)
+
+	for faction in CampaignState.factions:
+		var faction_base: Area2D = FactionBaseScene.instantiate()
+		faction_base.faction_enum = faction.faction_enum
+		faction_base.global_position = faction.base_position
+		add_child(faction_base)
 
 	player_icon = _spawn_icon(CampaignState.player_fleet, CampaignFleetIcon.BehaviorType.PLAYER)
 	player_icon.area_entered.connect(_on_player_area_entered)
@@ -65,7 +72,34 @@ func _bootstrap_default_campaign() -> void:
 	patrol.speed = 90.0
 	patrol.ship_compositions = [{"max_hp": 80.0, "current_hp": 80.0, "max_shield": 30.0, "current_shield": 30.0}]
 
-	CampaignState.enemy_fleets = [pirate, trader, patrol]
+	var dominion_faction := PowerFaction.new()
+	dominion_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	dominion_faction.display_name = "Dominion"
+	dominion_faction.reputation = 60.0
+	dominion_faction.base_position = Vector2(1000, 550)
+
+	var freehold_faction := PowerFaction.new()
+	freehold_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
+	freehold_faction.display_name = "Freehold"
+	freehold_faction.reputation = 60.0
+	freehold_faction.base_position = Vector2(150, 150)
+
+	CampaignState.factions = [dominion_faction, freehold_faction]
+	CampaignState.factions_at_war = true
+
+	var dominion_fleet := CampaignFleet.new()
+	dominion_fleet.faction = CampaignFleet.Faction.DOMINION
+	dominion_fleet.position = Vector2(1000, 480)
+	dominion_fleet.speed = 100.0
+	dominion_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	var freehold_fleet := CampaignFleet.new()
+	freehold_fleet.faction = CampaignFleet.Faction.FREEHOLD
+	freehold_fleet.position = Vector2(200, 200)
+	freehold_fleet.speed = 100.0
+	freehold_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	CampaignState.enemy_fleets = [pirate, trader, patrol, dominion_fleet, freehold_fleet]
 
 func _behavior_for_faction(faction: CampaignFleet.Faction) -> CampaignFleetIcon.BehaviorType:
 	match faction:
@@ -73,8 +107,16 @@ func _behavior_for_faction(faction: CampaignFleet.Faction) -> CampaignFleetIcon.
 			return CampaignFleetIcon.BehaviorType.PIRATE
 		CampaignFleet.Faction.TRADER:
 			return CampaignFleetIcon.BehaviorType.TRADER
+		CampaignFleet.Faction.DOMINION, CampaignFleet.Faction.FREEHOLD:
+			return CampaignFleetIcon.BehaviorType.PIRATE if _is_faction_hostile(faction) else CampaignFleetIcon.BehaviorType.PATROL
 		_:
 			return CampaignFleetIcon.BehaviorType.PATROL
+
+func _is_faction_hostile(faction: CampaignFleet.Faction) -> bool:
+	for power_faction in CampaignState.factions:
+		if power_faction.faction_enum == faction:
+			return power_faction.reputation < CampaignState.HOSTILE_REPUTATION_THRESHOLD
+	return false
 
 func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType) -> CampaignFleetIcon:
 	var icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()

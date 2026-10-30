@@ -16,6 +16,11 @@ func _run_all() -> void:
 		preload("res://tests/test_fleet_commander.gd"),
 		preload("res://tests/test_debug_console.gd"),
 		preload("res://tests/test_ship_vfx.gd"),
+		preload("res://tests/test_campaign_fleet.gd"),
+		preload("res://tests/test_patrol_behavior.gd"),
+		preload("res://tests/test_trader_behavior.gd"),
+		preload("res://tests/test_pirate_behavior.gd"),
+		preload("res://tests/test_campaign_state.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:
@@ -49,6 +54,18 @@ func _run_all() -> void:
 	for f in combat_scene_failures:
 		print("FAIL [%s]: %s" % [combat_scene_test.resource_path, f])
 	total_failures += combat_scene_failures.size()
+
+	var campaign_fleet_icon_test = preload("res://tests/test_campaign_fleet_icon.gd")
+	var campaign_fleet_icon_failures: Array[String] = await campaign_fleet_icon_test.run_async(self)
+	for f in campaign_fleet_icon_failures:
+		print("FAIL [%s]: %s" % [campaign_fleet_icon_test.resource_path, f])
+	total_failures += campaign_fleet_icon_failures.size()
+
+	var home_base_test = preload("res://tests/test_home_base.gd")
+	var home_base_failures: Array[String] = await home_base_test.run_async(self)
+	for f in home_base_failures:
+		print("FAIL [%s]: %s" % [home_base_test.resource_path, f])
+	total_failures += home_base_failures.size()
 
 	if total_failures == 0:
 		print("All tests passed.")

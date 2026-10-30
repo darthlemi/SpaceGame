@@ -31,6 +31,10 @@ static func run() -> Array[String]:
 	if state.active_enemy_fleet != null:
 		failures.append("resolve_engagement: expected active_enemy_fleet cleared after resolution")
 
+	state.factions = [PowerFaction.new()]
+	state.factions_at_war = false
+	state.active_skirmishes = [Skirmish.new()]
+
 	state.reset()
 	if state.player_fleet != null or not state.enemy_fleets.is_empty() or state.active_enemy_fleet != null:
 		failures.append("reset: expected all state cleared")

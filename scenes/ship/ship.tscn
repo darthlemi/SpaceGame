@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/weapons/weapon_mount.gd" id="5"]
 [ext_resource type="Resource" path="res://resources/weapons/kinetic_cannon.tres" id="6"]
+[ext_resource type="Script" path="res://scripts/ship/ship_vfx.gd" id="7"]
 
 [sub_resource type="CircleShape2D" id="1"]
 radius = 16.0
@@ -32,3 +33,34 @@ script = ExtResource("4")
 [node name="WeaponMount" type="Node2D" parent="."]
 script = ExtResource("5")
 weapon = ExtResource("6")
+
+[node name="VFX" type="Node2D" parent="."]
+script = ExtResource("7")
+
+[node name="HitSpark" type="CPUParticles2D" parent="VFX"]
+emitting = false
+amount = 12
+lifetime = 0.3
+one_shot = true
+explosiveness = 1.0
+direction = Vector2(1, 0)
+spread = 180.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 40.0
+initial_velocity_max = 90.0
+scale_amount_min = 2.0
+scale_amount_max = 4.0
+color = Color(1, 0.9, 0.4, 1)
+
+[node name="SmokeTrail" type="CPUParticles2D" parent="VFX"]
+emitting = false
+amount = 16
+lifetime = 0.6
+direction = Vector2(-1, 0)
+spread = 25.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 15.0
+initial_velocity_max = 30.0
+scale_amount_min = 3.0
+scale_amount_max = 5.0
+color = Color(0.3, 0.3, 0.3, 0.8)

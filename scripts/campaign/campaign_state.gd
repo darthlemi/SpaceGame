@@ -1,5 +1,7 @@
 extends Node
 
+signal skirmish_resolved(winner_fleet: CampaignFleet, loser_fleet: CampaignFleet)
+
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
 
@@ -11,6 +13,12 @@ var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
 
 func start_engagement(enemy_fleet: CampaignFleet) -> void:
+	for skirmish in active_skirmishes.duplicate():
+		if skirmish.fleet_winner == enemy_fleet or skirmish.fleet_loser == enemy_fleet:
+			active_skirmishes.erase(skirmish)
+			var other: CampaignFleetIcon = skirmish.icon_loser if skirmish.fleet_winner == enemy_fleet else skirmish.icon_winner
+			if is_instance_valid(other):
+				other.frozen = false
 	active_enemy_fleet = enemy_fleet
 
 func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary]) -> void:
@@ -87,6 +95,7 @@ func _resolve_skirmish(skirmish: Skirmish) -> void:
 	active_skirmishes.erase(skirmish)
 	skirmish.fleet_winner.apply_fractional_damage(skirmish.winner_damage_fraction)
 	enemy_fleets.erase(skirmish.fleet_loser)
+	skirmish_resolved.emit(skirmish.fleet_winner, skirmish.fleet_loser)
 	if is_instance_valid(skirmish.icon_loser):
 		skirmish.icon_loser.queue_free()
 	if is_instance_valid(skirmish.icon_winner):

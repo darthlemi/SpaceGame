@@ -22,6 +22,8 @@ func _run_all() -> void:
 		preload("res://tests/test_pirate_behavior.gd"),
 		preload("res://tests/test_campaign_state.gd"),
 		preload("res://tests/test_faction_base.gd"),
+		preload("res://tests/test_power_faction.gd"),
+		preload("res://tests/test_skirmish_resolution.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:
@@ -95,6 +97,12 @@ func _run_all() -> void:
 	for f in game_over_failures:
 		print("FAIL [%s]: %s" % [game_over_test.resource_path, f])
 	total_failures += game_over_failures.size()
+
+	var campaign_state_test = preload("res://tests/test_campaign_state.gd")
+	var campaign_state_async_failures: Array[String] = await campaign_state_test.run_async(self)
+	for f in campaign_state_async_failures:
+		print("FAIL [%s]: %s" % [campaign_state_test.resource_path, f])
+	total_failures += campaign_state_async_failures.size()
 
 	if total_failures == 0:
 		print("All tests passed.")

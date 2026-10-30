@@ -34,8 +34,19 @@ static func run() -> Array[String]:
 	state.reset()
 	if state.player_fleet != null or not state.enemy_fleets.is_empty() or state.active_enemy_fleet != null:
 		failures.append("reset: expected all state cleared")
+	if not state.factions.is_empty() or state.factions_at_war != true or not state.active_skirmishes.is_empty():
+		failures.append("reset: expected factions, factions_at_war, and active_skirmishes cleared")
 
 	return failures
+
+class SkirmishResolvedTracker:
+	var fired := false
+	var winner_fleet: CampaignFleet
+	var loser_fleet: CampaignFleet
+	func on_skirmish_resolved(winner: CampaignFleet, loser: CampaignFleet) -> void:
+		fired = true
+		winner_fleet = winner
+		loser_fleet = loser
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
@@ -89,6 +100,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.root.add_child(weak_icon)
 	weak_icon.setup(weak_fleet, Vector2.ZERO)
 
+	var resolved_tracker := SkirmishResolvedTracker.new()
+	state.skirmish_resolved.connect(resolved_tracker.on_skirmish_resolved)
+
 	state.start_skirmish(strong_icon, weak_icon)
 	if not strong_icon.frozen or not weak_icon.frozen:
 		failures.append("start_skirmish: expected both icons frozen")
@@ -108,8 +122,16 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("tick_skirmishes: expected the winner to take proportional damage")
 	if strong_icon.frozen:
 		failures.append("tick_skirmishes: expected the winner icon to unfreeze")
+	if not resolved_tracker.fired:
+		failures.append("tick_skirmishes: expected skirmish_resolved to fire")
+	elif resolved_tracker.winner_fleet != strong_fleet or resolved_tracker.loser_fleet != weak_fleet:
+		failures.append("tick_skirmishes: expected skirmish_resolved to fire with the correct winner/loser fleets")
 
 	await tree.process_frame
+
+	if is_instance_valid(weak_icon):
+		failures.append("tick_skirmishes: expected the loser icon to be freed")
+	strong_icon.queue_free()
 
 	# cancel_skirmish_for: starting a fresh skirmish and cancelling it
 	# should unfreeze the untouched participant without resolving a winner.
@@ -135,6 +157,31 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	icon_c.queue_free()
 	icon_d.queue_free()
+
+	# start_engagement: engaging a fleet that's mid-skirmish should cancel
+	# that skirmish and unfreeze the other participant.
+	var fleet_e := CampaignFleet.new()
+	fleet_e.faction = CampaignFleet.Faction.DOMINION
+	fleet_e.ship_compositions = [{"max_hp": 50.0, "current_hp": 50.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var fleet_f := CampaignFleet.new()
+	fleet_f.faction = CampaignFleet.Faction.FREEHOLD
+	fleet_f.ship_compositions = [{"max_hp": 50.0, "current_hp": 50.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var icon_e: Area2D = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(icon_e)
+	icon_e.setup(fleet_e, Vector2.ZERO)
+	var icon_f: Area2D = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(icon_f)
+	icon_f.setup(fleet_f, Vector2.ZERO)
+
+	state.start_skirmish(icon_e, icon_f)
+	state.start_engagement(fleet_e)
+	if state.active_skirmishes.size() != 0:
+		failures.append("start_engagement: expected the skirmish involving the engaged fleet to be cancelled")
+	if icon_f.frozen:
+		failures.append("start_engagement: expected the other participant unfrozen")
+
+	icon_e.queue_free()
+	icon_f.queue_free()
 
 	# resolve_engagement reputation decay.
 	var defeat_state := CampaignState.new()

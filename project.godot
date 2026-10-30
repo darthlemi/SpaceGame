@@ -18,6 +18,10 @@ config/name="SpaceGame"
 run/main_scene="res://scenes/combat/combat_scene.tscn"
 config/features=PackedStringArray("4.7")
 
+[autoload]
+
+CampaignState="*res://scripts/campaign/campaign_state.gd"
+
 [input]
 
 formation_none={

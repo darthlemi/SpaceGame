@@ -73,6 +73,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [home_base_test.resource_path, f])
 	total_failures += home_base_failures.size()
 
+	var game_over_test = preload("res://tests/test_game_over.gd")
+	var game_over_failures: Array[String] = await game_over_test.run_async(self)
+	for f in game_over_failures:
+		print("FAIL [%s]: %s" % [game_over_test.resource_path, f])
+	total_failures += game_over_failures.size()
+
 	if total_failures == 0:
 		print("All tests passed.")
 	else:

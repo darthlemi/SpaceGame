@@ -21,6 +21,7 @@ func _run_all() -> void:
 		preload("res://tests/test_trader_behavior.gd"),
 		preload("res://tests/test_pirate_behavior.gd"),
 		preload("res://tests/test_campaign_state.gd"),
+		preload("res://tests/test_faction_base.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:

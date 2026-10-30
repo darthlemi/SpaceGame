@@ -47,6 +47,27 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	elif dominion_icon.behavior_type != CampaignFleetIcon.BehaviorType.PATROL:
 		failures.append("expected DOMINION fleet to use PATROL behavior at starting (non-hostile) reputation, got %s" % dominion_icon.behavior_type)
 
+	if dominion_icon != null and freehold_icon != null:
+		dominion_icon.global_position = freehold_icon.global_position
+		for i in 5:
+			await tree.physics_frame
+		if campaign_state.active_skirmishes.size() != 1:
+			failures.append("expected overlapping hostile power-faction icons to start a skirmish")
+		else:
+			var skirmish: Skirmish = campaign_state.active_skirmishes[0]
+			var loser_id := skirmish.icon_loser.get_instance_id()
+			skirmish.remaining_time = 0.01
+			await tree.physics_frame
+			await tree.physics_frame
+			if campaign_state.active_skirmishes.size() != 0:
+				failures.append("expected CampaignScene._physics_process to tick and resolve the skirmish")
+			var still_present := false
+			for icon in scene.enemy_icons:
+				if icon.get_instance_id() == loser_id:
+					still_present = true
+			if still_present:
+				failures.append("expected CampaignScene to prune the freed loser icon from enemy_icons after skirmish_resolved")
+
 	# Simulate the player clicking to engage: directly overlap player_icon with
 	# the first enemy icon's position and let physics process the area_entered signal.
 	var target_icon: CampaignFleetIcon = scene.enemy_icons[0]

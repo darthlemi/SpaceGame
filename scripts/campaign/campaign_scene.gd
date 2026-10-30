@@ -36,11 +36,14 @@ func _ready() -> void:
 		var behavior := _behavior_for_faction(enemy_fleet.faction)
 		var icon := _spawn_icon(enemy_fleet, behavior)
 		icon.player_target = player_icon
+		icon.area_entered.connect(_on_enemy_area_entered.bind(icon))
 		enemy_icons.append(icon)
 
 	engage_prompt.visible = false
 	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
 	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
+
+	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
 
 func _bootstrap_default_campaign() -> void:
 	var player := CampaignFleet.new()
@@ -134,8 +137,22 @@ func _on_player_area_exited(area: Area2D) -> void:
 	if area == _pending_enemy_icon:
 		_pending_enemy_icon = null
 
+func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
+	if other is CampaignFleetIcon and other != icon and other != player_icon:
+		if CampaignState.are_hostile(icon.fleet, other.fleet):
+			CampaignState.start_skirmish(icon, other)
+
+func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignFleet) -> void:
+	enemy_icons = enemy_icons.filter(func(icon): return is_instance_valid(icon))
+	if _pending_enemy_icon != null and not is_instance_valid(_pending_enemy_icon):
+		_pending_enemy_icon = null
+
+func _physics_process(delta: float) -> void:
+	CampaignState.tick_skirmishes(delta)
+
 func _on_engage_pressed() -> void:
 	engage_prompt.visible = false
+	CampaignState.cancel_skirmish_for(_pending_enemy_icon)
 	CampaignState.start_engagement(_pending_enemy_icon.fleet)
 	get_tree().change_scene_to_file("res://scenes/combat/combat_scene.tscn")
 

@@ -23,6 +23,7 @@ func _ready() -> void:
 
 	player_icon = _spawn_icon(CampaignState.player_fleet, CampaignFleetIcon.BehaviorType.PLAYER)
 	player_icon.area_entered.connect(_on_player_area_entered)
+	player_icon.area_exited.connect(_on_player_area_exited)
 
 	for enemy_fleet in CampaignState.enemy_fleets:
 		var behavior := _behavior_for_faction(enemy_fleet.faction)
@@ -54,13 +55,13 @@ func _bootstrap_default_campaign() -> void:
 
 	var trader := CampaignFleet.new()
 	trader.faction = CampaignFleet.Faction.TRADER
-	trader.position = Vector2(200, 700)
+	trader.position = Vector2(200, 550)
 	trader.speed = 80.0
 	trader.ship_compositions = [{"max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0}]
 
 	var patrol := CampaignFleet.new()
 	patrol.faction = CampaignFleet.Faction.NEUTRAL
-	patrol.position = Vector2(900, 800)
+	patrol.position = Vector2(900, 450)
 	patrol.speed = 90.0
 	patrol.ship_compositions = [{"max_hp": 80.0, "current_hp": 80.0, "max_shield": 30.0, "current_shield": 30.0}]
 
@@ -86,6 +87,10 @@ func _on_player_area_entered(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
 		_pending_enemy_icon = area
 		engage_prompt.visible = true
+
+func _on_player_area_exited(area: Area2D) -> void:
+	if area == _pending_enemy_icon:
+		_pending_enemy_icon = null
 
 func _on_engage_pressed() -> void:
 	engage_prompt.visible = false

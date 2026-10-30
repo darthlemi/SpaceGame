@@ -61,6 +61,22 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [combat_scene_test.resource_path, f])
 	total_failures += combat_scene_failures.size()
 
+	# Loaded (not preloaded) because campaign_scene.gd bare-references the
+	# CampaignState autoload; preload() would resolve this chain at
+	# compile-time of run_tests.gd itself, before CampaignState is registered
+	# as a global identifier in --script mode. By this point several run_async
+	# calls above have already awaited frames, so the autoload is registered
+	# by the time load() runs. Positioned after combat_scene_test (rather than
+	# right after the first run_async block) because its Engage-button path
+	# triggers a real, several-frames-deferred change_scene_to_file that was
+	# found to race with test_ai_controller_targeting's single-frame timing
+	# assumption when placed immediately before it.
+	var campaign_scene_test = load("res://tests/test_campaign_scene.gd")
+	var campaign_scene_failures: Array[String] = await campaign_scene_test.run_async(self)
+	for f in campaign_scene_failures:
+		print("FAIL [%s]: %s" % [campaign_scene_test.resource_path, f])
+	total_failures += campaign_scene_failures.size()
+
 	var campaign_fleet_icon_test = preload("res://tests/test_campaign_fleet_icon.gd")
 	var campaign_fleet_icon_failures: Array[String] = await campaign_fleet_icon_test.run_async(self)
 	for f in campaign_fleet_icon_failures:

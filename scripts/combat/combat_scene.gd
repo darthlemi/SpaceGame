@@ -147,6 +147,8 @@ func _show_result(text: String) -> void:
 
 func _report_to_campaign() -> void:
 	CampaignState.resolve_engagement(_collect_survivor_data(player_ships), _collect_survivor_data(enemy_ships))
+	if CampaignState.player_fleet == null:
+		return
 	if CampaignState.player_fleet.is_destroyed():
 		get_tree().change_scene_to_file("res://scenes/ui/game_over.tscn")
 	else:

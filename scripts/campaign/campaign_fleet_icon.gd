@@ -7,6 +7,11 @@ const PirateBehavior = preload("res://scripts/campaign/behaviors/pirate_behavior
 
 enum BehaviorType { PLAYER, PATROL, TRADER, PIRATE }
 
+const SHIP_DOT_RADIUS := 3.0
+const SHIP_DOT_SIDES := 8
+const CLUMP_RADIUS := 18.0
+const DOT_COLOR := Color(0.9, 0.9, 0.3, 1)
+
 @export var behavior_type: BehaviorType = BehaviorType.PATROL
 @export var wander_radius: float = 150.0
 @export var arrival_radius: float = 10.0
@@ -23,6 +28,9 @@ var _spawn_point: Vector2
 var _home_position: Vector2
 var _route_state: TraderBehavior.RouteState = TraderBehavior.RouteState.TO_BASE
 
+var _ship_dots: Array[Polygon2D] = []
+var _ship_dot_offsets: Array[Vector2] = []
+
 signal trader_arrived(at_home: bool)
 
 func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
@@ -31,6 +39,7 @@ func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
 	_spawn_point = fleet.position
 	_move_target = fleet.position
 	_home_position = home_pos
+	_sync_ship_dots()
 
 func set_move_target(target: Vector2) -> void:
 	_move_target = target
@@ -48,7 +57,10 @@ func route_away_point() -> Vector2:
 	return _spawn_point
 
 func _physics_process(delta: float) -> void:
-	if fleet == null or frozen:
+	if fleet == null:
+		return
+	_sync_ship_dots()
+	if frozen:
 		return
 	match behavior_type:
 		BehaviorType.PATROL:
@@ -78,3 +90,28 @@ func _process_pirate() -> void:
 			_move_target = player_target.global_position
 			return
 	_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, global_position, wander_radius, arrival_radius)
+
+func _sync_ship_dots() -> void:
+	var target: int = fleet.ship_compositions.size()
+	while _ship_dots.size() < target:
+		var index := _ship_dots.size()
+		if index >= _ship_dot_offsets.size():
+			var angle := randf_range(0.0, TAU)
+			var distance := randf_range(0.0, CLUMP_RADIUS)
+			_ship_dot_offsets.append(Vector2.RIGHT.rotated(angle) * distance)
+		var dot := Polygon2D.new()
+		dot.polygon = _circle_polygon(SHIP_DOT_RADIUS, SHIP_DOT_SIDES)
+		dot.color = DOT_COLOR
+		dot.position = _ship_dot_offsets[index]
+		add_child(dot)
+		_ship_dots.append(dot)
+	while _ship_dots.size() > target:
+		var dot: Polygon2D = _ship_dots.pop_back()
+		dot.queue_free()
+
+func _circle_polygon(radius: float, sides: int) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for i in sides:
+		var angle := TAU * i / sides
+		points.append(Vector2(cos(angle), sin(angle)) * radius)
+	return points

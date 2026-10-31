@@ -340,6 +340,38 @@ static func run() -> Array[String]:
 	elif role_changes[0].role != CampaignFleet.Role.COMBAT:
 		failures.append("tick_economy: expected the reallocated fleet's role to now be COMBAT")
 
+	# resolve_engagement: a destroyed enemy fleet carrying cargo sets
+	# pending_loot_fleet; one with no cargo leaves it null.
+	var loot_state := CampaignState.new()
+	var loot_player := CampaignFleet.new()
+	loot_player.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	loot_state.player_fleet = loot_player
+	var looted_enemy := CampaignFleet.new()
+	looted_enemy.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	looted_enemy.cargo = {Commodity.Type.ORE: 5.0}
+	loot_state.enemy_fleets = [looted_enemy]
+	loot_state.start_engagement(looted_enemy)
+	loot_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [])
+	if loot_state.pending_loot_fleet != looted_enemy:
+		failures.append("resolve_engagement: expected pending_loot_fleet set to the destroyed cargo-carrying fleet")
+
+	var no_loot_state := CampaignState.new()
+	var no_loot_player := CampaignFleet.new()
+	no_loot_player.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	no_loot_state.player_fleet = no_loot_player
+	var empty_cargo_enemy := CampaignFleet.new()
+	empty_cargo_enemy.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	no_loot_state.enemy_fleets = [empty_cargo_enemy]
+	no_loot_state.start_engagement(empty_cargo_enemy)
+	no_loot_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [])
+	if no_loot_state.pending_loot_fleet != null:
+		failures.append("resolve_engagement: expected pending_loot_fleet to stay null for a fleet with no cargo")
+
+	loot_state.pending_loot_fleet = looted_enemy
+	loot_state.reset()
+	if loot_state.pending_loot_fleet != null:
+		failures.append("reset: expected pending_loot_fleet cleared to null")
+
 	return failures
 
 class SkirmishResolvedTracker:

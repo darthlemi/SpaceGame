@@ -11,6 +11,7 @@ const ECONOMY_TICK_INTERVAL := 5.0
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
 var active_enemy_fleet: CampaignFleet
+var pending_loot_fleet: CampaignFleet = null
 var factions: Array[PowerFaction] = []
 var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
@@ -36,12 +37,15 @@ func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Ar
 		if active_enemy_fleet.is_destroyed():
 			enemy_fleets.erase(active_enemy_fleet)
 			_apply_reputation_loss(active_enemy_fleet.faction)
+			if active_enemy_fleet.cargo_total() > 0.0:
+				pending_loot_fleet = active_enemy_fleet
 	active_enemy_fleet = null
 
 func reset() -> void:
 	player_fleet = null
 	enemy_fleets = []
 	active_enemy_fleet = null
+	pending_loot_fleet = null
 	factions = []
 	factions_at_war = true
 	active_skirmishes = []

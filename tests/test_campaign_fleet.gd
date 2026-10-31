@@ -60,4 +60,18 @@ static func run() -> Array[String]:
 	if overkill_comp["current_shield"] != 0.0:
 		failures.append("apply_fractional_damage: expected current_shield clamped to 0.0 at fraction 1.0, got %s" % overkill_comp["current_shield"])
 
+	var cargo_fleet := CampaignFleet.new()
+	cargo_fleet.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	if cargo_fleet.cargo_capacity() != 40.0:
+		failures.append("cargo_capacity: expected 40.0 for a 2-ship fleet, got %s" % cargo_fleet.cargo_capacity())
+	if cargo_fleet.cargo_total() != 0.0:
+		failures.append("cargo_total: expected 0.0 with empty cargo, got %s" % cargo_fleet.cargo_total())
+
+	cargo_fleet.cargo = {0: 10.0, 1: 5.0}
+	if cargo_fleet.cargo_total() != 15.0:
+		failures.append("cargo_total: expected 15.0 with cargo {0:10.0, 1:5.0}, got %s" % cargo_fleet.cargo_total())
+
 	return failures

@@ -65,17 +65,60 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if dominion_power_faction == null:
 			failures.append("expected a DOMINION PowerFaction to look up its base_position")
 		else:
+			# Teleport directly onto the away endpoint (HomeBase) rather than
+			# waiting for the icon to travel there under its own speed -- this
+			# mirrors the teleport-then-wait-a-few-frames pattern used for the
+			# route_icon trader_arrived coverage in test_campaign_fleet_icon.gd.
+			# Arriving at HomeBase triggers trader_arrived(false), which runs
+			# CampaignState._unload_and_load_deficit: it loads Dominion's
+			# deficit commodities (ORE/FUEL/FOOD) out of home_base_economy.stock
+			# into the fleet's cargo -- not the surplus path.
+			dominion_trader_icon.global_position = scene.HOME_BASE_POSITION
+			for i in 5:
+				await tree.physics_frame
+			if dominion_trader_icon.fleet.cargo_total() <= 0.0:
+				failures.append("expected the DOMINION trader icon to have loaded deficit cargo after reaching HomeBase")
+
+			# Closing the loop: teleporting back to the faction base triggers
+			# trader_arrived(true), running CampaignState._load_surplus. That
+			# only tops cargo up with whatever surplus commodities the faction
+			# produces (none here, since Dominion's only net-positive good,
+			# WEAPONS, has no stock) -- it doesn't clear existing cargo, so no
+			# further cargo assertion is made here, just that the signal wiring
+			# doesn't error out on this leg of the route.
 			dominion_trader_icon.global_position = dominion_power_faction.base_position
 			for i in 5:
 				await tree.physics_frame
-			var ore_before: float = dominion_power_faction.economy.stock.get(Commodity.Type.ORE, 0.0)
-			# The trader route's "home" endpoint is the faction base; placing
-			# the icon there and letting it tick should trigger a trader_arrived
-			# arrival and load surplus cargo via CampaignState.run_npc_trade_for_fleet.
-			if dominion_trader_icon.fleet.cargo_total() <= 0.0 and ore_before > 0.0:
-				failures.append("expected the DOMINION trader icon to have loaded surplus cargo after reaching its faction base")
+
+			# Teleporting the trader icon onto HOME_BASE_POSITION above also
+			# overlapped the stationary player_icon (which sits there for the
+			# whole test), an unavoidable side effect of this test's placement
+			# that opens the Engage prompt against the trader icon. Reset that
+			# state so it doesn't leak into the EngagePrompt/_pending_enemy_icon
+			# assertions later in this test.
+			scene._pending_enemy_icon = null
+			scene.engage_prompt.visible = false
+
+			# The DOMINION/FREEHOLD trader-role icons no longer have a
+			# player_target (they're running a scripted route, not evading the
+			# player), so they roam autonomously toward their route endpoints
+			# for the rest of this test's duration. Left alone they can
+			# wander into incidental overlaps with the other icons the
+			# skirmish/engage-prompt sections below stage deliberately --
+			# park them out of the way now that this block's checks are done.
+			dominion_trader_icon.global_position = Vector2(-9000, -9000)
+			if freehold_trader_icon != null:
+				freehold_trader_icon.global_position = Vector2(-9500, -9500)
 
 	if dominion_icon != null and freehold_icon != null:
+		# dominion_icon and freehold_icon start with exactly equal strength, so
+		# without a tiebreaker the "winner" of this overlap depends on which
+		# icon's area_entered signal happens to fire first -- order that now
+		# shifts run-to-run because this task added two more Area2D icons to
+		# the scene (the trader-role haulers). Nudge freehold_icon strictly
+		# weaker so the outcome (dominion wins) is deterministic regardless of
+		# signal order, matching what the rest of this block already assumes.
+		freehold_icon.fleet.apply_fractional_damage(0.01)
 		dominion_icon.global_position = freehold_icon.global_position
 		for i in 5:
 			await tree.physics_frame

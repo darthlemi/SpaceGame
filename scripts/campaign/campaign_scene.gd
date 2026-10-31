@@ -183,7 +183,9 @@ func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType)
 func _setup_enemy_icon(fleet: CampaignFleet) -> CampaignFleetIcon:
 	var behavior := _behavior_for_fleet(fleet)
 	var icon := _spawn_icon(fleet, behavior)
-	icon.player_target = player_icon
+	var is_faction_hauler := (fleet.faction == CampaignFleet.Faction.DOMINION or fleet.faction == CampaignFleet.Faction.FREEHOLD) and fleet.role == CampaignFleet.Role.TRADER
+	if not is_faction_hauler:
+		icon.player_target = player_icon
 	icon.area_entered.connect(_on_enemy_area_entered.bind(icon))
 	icon.trader_arrived.connect(_on_trader_arrived.bind(icon))
 	enemy_icons.append(icon)
@@ -215,7 +217,7 @@ func _configure_trade_route(icon: CampaignFleetIcon, fleet: CampaignFleet) -> vo
 	if faction == null:
 		return
 	if fleet.role == CampaignFleet.Role.TRADER:
-		icon.set_route_endpoints(HOME_BASE_POSITION, faction.base_position)
+		icon.set_route_endpoints(faction.base_position, HOME_BASE_POSITION)
 	else:
 		icon.set_route_endpoints(faction.base_position, faction.base_position)
 

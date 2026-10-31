@@ -45,6 +45,41 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
 		failures.append("TradePanel: expected pressing Sell to remove the Ore from fleet cargo")
 
+	# Buy disabled on insufficient credits
+	campaign_state.credits = 0.0
+	panel.refresh()
+	if not buy_button.disabled:
+		failures.append("TradePanel: expected Buy disabled when credits are insufficient")
+
+	# Restore credits, then buy disabled on insufficient stock
+	campaign_state.credits = 1000.0
+	economy.stock[Commodity.Type.ORE] = 0.0
+	panel.refresh()
+	if not buy_button.disabled:
+		failures.append("TradePanel: expected Buy disabled when stock is insufficient")
+
+	# Restore stock, then buy disabled when cargo is at capacity
+	economy.stock[Commodity.Type.ORE] = 100.0
+	fleet.cargo = {Commodity.Type.FUEL: fleet.cargo_capacity()}
+	panel.refresh()
+	if not buy_button.disabled:
+		failures.append("TradePanel: expected Buy disabled when cargo is at capacity")
+
+	# Sell disabled when fleet holds none of that commodity
+	fleet.cargo = {}
+	panel.refresh()
+	if not sell_button.disabled:
+		failures.append("TradePanel: expected Sell disabled when fleet holds none of the commodity")
+
+	# Buttons re-enable when conditions are met again
+	fleet.cargo = {Commodity.Type.ORE: 1.0}
+	panel.refresh()
+	if buy_button.disabled:
+		failures.append("TradePanel: expected Buy re-enabled when credits/stock/capacity are fine")
+	if sell_button.disabled:
+		failures.append("TradePanel: expected Sell re-enabled when fleet holds the commodity")
+
+	campaign_state.credits = 1000.0
 	panel.close()
 	if panel.visible:
 		failures.append("TradePanel: expected hidden after close")

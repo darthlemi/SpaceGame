@@ -1,4 +1,90 @@
-# Carry Forward — 2026-10-31 session
+# Carry Forward — 2026-10-31 session (art pipeline)
+
+## Done this session
+
+Evaluated `C:\Users\corbi\Desktop\UIilianks\` — five separate MIT-licensed
+procedural-art tools by GitHub user `uilianks` (`chirp` audio, `kiln` 3D,
+`loom` textures, `pxl` pixel art, `vex` vector art), each packaged as a
+Claude Code Skill. Scanned all source for risky patterns (eval, exec,
+network exfiltration) — clean, nothing beyond local dev-server previews.
+
+Brainstormed → spec'd → scaffolded an **art pipeline** for SpaceGame, which
+currently has zero art (every entity is a flat `Polygon2D`/`ColorRect`
+placeholder — confirmed via `scenes/combat/combat_scene.tscn`, no
+`assets`/`art` directory existed before this session).
+
+- Compared `vex` (vector) vs `pxl` (pixel art) with sample top-down ship
+  sprites — **`pxl` chosen** for the chunky retro pixel-art look.
+- Iterated palette live against user feedback (started from a reference
+  screenshot — dark isometric pixel-art noir/cyberpunk cafe scene) toward
+  a locked 12-color base palette: near-black outline, **dirty grey** hull
+  (not pure black — needs to read against a starfield), neon
+  green/red/blue as the primary accent trio, darker yellow/orange/pink as
+  secondary accents. Full swatch + reasoning in the spec below.
+- Decided `pxl` stays **external** (cloned separately, not vendored) —
+  SpaceGame repo only gains `.px.js` source + exported PNGs, no new
+  Node/TypeScript tooling added to an otherwise pure-Godot repo.
+- Spec: `docs/superpowers/specs/2026-10-31-pxl-art-pipeline-design.md`
+  (pipeline + palette only — scope deliberately excludes producing the
+  actual ship/VFX/UI/background assets; each is big enough to need its
+  own future brainstorm).
+- Scaffolded `art/README.md` (build instructions) and
+  `art/src/palette.px.js` (the locked palette, copy-paste source for every
+  future `.px.js` file — pxl has no cross-file import). Verified it builds
+  clean with no errors.
+- Added `art/src/out/` to `.gitignore` (pxl's local build-artifact dir).
+
+Two commits on `master`: `e625cd2` (spec), `4520f32` (scaffold).
+
+## Gotchas hit this session
+
+- `pxl`'s shape-primitive names differ from `vex`'s: `circ` not `circle`.
+  Easy to typo when writing samples in both DSLs back to back.
+- When building multiple sample files into the same scratch directory,
+  pxl/vex both write previews to `out/_preview/<sprite-name>.png` — reused
+  sprite names across files **silently overwrite** each other's preview.
+  Give samples distinct names (`corvette_vex` vs `corvette_pxl`) when
+  comparing tools side by side in one working directory.
+- Ship's existing placeholder (`scenes/ship/ship.tscn` `Polygon2D`) is
+  authored nose-pointing **+X** (right), not nose-up — `polygon =
+  PackedVector2Array(20, 0, -12, -10, -12, 10)`. Any future ship sprite
+  needs either authoring nose-right to match, or a 90° rotation offset
+  applied in the scene.
+
+## Pre-existing repo state (not from this session — do not attribute)
+
+`master` had substantial uncommitted work already in progress when this
+session started (economy/trade-panel/campaign-scene changes, several new
+untracked `.gd`/`.gd.uid` files including `game_speed.gd` and
+`speed_controls.gd/.tscn`, plus an untracked `CLAUDE.md`). Left entirely
+untouched this session — only `art/`, `.gitignore`, and the new spec were
+staged and committed. Whoever picks this up next should `git status` and
+figure out whether that in-flight work is still wanted before doing
+anything that touches those files.
+
+Also on `master` already (not this session): Ship Types design spec +
+plan (`docs/superpowers/specs/2026-10-31-ship-types-design.md`,
+`docs/superpowers/plans/2026-10-31-ship-types.md`) — **not yet
+implemented**, `scenes/ship/` still has only the single generic
+`ship.tscn`. This is the natural next consumer of ship sprites once both
+the ship-types feature and an actual `art/src/ships.px.js` spec exist.
+
+## Next step (this session's thread)
+
+Pick one asset category and brainstorm it as its own spec, using the
+locked palette in `art/src/palette.px.js`. **Ships** is the obvious first
+candidate (ties into the already-spec'd-but-unimplemented Ship Types
+work) — but check in with the user rather than assuming, same as this
+session did category-by-category (mood → palette → repo integration, one
+question at a time, nothing finalized without an explicit lock-in).
+
+Other queued categories from this session's scope discussion: projectiles
+/ weapon VFX, campaign map icons (fleet icons, faction/home bases), UI
+panel icons (trade/loot), background/starfield.
+
+---
+
+# Carry Forward — 2026-10-31 session (Trade Routes)
 
 ## Done this session
 
@@ -99,6 +185,12 @@ scoped out deliberately — see that spec's "Out of scope" section).
 Introducing real classes needs a class field on ship composition data,
 distinct combat-scene visuals/scale per class, and would feed into this
 clump's dot rendering too.
+
+**Note (superseded by the art-pipeline session above):** Ship Types
+(design spec + plan) has since been written —
+`docs/superpowers/specs/2026-10-31-ship-types-design.md`,
+`docs/superpowers/plans/2026-10-31-ship-types.md` — but not yet
+implemented.
 
 ## Next step
 

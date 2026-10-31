@@ -2,8 +2,10 @@ class_name CampaignFleet
 extends Resource
 
 enum Faction { PLAYER, NEUTRAL, TRADER, PIRATE, DOMINION, FREEHOLD }
+enum Role { COMBAT, TRADER }
 
 @export var fleet_id: String = ""
+@export var role: Role = Role.COMBAT
 @export var faction: Faction = Faction.NEUTRAL
 @export var ship_compositions: Array[Dictionary] = []
 @export var position: Vector2 = Vector2.ZERO

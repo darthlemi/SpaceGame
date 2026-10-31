@@ -74,4 +74,13 @@ static func run() -> Array[String]:
 	if cargo_fleet.cargo_total() != 15.0:
 		failures.append("cargo_total: expected 15.0 with cargo {0:10.0, 1:5.0}, got %s" % cargo_fleet.cargo_total())
 
+	var default_role_fleet := CampaignFleet.new()
+	if default_role_fleet.role != CampaignFleet.Role.COMBAT:
+		failures.append("role: expected default role == COMBAT, got %s" % default_role_fleet.role)
+
+	var trader_role_fleet := CampaignFleet.new()
+	trader_role_fleet.role = CampaignFleet.Role.TRADER
+	if trader_role_fleet.role != CampaignFleet.Role.TRADER:
+		failures.append("role: expected TRADER to be settable")
+
 	return failures

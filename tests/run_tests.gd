@@ -108,6 +108,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [home_base_test.resource_path, f])
 	total_failures += home_base_failures.size()
 
+	var loot_panel_test = preload("res://tests/test_loot_panel.gd")
+	var loot_panel_failures: Array[String] = await loot_panel_test.run_async(self)
+	for f in loot_panel_failures:
+		print("FAIL [%s]: %s" % [loot_panel_test.resource_path, f])
+	total_failures += loot_panel_failures.size()
+
 	# Loaded (not preloaded) because trade_panel.gd bare-references the
 	# CampaignState autoload; preload() would resolve this chain at
 	# compile-time of run_tests.gd itself, before CampaignState is registered

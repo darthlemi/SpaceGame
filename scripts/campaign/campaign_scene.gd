@@ -11,6 +11,7 @@ var player_icon: CampaignFleetIcon
 var enemy_icons: Array[CampaignFleetIcon] = []
 
 @onready var engage_prompt: Control = $EngagePrompt
+@onready var trade_panel: TradePanel = $TradePanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 
@@ -144,6 +145,15 @@ func _is_faction_hostile(faction: CampaignFleet.Faction) -> bool:
 			return power_faction.reputation < CampaignState.HOSTILE_REPUTATION_THRESHOLD
 	return false
 
+func _economy_for_base(area: Area2D) -> BaseEconomy:
+	if area is HomeBase:
+		return CampaignState.home_base_economy
+	if area is FactionBase:
+		for faction in CampaignState.factions:
+			if faction.faction_enum == area.faction_enum:
+				return faction.economy
+	return null
+
 func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType) -> CampaignFleetIcon:
 	var icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
 	icon.behavior_type = behavior
@@ -155,10 +165,16 @@ func _on_player_area_entered(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
 		_pending_enemy_icon = area
 		engage_prompt.visible = true
+	elif area is HomeBase or area is FactionBase:
+		var economy := _economy_for_base(area)
+		if economy != null:
+			trade_panel.open_for(economy, CampaignState.player_fleet)
 
 func _on_player_area_exited(area: Area2D) -> void:
 	if area == _pending_enemy_icon:
 		_pending_enemy_icon = null
+	elif area is HomeBase or area is FactionBase:
+		trade_panel.close()
 
 func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
 	if other is CampaignFleetIcon and other != icon and other != player_icon:

@@ -335,6 +335,8 @@ static func run() -> Array[String]:
 	grow_combat_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
 	if weak_combat_fleet.ship_compositions.size() != ships_before + 1:
 		failures.append("tick_economy: expected an outmatched combat fleet to grow a ship, had %d before, %d after" % [ships_before, weak_combat_fleet.ship_compositions.size()])
+	elif weak_combat_fleet.ship_compositions[ships_before]["ship_type"] != ShipType.Kind.CORVETTE:
+		failures.append("tick_economy: expected a grown COMBAT fleet's new ship to be ship_type CORVETTE, got %s" % weak_combat_fleet.ship_compositions[ships_before]["ship_type"])
 
 	# A faction that's economically strong and safe from pirates grows a new
 	# trader fleet (spawn, since its one existing trader is already at the
@@ -363,6 +365,8 @@ static func run() -> Array[String]:
 		failures.append("tick_economy: expected an economically strong, safe faction to spawn a new trader fleet")
 	elif spawned[0].role != CampaignFleet.Role.TRADER:
 		failures.append("tick_economy: expected the spawned fleet's role to be TRADER")
+	elif spawned[0].ship_compositions[0]["ship_type"] != ShipType.Kind.FREIGHTER:
+		failures.append("tick_economy: expected the spawned trader fleet's ship to be ship_type FREIGHTER, got %s" % spawned[0].ship_compositions[0]["ship_type"])
 
 	# Reallocation: an outmatched faction in economic deficit with 2 trader
 	# fleets flips one to COMBAT instead of growing (can't afford to grow).

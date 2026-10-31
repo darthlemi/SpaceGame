@@ -216,9 +216,10 @@ func _threat_ratio(combat_fleets: Array[CampaignFleet]) -> float:
 
 func _grow_fleet(faction: PowerFaction, combat_fleets: Array[CampaignFleet], trader_fleets: Array[CampaignFleet], role: CampaignFleet.Role) -> void:
 	var fleets_of_role := combat_fleets if role == CampaignFleet.Role.COMBAT else trader_fleets
+	var kind := ShipType.Kind.CORVETTE if role == CampaignFleet.Role.COMBAT else ShipType.Kind.FREIGHTER
 	for fleet in fleets_of_role:
 		if fleet.ship_compositions.size() < FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
-			fleet.ship_compositions.append(_new_ship_template())
+			fleet.ship_compositions.append(ShipType.new_composition(kind))
 			return
 	if combat_fleets.size() + trader_fleets.size() >= FleetAllocationPolicy.MAX_FLEETS:
 		return
@@ -227,12 +228,9 @@ func _grow_fleet(faction: PowerFaction, combat_fleets: Array[CampaignFleet], tra
 	new_fleet.role = role
 	new_fleet.position = faction.base_position
 	new_fleet.speed = 100.0
-	new_fleet.ship_compositions = [_new_ship_template()]
+	new_fleet.ship_compositions = [ShipType.new_composition(kind)]
 	enemy_fleets.append(new_fleet)
 	fleet_spawn_requested.emit(new_fleet)
-
-func _new_ship_template() -> Dictionary:
-	return {"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}
 
 func _unload_and_load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> void:
 	for commodity in fleet.cargo:

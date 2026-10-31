@@ -38,4 +38,12 @@ static func run() -> Array[String]:
 	if not trade_hub.produces.is_empty() or not trade_hub.consumes.is_empty():
 		failures.append("trade_hub: expected no production or consumption")
 
+	var refinery := EconomyRole.refinery()
+	if refinery.role_type != EconomyRole.RoleType.REFINERY:
+		failures.append("refinery: expected role_type REFINERY, got %s" % refinery.role_type)
+	if refinery.produces.get(Commodity.Type.FUEL, 0.0) <= 0.0:
+		failures.append("refinery: expected it to produce Fuel")
+	if not refinery.consumes.is_empty():
+		failures.append("refinery: expected no consumption")
+
 	return failures

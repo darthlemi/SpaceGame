@@ -1,7 +1,7 @@
 class_name EconomyRole
 extends Resource
 
-enum RoleType { MINING, AGRICULTURE, INDUSTRIAL, POPULATION, TRADE_HUB }
+enum RoleType { MINING, AGRICULTURE, INDUSTRIAL, POPULATION, TRADE_HUB, REFINERY }
 
 @export var role_type: RoleType = RoleType.TRADE_HUB
 @export var produces: Dictionary = {}
@@ -35,4 +35,10 @@ static func population() -> EconomyRole:
 static func trade_hub() -> EconomyRole:
 	var role := EconomyRole.new()
 	role.role_type = RoleType.TRADE_HUB
+	return role
+
+static func refinery() -> EconomyRole:
+	var role := EconomyRole.new()
+	role.role_type = RoleType.REFINERY
+	role.produces = {Commodity.Type.FUEL: 2.0}
 	return role

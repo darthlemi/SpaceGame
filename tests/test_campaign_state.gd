@@ -162,20 +162,29 @@ static func run() -> Array[String]:
 	trade_route_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
 	trade_route_faction.economy = BaseEconomy.new()
 	trade_route_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
-	trade_route_faction.economy.stock = {Commodity.Type.ORE: 50.0, Commodity.Type.FOOD: 50.0}
+	trade_route_faction.economy.stock = {Commodity.Type.ORE: 15.0, Commodity.Type.FOOD: 15.0}
 	trade_route_state.factions = [trade_route_faction]
 	trade_route_state.home_base_economy = BaseEconomy.new()
 
 	var hauler := CampaignFleet.new()
 	hauler.faction = CampaignFleet.Faction.FREEHOLD
 	hauler.role = CampaignFleet.Role.TRADER
-	hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	hauler.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
 
 	trade_route_state.run_npc_trade_for_fleet(hauler, true)
 	if hauler.cargo_total() <= 0.0:
 		failures.append("run_npc_trade_for_fleet: expected loading surplus at the faction base to fill cargo")
-	if trade_route_faction.economy.stock.get(Commodity.Type.ORE, 0.0) >= 50.0 and trade_route_faction.economy.stock.get(Commodity.Type.FOOD, 0.0) >= 50.0:
-		failures.append("run_npc_trade_for_fleet: expected loading surplus to draw down the faction's own stock")
+	# Cargo capacity (40.0, two ships) comfortably covers both commodities'
+	# combined stock (30.0), so both must be drawn down individually -- this
+	# proves the loop handles every surplus commodity, not just the first one
+	# it encounters.
+	if trade_route_faction.economy.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("run_npc_trade_for_fleet: expected loading surplus to draw down Ore stock to 0.0, got %s" % trade_route_faction.economy.stock.get(Commodity.Type.ORE, 0.0))
+	if trade_route_faction.economy.stock.get(Commodity.Type.FOOD, 0.0) != 0.0:
+		failures.append("run_npc_trade_for_fleet: expected loading surplus to draw down Food stock to 0.0, got %s" % trade_route_faction.economy.stock.get(Commodity.Type.FOOD, 0.0))
 
 	# Arriving at HomeBase: dumps carried cargo into home_base_economy.stock,
 	# then loads whatever the faction nets a deficit on (here, nothing is
@@ -213,6 +222,36 @@ static func run() -> Array[String]:
 	trade_route_state.run_npc_trade_for_fleet(orphan_hauler, true)
 	if orphan_hauler.cargo_total() != 0.0:
 		failures.append("run_npc_trade_for_fleet: expected no-op for a faction with no matching PowerFaction")
+
+	var null_economy_faction := PowerFaction.new()
+	null_economy_faction.faction_enum = CampaignFleet.Faction.TRADER
+	null_economy_faction.economy = null
+	trade_route_state.factions.append(null_economy_faction)
+	var null_economy_hauler := CampaignFleet.new()
+	null_economy_hauler.faction = CampaignFleet.Faction.TRADER
+	null_economy_hauler.role = CampaignFleet.Role.TRADER
+	null_economy_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	trade_route_state.run_npc_trade_for_fleet(null_economy_hauler, true)
+	if null_economy_hauler.cargo_total() != 0.0:
+		failures.append("run_npc_trade_for_fleet: expected no-op for a matching PowerFaction with a null economy")
+
+	var no_home_base_state := CampaignState.new()
+	var no_home_base_faction := PowerFaction.new()
+	no_home_base_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
+	no_home_base_faction.economy = BaseEconomy.new()
+	no_home_base_faction.economy.slots = [EconomyRole.mining()]
+	no_home_base_faction.economy.stock = {Commodity.Type.ORE: 50.0}
+	no_home_base_state.factions = [no_home_base_faction]
+	no_home_base_state.home_base_economy = null
+	var no_home_base_hauler := CampaignFleet.new()
+	no_home_base_hauler.faction = CampaignFleet.Faction.FREEHOLD
+	no_home_base_hauler.role = CampaignFleet.Role.TRADER
+	no_home_base_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	no_home_base_state.run_npc_trade_for_fleet(no_home_base_hauler, true)
+	if no_home_base_hauler.cargo_total() != 0.0:
+		failures.append("run_npc_trade_for_fleet: expected no-op when home_base_economy is null")
+	if no_home_base_faction.economy.stock.get(Commodity.Type.ORE, 0.0) != 50.0:
+		failures.append("run_npc_trade_for_fleet: expected faction stock unchanged when home_base_economy is null")
 
 	return failures
 

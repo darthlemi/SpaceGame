@@ -148,3 +148,51 @@ func _apply_reputation_loss(defeated_faction: CampaignFleet.Faction) -> void:
 	for power_faction in factions:
 		if power_faction.faction_enum == defeated_faction:
 			power_faction.reputation = max(0.0, power_faction.reputation - REPUTATION_LOSS_PER_DEFEAT)
+
+func run_npc_trade_for_fleet(fleet: CampaignFleet, at_home: bool) -> void:
+	var faction := _power_faction_for(fleet.faction)
+	if faction == null or faction.economy == null or home_base_economy == null:
+		return
+	if at_home:
+		_load_surplus(fleet, faction.economy)
+	else:
+		_unload_and_load_deficit(fleet, faction.economy)
+
+func _power_faction_for(faction_enum: CampaignFleet.Faction) -> PowerFaction:
+	for faction in factions:
+		if faction.faction_enum == faction_enum:
+			return faction
+	return null
+
+func _load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> void:
+	var net := economy.net_commodities()
+	for commodity in net:
+		if net[commodity] <= 0.0:
+			continue
+		var available: float = economy.stock.get(commodity, 0.0)
+		var space: float = fleet.cargo_capacity() - fleet.cargo_total()
+		var amount: float = min(available, space)
+		if amount <= 0.0:
+			continue
+		economy.stock[commodity] = available - amount
+		fleet.cargo[commodity] = fleet.cargo.get(commodity, 0.0) + amount
+
+func _unload_and_load_deficit(fleet: CampaignFleet, economy: BaseEconomy) -> void:
+	for commodity in fleet.cargo:
+		var amount: float = fleet.cargo[commodity]
+		if amount <= 0.0:
+			continue
+		home_base_economy.stock[commodity] = home_base_economy.stock.get(commodity, 0.0) + amount
+	fleet.cargo = {}
+
+	var net := economy.net_commodities()
+	for commodity in net:
+		if net[commodity] >= 0.0:
+			continue
+		var available: float = home_base_economy.stock.get(commodity, 0.0)
+		var space: float = fleet.cargo_capacity() - fleet.cargo_total()
+		var amount: float = min(available, space)
+		if amount <= 0.0:
+			continue
+		home_base_economy.stock[commodity] = available - amount
+		fleet.cargo[commodity] = fleet.cargo.get(commodity, 0.0) + amount

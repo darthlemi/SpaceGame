@@ -155,6 +155,65 @@ static func run() -> Array[String]:
 	if tick_state.home_base_economy != null:
 		failures.append("reset: expected home_base_economy cleared to null")
 
+	# run_npc_trade_for_fleet: at the faction base, loads surplus commodities
+	# (produced more than consumed) from the faction's own stock into cargo.
+	var trade_route_state := CampaignState.new()
+	var trade_route_faction := PowerFaction.new()
+	trade_route_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
+	trade_route_faction.economy = BaseEconomy.new()
+	trade_route_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
+	trade_route_faction.economy.stock = {Commodity.Type.ORE: 50.0, Commodity.Type.FOOD: 50.0}
+	trade_route_state.factions = [trade_route_faction]
+	trade_route_state.home_base_economy = BaseEconomy.new()
+
+	var hauler := CampaignFleet.new()
+	hauler.faction = CampaignFleet.Faction.FREEHOLD
+	hauler.role = CampaignFleet.Role.TRADER
+	hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	trade_route_state.run_npc_trade_for_fleet(hauler, true)
+	if hauler.cargo_total() <= 0.0:
+		failures.append("run_npc_trade_for_fleet: expected loading surplus at the faction base to fill cargo")
+	if trade_route_faction.economy.stock.get(Commodity.Type.ORE, 0.0) >= 50.0 and trade_route_faction.economy.stock.get(Commodity.Type.FOOD, 0.0) >= 50.0:
+		failures.append("run_npc_trade_for_fleet: expected loading surplus to draw down the faction's own stock")
+
+	# Arriving at HomeBase: dumps carried cargo into home_base_economy.stock,
+	# then loads whatever the faction nets a deficit on (here, nothing is
+	# consumed by mining/agriculture, so no deficit cargo should be loaded).
+	trade_route_state.home_base_economy.stock[Commodity.Type.FUEL] = 20.0
+	var cargo_before_dump: Dictionary = hauler.cargo.duplicate()
+	trade_route_state.run_npc_trade_for_fleet(hauler, false)
+	for commodity in cargo_before_dump:
+		if trade_route_state.home_base_economy.stock.get(commodity, 0.0) < cargo_before_dump[commodity]:
+			failures.append("run_npc_trade_for_fleet: expected carried cargo dumped into home_base_economy.stock")
+	if hauler.cargo_total() != 0.0:
+		failures.append("run_npc_trade_for_fleet: expected no deficit cargo loaded for a faction with no consuming slots, got cargo=%s" % hauler.cargo)
+
+	# A faction with a deficit (Dominion needs Ore/Fuel/Food) loads from
+	# home_base_economy.stock when arriving at HomeBase.
+	var deficit_faction := PowerFaction.new()
+	deficit_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	deficit_faction.economy = BaseEconomy.new()
+	deficit_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
+	trade_route_state.factions.append(deficit_faction)
+	trade_route_state.home_base_economy.stock[Commodity.Type.ORE] = 30.0
+
+	var deficit_hauler := CampaignFleet.new()
+	deficit_hauler.faction = CampaignFleet.Faction.DOMINION
+	deficit_hauler.role = CampaignFleet.Role.TRADER
+	deficit_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	trade_route_state.run_npc_trade_for_fleet(deficit_hauler, false)
+	if deficit_hauler.cargo.get(Commodity.Type.ORE, 0.0) <= 0.0:
+		failures.append("run_npc_trade_for_fleet: expected Dominion's hauler to load Ore (a deficit commodity) from home_base_economy.stock")
+
+	# No-op cases: unknown faction, null economy, null home_base_economy.
+	var orphan_hauler := CampaignFleet.new()
+	orphan_hauler.faction = CampaignFleet.Faction.PIRATE
+	trade_route_state.run_npc_trade_for_fleet(orphan_hauler, true)
+	if orphan_hauler.cargo_total() != 0.0:
+		failures.append("run_npc_trade_for_fleet: expected no-op for a faction with no matching PowerFaction")
+
 	return failures
 
 class SkirmishResolvedTracker:

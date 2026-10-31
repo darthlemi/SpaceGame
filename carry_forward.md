@@ -1,3 +1,57 @@
+# Carry Forward — 2026-10-31 session (overworld fleet clump)
+
+## Done this session
+
+Brainstormed → spec'd → planned → implemented (1 task via
+subagent-driven-development) → task-reviewed → final whole-branch
+reviewed (clean, no Critical/Important) → merged to `master`.
+Spec: `docs/superpowers/specs/2026-10-31-overworld-fleet-clump-design.md`.
+Plan: `docs/superpowers/plans/2026-10-31-overworld-fleet-clump.md`.
+
+- **Overworld fleet clump** — `CampaignFleetIcon` no longer shows a single
+  static triangle for a whole fleet; it now renders one small dot per
+  entry in `fleet.ship_compositions`, scattered randomly within a fixed
+  `CLUMP_RADIUS` (18px) around the icon's origin via `_sync_ship_dots()`.
+  Dot offsets are cached per-index so surviving ships don't jump position
+  when the fleet shrinks. Applies uniformly to all fleets (player, trader,
+  pirate, faction) since the logic lives in the shared icon script, not
+  per-faction code. Deliberately count/shape only — no ship-class visuals
+  (see the "Follow-up queued" entry below, still open).
+- Final reviewer flagged (Minor, parked, not fixed): clump radius is fixed
+  regardless of fleet size, so very large fleets (~15+ ships) will visually
+  saturate into an unreadable blob — fine for now since fleets are small,
+  but if that changes, scale `CLUMP_RADIUS` with `sqrt(ship_count)` rather
+  than leaving it fixed. Also no test for the 0-ship or
+  shrink-then-regrow-in-one-frame edge cases (both correct by inspection).
+
+## Gotchas hit this session
+
+- Same per-checkout Godot `class_name` cache gotcha as prior sessions
+  (see 2026-10-31 Trade Routes entry below) — bit the dispatched
+  implementer subagent on its first pass in the fresh worktree; it
+  initially mis-reported "tests can't run" as if blocked, when it just
+  needed the one-time `--headless --editor --quit` warm pass. Worth
+  including that warm-pass instruction directly in future implementer
+  dispatches for fresh worktrees, not just in the plan's Global
+  Constraints (which the implementer may not read closely enough to act
+  on before concluding it's stuck).
+- `master`'s working tree had substantial unrelated uncommitted
+  pre-existing work (economy/speed-control/campaign-scene changes, several
+  untracked `.gd`/`.gd.uid` files, an untracked `CLAUDE.md`) plus a
+  same-named *untracked* copy of this session's own plan file (written
+  directly to disk before the worktree existed, with stale `- [ ]`
+  checkboxes) sitting at the same path the branch would create via merge
+  — had to delete that stale untracked duplicate first or `git merge`
+  would have refused to overwrite it. Left all the *other* unrelated dirty
+  files alone, as instructed by the art-pipeline session's note below.
+
+## Next step (this session's thread)
+
+No further action needed on the clump feature itself. The ship-classes
+follow-up (below) is the natural next consumer if picked up.
+
+---
+
 # Carry Forward — 2026-10-31 session (art pipeline)
 
 ## Done this session

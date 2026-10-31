@@ -78,6 +78,45 @@ static func run() -> Array[String]:
 	if sold_empty:
 		failures.append("sell: expected selling with no cargo held to fail")
 
+	# buy: out-of-stock base should fail without touching credits/cargo/stock.
+	var out_of_stock_state := CampaignState.new()
+	out_of_stock_state.credits = 50.0
+	var out_of_stock_economy := BaseEconomy.new()
+	out_of_stock_economy.stock = {Commodity.Type.ORE: 0.0}
+	var out_of_stock_fleet := CampaignFleet.new()
+	out_of_stock_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	var bought_out_of_stock: bool = out_of_stock_state.buy(out_of_stock_economy, Commodity.Type.ORE, out_of_stock_fleet)
+	if bought_out_of_stock:
+		failures.append("buy: expected purchase to fail when base stock is below 1.0")
+	if out_of_stock_state.credits != 50.0:
+		failures.append("buy: expected credits unchanged when base stock is below 1.0, got %s" % out_of_stock_state.credits)
+	if out_of_stock_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("buy: expected fleet cargo unchanged when base stock is below 1.0")
+	if out_of_stock_economy.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("buy: expected base stock unchanged when base stock is below 1.0")
+
+	# buy: fleet cargo already at capacity should fail without touching credits/cargo/stock.
+	var full_cargo_state := CampaignState.new()
+	full_cargo_state.credits = 50.0
+	var full_cargo_economy := BaseEconomy.new()
+	full_cargo_economy.stock = {Commodity.Type.ORE: 10.0}
+	var full_cargo_fleet := CampaignFleet.new()
+	full_cargo_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	full_cargo_fleet.cargo = {Commodity.Type.FUEL: 20.0}
+	if full_cargo_fleet.cargo_total() < full_cargo_fleet.cargo_capacity():
+		failures.append("buy: test setup expected cargo already at capacity")
+
+	var bought_full_cargo: bool = full_cargo_state.buy(full_cargo_economy, Commodity.Type.ORE, full_cargo_fleet)
+	if bought_full_cargo:
+		failures.append("buy: expected purchase to fail when cargo would exceed capacity")
+	if full_cargo_state.credits != 50.0:
+		failures.append("buy: expected credits unchanged when cargo is full, got %s" % full_cargo_state.credits)
+	if full_cargo_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("buy: expected fleet cargo unchanged (no Ore added) when cargo is full")
+	if full_cargo_economy.stock.get(Commodity.Type.ORE, 0.0) != 10.0:
+		failures.append("buy: expected base stock unchanged when cargo is full")
+
 	# tick_economy: fires on a fixed interval, not every delta.
 	var tick_state := CampaignState.new()
 	var ticked_economy := BaseEconomy.new()
@@ -90,6 +129,23 @@ static func run() -> Array[String]:
 	tick_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
 	if ticked_economy.stock.get(Commodity.Type.ORE, 0.0) != 5.0:
 		failures.append("tick_economy: expected one economy tick once the interval elapses, got Ore=%s" % ticked_economy.stock.get(Commodity.Type.ORE, 0.0))
+
+	# tick_economy: per-faction economies tick too, and a null economy is skipped.
+	var faction_tick_state := CampaignState.new()
+	var economy_faction := PowerFaction.new()
+	var faction_economy := BaseEconomy.new()
+	faction_economy.slots = [EconomyRole.mining()]
+	faction_economy.max_slots = 1
+	economy_faction.economy = faction_economy
+	var no_economy_faction := PowerFaction.new()
+	no_economy_faction.economy = null
+	faction_tick_state.factions = [economy_faction, no_economy_faction]
+
+	faction_tick_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+	if faction_economy.stock.get(Commodity.Type.ORE, 0.0) != 5.0:
+		failures.append("tick_economy: expected the faction's economy to tick, got Ore=%s" % faction_economy.stock.get(Commodity.Type.ORE, 0.0))
+	if no_economy_faction.economy != null:
+		failures.append("tick_economy: expected the null-economy faction to remain untouched")
 
 	# reset() clears the new economy fields too.
 	tick_state.credits = 10.0

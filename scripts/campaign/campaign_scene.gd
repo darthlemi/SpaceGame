@@ -199,6 +199,7 @@ func _on_fleet_role_changed(fleet: CampaignFleet) -> void:
 	for icon in enemy_icons:
 		if icon.fleet == fleet:
 			icon.behavior_type = _behavior_for_fleet(fleet)
+			icon.player_target = player_icon if fleet.role == CampaignFleet.Role.COMBAT else null
 			_configure_trade_route(icon, fleet)
 			break
 

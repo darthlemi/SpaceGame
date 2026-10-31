@@ -111,6 +111,29 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			scene._pending_enemy_icon = null
 			scene.engage_prompt.visible = false
 
+			# FleetAllocationPolicy.REALLOCATE_TO_COMBAT can flip a TRADER-role
+			# faction hauler back to COMBAT via fleet_role_changed. Since
+			# TRADER-role icons start with player_target == null (the
+			# exemption above), _on_fleet_role_changed must re-establish
+			# player_target when the new role is COMBAT, or a reallocated
+			# fleet could never detect/chase the player (PirateBehavior's
+			# intercept check is null-guarded and silently no-ops).
+			if freehold_trader_icon != null:
+				if freehold_trader_icon.player_target != null:
+					failures.append("expected a freshly-spawned TRADER-role icon to have a null player_target")
+				freehold_trader_icon.fleet.role = CampaignFleet.Role.COMBAT
+				scene._on_fleet_role_changed(freehold_trader_icon.fleet)
+				if freehold_trader_icon.player_target != scene.player_icon:
+					failures.append("expected _on_fleet_role_changed to re-establish player_target when a fleet's role changes to COMBAT")
+				# Revert back to TRADER so this icon doesn't masquerade as a
+				# second COMBAT-role FREEHOLD icon for the surviving_power_icon
+				# lookup later in this test (which assumes exactly one COMBAT
+				# icon per power faction).
+				freehold_trader_icon.fleet.role = CampaignFleet.Role.TRADER
+				scene._on_fleet_role_changed(freehold_trader_icon.fleet)
+				if freehold_trader_icon.player_target != null:
+					failures.append("expected _on_fleet_role_changed to clear player_target when a fleet's role changes back to TRADER")
+
 			# The DOMINION/FREEHOLD trader-role icons no longer have a
 			# player_target (they're running a scripted route, not evading the
 			# player), so they roam autonomously toward their route endpoints

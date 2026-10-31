@@ -24,6 +24,7 @@ func _run_all() -> void:
 		preload("res://tests/test_faction_base.gd"),
 		preload("res://tests/test_power_faction.gd"),
 		preload("res://tests/test_commodity.gd"),
+		preload("res://tests/test_fleet_allocation_policy.gd"),
 		preload("res://tests/test_economy_role.gd"),
 		preload("res://tests/test_base_economy.gd"),
 		preload("res://tests/test_skirmish_resolution.gd"),

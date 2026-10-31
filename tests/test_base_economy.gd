@@ -101,6 +101,20 @@ static func run() -> Array[String]:
 	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 0.6) > 0.001:
 		failures.append("price_for: expected surplus band 0.6x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
+	pricing_base.stock = {Commodity.Type.ORE: ore_target * 0.4}  # low: 20-60%
+	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.3) > 0.001:
+		failures.append("price_for: expected low band 1.3x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
+
+	pricing_base.stock = {Commodity.Type.ORE: ore_target * 1.6}  # high: 140-180%
+	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 0.8) > 0.001:
+		failures.append("price_for: expected high band 0.8x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
+
+	# Boundary: ratio exactly 0.2 falls into the "low" band (threshold check is
+	# ratio < 0.2 for critical, so 0.2 itself does not qualify as critical).
+	pricing_base.stock = {Commodity.Type.ORE: ore_target * 0.2}  # boundary: exactly 20%
+	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.3) > 0.001:
+		failures.append("price_for: expected ratio==0.2 boundary to land in low band 1.3x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
+
 	var buy: float = pricing_base.price_for(Commodity.Type.ORE)
 	var sell: float = pricing_base.sell_price_for(Commodity.Type.ORE)
 	if abs(sell - buy * 0.8) > 0.001:

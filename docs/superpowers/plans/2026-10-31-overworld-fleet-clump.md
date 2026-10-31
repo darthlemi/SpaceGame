@@ -30,7 +30,7 @@
 - Consumes: `CampaignFleet.ship_compositions: Array[Dictionary]` (existing field, `scripts/campaign/campaign_fleet.gd:10`) — only `.size()` is read, no new fields.
 - Produces: `CampaignFleetIcon.CLUMP_RADIUS: float` (new public constant, used by the test to bound dot offsets). No other new public surface — `_sync_ship_dots()`, `_ship_dots`, `_ship_dot_offsets`, and `_circle_polygon()` are internal (`_`-prefixed) and not consumed outside this file.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Open `tests/test_campaign_fleet_icon.gd`. Insert the following block immediately before the final `return failures` line (after the existing "rewound" trader block that ends with `rewound_icon.queue_free()`):
 
@@ -72,13 +72,13 @@ Open `tests/test_campaign_fleet_icon.gd`. Insert the following block immediately
 	dots_icon.queue_free()
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `C:\Users\corbi\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe --headless --script tests/run_tests.gd`
 
 Expected: FAIL — `Invalid get index 'CLUMP_RADIUS'` (or similar: the constant doesn't exist yet) reported under `test_campaign_fleet_icon.gd`, plus the dot-count assertions failing (0 dots found, since nothing creates `Polygon2D` children yet).
 
-- [ ] **Step 3: Remove the static triangle from the scene**
+- [x] **Step 3: Remove the static triangle from the scene**
 
 Edit `scenes/campaign/campaign_fleet_icon.tscn`. Current contents:
 
@@ -118,7 +118,7 @@ script = ExtResource("1")
 shape = SubResource("1")
 ```
 
-- [ ] **Step 4: Implement dot syncing in campaign_fleet_icon.gd**
+- [x] **Step 4: Implement dot syncing in campaign_fleet_icon.gd**
 
 In `scripts/campaign/campaign_fleet_icon.gd`, add these constants near the top, right after the existing `enum BehaviorType { PLAYER, PATROL, TRADER, PIRATE }` line:
 
@@ -199,13 +199,13 @@ func _circle_polygon(radius: float, sides: int) -> PackedVector2Array:
 	return points
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `C:\Users\corbi\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe --headless --script tests/run_tests.gd`
 
 Expected: PASS — `test_campaign_fleet_icon.gd` reports no failures, and `total_failures` across the whole suite does not increase versus the pre-change baseline. (Run the same command once before Step 1 if you want an exact baseline count — the repo is clean on `master` per the last carry-forward note, so the baseline should be 0.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scenes/campaign/campaign_fleet_icon.tscn scripts/campaign/campaign_fleet_icon.gd tests/test_campaign_fleet_icon.gd

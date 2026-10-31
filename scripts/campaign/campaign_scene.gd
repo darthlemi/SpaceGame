@@ -12,6 +12,7 @@ var enemy_icons: Array[CampaignFleetIcon] = []
 
 @onready var engage_prompt: Control = $EngagePrompt
 @onready var trade_panel: TradePanel = $TradePanel
+@onready var loot_panel: LootPanel = $LootPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 
@@ -34,17 +35,19 @@ func _ready() -> void:
 	player_icon.area_exited.connect(_on_player_area_exited)
 
 	for enemy_fleet in CampaignState.enemy_fleets:
-		var behavior := _behavior_for_faction(enemy_fleet.faction)
-		var icon := _spawn_icon(enemy_fleet, behavior)
-		icon.player_target = player_icon
-		icon.area_entered.connect(_on_enemy_area_entered.bind(icon))
-		enemy_icons.append(icon)
+		_setup_enemy_icon(enemy_fleet)
 
 	engage_prompt.visible = false
 	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
 	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
+	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
+	CampaignState.fleet_role_changed.connect(_on_fleet_role_changed)
+
+	if CampaignState.pending_loot_fleet != null:
+		loot_panel.open_for(CampaignState.pending_loot_fleet, CampaignState.player_fleet)
+		CampaignState.pending_loot_fleet = null
 
 func _bootstrap_default_campaign() -> void:
 	var player := CampaignFleet.new()
@@ -103,11 +106,25 @@ func _bootstrap_default_campaign() -> void:
 	freehold_fleet.speed = 100.0
 	freehold_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
-	CampaignState.enemy_fleets = [pirate, trader, patrol, dominion_fleet, freehold_fleet]
+	var dominion_trader_fleet := CampaignFleet.new()
+	dominion_trader_fleet.faction = CampaignFleet.Faction.DOMINION
+	dominion_trader_fleet.role = CampaignFleet.Role.TRADER
+	dominion_trader_fleet.position = dominion_faction.base_position
+	dominion_trader_fleet.speed = 100.0
+	dominion_trader_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	var freehold_trader_fleet := CampaignFleet.new()
+	freehold_trader_fleet.faction = CampaignFleet.Faction.FREEHOLD
+	freehold_trader_fleet.role = CampaignFleet.Role.TRADER
+	freehold_trader_fleet.position = freehold_faction.base_position
+	freehold_trader_fleet.speed = 100.0
+	freehold_trader_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	CampaignState.enemy_fleets = [pirate, trader, patrol, dominion_fleet, freehold_fleet, dominion_trader_fleet, freehold_trader_fleet]
 
 	CampaignState.home_base_economy = BaseEconomy.new()
-	CampaignState.home_base_economy.slots = [EconomyRole.trade_hub()]
-	CampaignState.home_base_economy.max_slots = 1
+	CampaignState.home_base_economy.slots = [EconomyRole.trade_hub(), EconomyRole.refinery()]
+	CampaignState.home_base_economy.max_slots = 2
 	for commodity in Commodity.Type.values():
 		CampaignState.home_base_economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
 
@@ -128,14 +145,16 @@ func _bootstrap_default_campaign() -> void:
 		Commodity.Type.FOOD: 50.0,
 	}
 
-func _behavior_for_faction(faction: CampaignFleet.Faction) -> CampaignFleetIcon.BehaviorType:
-	match faction:
+func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType:
+	match fleet.faction:
 		CampaignFleet.Faction.PIRATE:
 			return CampaignFleetIcon.BehaviorType.PIRATE
 		CampaignFleet.Faction.TRADER:
 			return CampaignFleetIcon.BehaviorType.TRADER
 		CampaignFleet.Faction.DOMINION, CampaignFleet.Faction.FREEHOLD:
-			return CampaignFleetIcon.BehaviorType.PIRATE if _is_faction_hostile(faction) else CampaignFleetIcon.BehaviorType.PATROL
+			if fleet.role == CampaignFleet.Role.TRADER:
+				return CampaignFleetIcon.BehaviorType.TRADER
+			return CampaignFleetIcon.BehaviorType.PIRATE if _is_faction_hostile(fleet.faction) else CampaignFleetIcon.BehaviorType.PATROL
 		_:
 			return CampaignFleetIcon.BehaviorType.PATROL
 
@@ -160,6 +179,45 @@ func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType)
 	add_child(icon)
 	icon.setup(fleet, HOME_BASE_POSITION)
 	return icon
+
+func _setup_enemy_icon(fleet: CampaignFleet) -> CampaignFleetIcon:
+	var behavior := _behavior_for_fleet(fleet)
+	var icon := _spawn_icon(fleet, behavior)
+	icon.player_target = player_icon
+	icon.area_entered.connect(_on_enemy_area_entered.bind(icon))
+	icon.trader_arrived.connect(_on_trader_arrived.bind(icon))
+	enemy_icons.append(icon)
+	_configure_trade_route(icon, fleet)
+	return icon
+
+func _on_fleet_spawn_requested(fleet: CampaignFleet) -> void:
+	_setup_enemy_icon(fleet)
+
+func _on_fleet_role_changed(fleet: CampaignFleet) -> void:
+	for icon in enemy_icons:
+		if icon.fleet == fleet:
+			icon.behavior_type = _behavior_for_fleet(fleet)
+			_configure_trade_route(icon, fleet)
+			break
+
+func _on_trader_arrived(at_home: bool, icon: CampaignFleetIcon) -> void:
+	if icon.fleet.faction == CampaignFleet.Faction.DOMINION or icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
+		CampaignState.run_npc_trade_for_fleet(icon.fleet, at_home)
+
+func _configure_trade_route(icon: CampaignFleetIcon, fleet: CampaignFleet) -> void:
+	if fleet.faction != CampaignFleet.Faction.DOMINION and fleet.faction != CampaignFleet.Faction.FREEHOLD:
+		return
+	var faction: PowerFaction = null
+	for f in CampaignState.factions:
+		if f.faction_enum == fleet.faction:
+			faction = f
+			break
+	if faction == null:
+		return
+	if fleet.role == CampaignFleet.Role.TRADER:
+		icon.set_route_endpoints(HOME_BASE_POSITION, faction.base_position)
+	else:
+		icon.set_route_endpoints(faction.base_position, faction.base_position)
 
 func _on_player_area_entered(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:

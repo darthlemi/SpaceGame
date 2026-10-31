@@ -37,15 +37,43 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	var dominion_icon: CampaignFleetIcon = null
 	var freehold_icon: CampaignFleetIcon = null
+	var dominion_trader_icon: CampaignFleetIcon = null
+	var freehold_trader_icon: CampaignFleetIcon = null
 	for icon in scene.enemy_icons:
-		if icon.fleet.faction == CampaignFleet.Faction.DOMINION:
+		if icon.fleet.faction == CampaignFleet.Faction.DOMINION and icon.fleet.role == CampaignFleet.Role.COMBAT:
 			dominion_icon = icon
-		elif icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
+		elif icon.fleet.faction == CampaignFleet.Faction.FREEHOLD and icon.fleet.role == CampaignFleet.Role.COMBAT:
 			freehold_icon = icon
+		elif icon.fleet.faction == CampaignFleet.Faction.DOMINION and icon.fleet.role == CampaignFleet.Role.TRADER:
+			dominion_trader_icon = icon
+		elif icon.fleet.faction == CampaignFleet.Faction.FREEHOLD and icon.fleet.role == CampaignFleet.Role.TRADER:
+			freehold_trader_icon = icon
 	if dominion_icon == null or freehold_icon == null:
-		failures.append("expected both a DOMINION and a FREEHOLD enemy icon spawned")
+		failures.append("expected both a DOMINION and a FREEHOLD combat-role enemy icon spawned")
 	elif dominion_icon.behavior_type != CampaignFleetIcon.BehaviorType.PATROL:
-		failures.append("expected DOMINION fleet to use PATROL behavior at starting (non-hostile) reputation, got %s" % dominion_icon.behavior_type)
+		failures.append("expected DOMINION combat fleet to use PATROL behavior at starting (non-hostile) reputation, got %s" % dominion_icon.behavior_type)
+	if dominion_trader_icon == null or freehold_trader_icon == null:
+		failures.append("expected both a DOMINION and a FREEHOLD trader-role enemy icon spawned")
+	elif dominion_trader_icon.behavior_type != CampaignFleetIcon.BehaviorType.TRADER:
+		failures.append("expected DOMINION trader fleet to use TRADER behavior, got %s" % dominion_trader_icon.behavior_type)
+
+	if dominion_trader_icon != null:
+		var dominion_power_faction: PowerFaction = null
+		for faction in campaign_state.factions:
+			if faction.faction_enum == CampaignFleet.Faction.DOMINION:
+				dominion_power_faction = faction
+		if dominion_power_faction == null:
+			failures.append("expected a DOMINION PowerFaction to look up its base_position")
+		else:
+			dominion_trader_icon.global_position = dominion_power_faction.base_position
+			for i in 5:
+				await tree.physics_frame
+			var ore_before: float = dominion_power_faction.economy.stock.get(Commodity.Type.ORE, 0.0)
+			# The trader route's "home" endpoint is the faction base; placing
+			# the icon there and letting it tick should trigger a trader_arrived
+			# arrival and load surplus cargo via CampaignState.run_npc_trade_for_fleet.
+			if dominion_trader_icon.fleet.cargo_total() <= 0.0 and ore_before > 0.0:
+				failures.append("expected the DOMINION trader icon to have loaded surplus cargo after reaching its faction base")
 
 	if dominion_icon != null and freehold_icon != null:
 		dominion_icon.global_position = freehold_icon.global_position
@@ -75,7 +103,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var surviving_power_icon: CampaignFleetIcon = null
 	var pirate_icon: CampaignFleetIcon = null
 	for icon in scene.enemy_icons:
-		if icon.fleet.faction == CampaignFleet.Faction.DOMINION or icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
+		if (icon.fleet.faction == CampaignFleet.Faction.DOMINION or icon.fleet.faction == CampaignFleet.Faction.FREEHOLD) and icon.fleet.role == CampaignFleet.Role.COMBAT:
 			surviving_power_icon = icon
 		elif icon.fleet.faction == CampaignFleet.Faction.PIRATE:
 			pirate_icon = icon

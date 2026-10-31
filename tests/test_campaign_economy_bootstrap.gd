@@ -13,8 +13,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if campaign_state.home_base_economy == null:
 		failures.append("expected bootstrap to set CampaignState.home_base_economy")
-	elif campaign_state.home_base_economy.slots.size() != 1 or campaign_state.home_base_economy.slots[0].role_type != EconomyRole.RoleType.TRADE_HUB:
-		failures.append("expected home_base_economy to have a single TRADE_HUB slot")
+	else:
+		var home_role_types: Array = campaign_state.home_base_economy.slots.map(func(s): return s.role_type)
+		if not home_role_types.has(EconomyRole.RoleType.TRADE_HUB):
+			failures.append("expected home_base_economy to have a TRADE_HUB slot")
+		if not home_role_types.has(EconomyRole.RoleType.REFINERY):
+			failures.append("expected home_base_economy to have a REFINERY slot")
 
 	var dominion: PowerFaction = null
 	var freehold: PowerFaction = null

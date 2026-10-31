@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/campaign/campaign_scene.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/campaign/trade_panel.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/campaign/loot_panel.tscn" id="3"]
 
 [node name="CampaignScene" type="Node2D"]
 script = ExtResource("1")
@@ -33,3 +34,5 @@ offset_bottom = 70.0
 text = "Disengage"
 
 [node name="TradePanel" type="Control" parent="." instance=ExtResource("2")]
+
+[node name="LootPanel" type="Control" parent="." instance=ExtResource("3")]

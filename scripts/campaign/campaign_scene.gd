@@ -217,10 +217,14 @@ func _configure_trade_route(icon: CampaignFleetIcon, fleet: CampaignFleet) -> vo
 			break
 	if faction == null:
 		return
-	if fleet.role == CampaignFleet.Role.TRADER:
-		icon.set_route_endpoints(faction.base_position, HOME_BASE_POSITION)
-	else:
-		icon.set_route_endpoints(faction.base_position, faction.base_position)
+	var away_pos := _dock_point_for(fleet.faction) if fleet.role == CampaignFleet.Role.TRADER else faction.base_position
+	var reset_state := not icon.route_endpoints_match(faction.base_position, away_pos)
+	icon.set_route_endpoints(faction.base_position, away_pos, reset_state)
+
+func _dock_point_for(faction_enum: CampaignFleet.Faction) -> Vector2:
+	if faction_enum == CampaignFleet.Faction.DOMINION:
+		return HOME_BASE_POSITION + Vector2(40, 0)
+	return HOME_BASE_POSITION + Vector2(-40, 0)
 
 func _on_player_area_entered(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
@@ -234,6 +238,7 @@ func _on_player_area_entered(area: Area2D) -> void:
 func _on_player_area_exited(area: Area2D) -> void:
 	if area == _pending_enemy_icon:
 		_pending_enemy_icon = null
+		engage_prompt.visible = false
 	elif area is HomeBase or area is FactionBase:
 		trade_panel.close()
 

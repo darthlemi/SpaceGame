@@ -216,6 +216,65 @@ static func run() -> Array[String]:
 	if deficit_hauler.cargo.get(Commodity.Type.ORE, 0.0) <= 0.0:
 		failures.append("run_npc_trade_for_fleet: expected Dominion's hauler to load Ore (a deficit commodity) from home_base_economy.stock")
 
+	# run_npc_trade_for_fleet: when cargo capacity is NOT enough to cover
+	# every deficit commodity, the available space must be split across all
+	# qualifying commodities, not raced for by whichever one net_commodities()
+	# happens to enumerate first. Dominion's industrial+population slots net
+	# WEAPONS +2, ORE -3, FUEL -2, FOOD -4 -- a single-ship hauler (capacity
+	# 20) arriving at a HomeBase stocked well above capacity in all three must
+	# come away with more than just Ore, including Fuel (the exact gap this
+	# milestone's refinery exists to close).
+	var split_deficit_state := CampaignState.new()
+	var split_deficit_faction := PowerFaction.new()
+	split_deficit_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	split_deficit_faction.economy = BaseEconomy.new()
+	split_deficit_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
+	split_deficit_state.factions = [split_deficit_faction]
+	split_deficit_state.home_base_economy = BaseEconomy.new()
+	split_deficit_state.home_base_economy.stock = {
+		Commodity.Type.ORE: 100.0,
+		Commodity.Type.FUEL: 100.0,
+		Commodity.Type.FOOD: 100.0,
+	}
+	var split_deficit_hauler := CampaignFleet.new()
+	split_deficit_hauler.faction = CampaignFleet.Faction.DOMINION
+	split_deficit_hauler.role = CampaignFleet.Role.TRADER
+	split_deficit_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	split_deficit_state.run_npc_trade_for_fleet(split_deficit_hauler, false)
+	var split_deficit_commodities_loaded := 0
+	for commodity in [Commodity.Type.ORE, Commodity.Type.FUEL, Commodity.Type.FOOD]:
+		if split_deficit_hauler.cargo.get(commodity, 0.0) > 0.0:
+			split_deficit_commodities_loaded += 1
+	if split_deficit_commodities_loaded <= 1:
+		failures.append("run_npc_trade_for_fleet: expected cargo space to be split across all deficit commodities, not just one, got cargo=%s" % split_deficit_hauler.cargo)
+	if split_deficit_hauler.cargo.get(Commodity.Type.FUEL, 0.0) <= 0.0:
+		failures.append("run_npc_trade_for_fleet: expected Fuel (a deficit commodity) to actually be picked up, not starved by a greedy first commodity")
+
+	# Symmetric case on the export side: a faction with multiple surplus
+	# commodities and capacity too small to carry all of them fully should
+	# still load more than one distinct commodity.
+	var split_surplus_state := CampaignState.new()
+	var split_surplus_faction := PowerFaction.new()
+	split_surplus_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
+	split_surplus_faction.economy = BaseEconomy.new()
+	split_surplus_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
+	split_surplus_faction.economy.stock = {Commodity.Type.ORE: 50.0, Commodity.Type.FOOD: 50.0}
+	split_surplus_state.factions = [split_surplus_faction]
+	split_surplus_state.home_base_economy = BaseEconomy.new()
+	var split_surplus_hauler := CampaignFleet.new()
+	split_surplus_hauler.faction = CampaignFleet.Faction.FREEHOLD
+	split_surplus_hauler.role = CampaignFleet.Role.TRADER
+	split_surplus_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	split_surplus_state.run_npc_trade_for_fleet(split_surplus_hauler, true)
+	var split_surplus_commodities_loaded := 0
+	for commodity in [Commodity.Type.ORE, Commodity.Type.FOOD]:
+		if split_surplus_hauler.cargo.get(commodity, 0.0) > 0.0:
+			split_surplus_commodities_loaded += 1
+	if split_surplus_commodities_loaded <= 1:
+		failures.append("run_npc_trade_for_fleet: expected cargo space to be split across all surplus commodities, not just one, got cargo=%s" % split_surplus_hauler.cargo)
+
 	# No-op cases: unknown faction, null economy, null home_base_economy.
 	var orphan_hauler := CampaignFleet.new()
 	orphan_hauler.faction = CampaignFleet.Faction.PIRATE

@@ -65,15 +65,17 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if dominion_power_faction == null:
 			failures.append("expected a DOMINION PowerFaction to look up its base_position")
 		else:
-			# Teleport directly onto the away endpoint (HomeBase) rather than
-			# waiting for the icon to travel there under its own speed -- this
-			# mirrors the teleport-then-wait-a-few-frames pattern used for the
-			# route_icon trader_arrived coverage in test_campaign_fleet_icon.gd.
-			# Arriving at HomeBase triggers trader_arrived(false), which runs
+			# Teleport directly onto the away endpoint (Dominion's dock point
+			# near HomeBase -- not necessarily the exact HOME_BASE_POSITION
+			# pixel, see Fix 2) rather than waiting for the icon to travel
+			# there under its own speed -- this mirrors the
+			# teleport-then-wait-a-few-frames pattern used for the route_icon
+			# trader_arrived coverage in test_campaign_fleet_icon.gd. Arriving
+			# at HomeBase triggers trader_arrived(false), which runs
 			# CampaignState._unload_and_load_deficit: it loads Dominion's
 			# deficit commodities (ORE/FUEL/FOOD) out of home_base_economy.stock
 			# into the fleet's cargo -- not the surplus path.
-			dominion_trader_icon.global_position = scene.HOME_BASE_POSITION
+			dominion_trader_icon.global_position = dominion_trader_icon.route_away_point()
 			for i in 5:
 				await tree.physics_frame
 			if dominion_trader_icon.fleet.cargo_total() <= 0.0:
@@ -242,9 +244,42 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if not prompt.visible:
 		failures.append("expected EngagePrompt visible after player icon overlaps an enemy icon")
 
+	# Fix 3 coverage: departing the overlap must hide the Engage prompt, not
+	# just clear _pending_enemy_icon -- otherwise the prompt stays visible
+	# forever (and can swallow clicks) after the first overlapping icon
+	# (e.g. a faction hauler docking near HomeBase) moves on.
+	scene.player_icon.global_position = Vector2(-7000, -7000)
+	for i in 5:
+		await tree.physics_frame
+	if prompt.visible:
+		failures.append("expected EngagePrompt to hide after the overlapping icon departs")
+	if scene._pending_enemy_icon != null:
+		failures.append("expected _pending_enemy_icon cleared after the overlapping icon departs")
+
+	# Re-establish the overlap so the Engage-button assertion below still
+	# has a valid pending target.
+	scene.player_icon.global_position = target_icon.global_position
+	for i in 5:
+		await tree.physics_frame
+	if not prompt.visible:
+		failures.append("expected EngagePrompt visible again after re-overlapping the enemy icon")
+
 	prompt.get_node("EngageButton").pressed.emit()
 	if campaign_state.active_enemy_fleet != target_icon.fleet:
 		failures.append("expected Engage button to call CampaignState.start_engagement with the overlapped fleet")
+
+	# Fix 2 coverage: Dominion's and Freehold's TRADER-role haulers must be
+	# routed to distinct dock points near HomeBase, not the identical pixel --
+	# otherwise their arrival_radius (10) and icon collision radius (24)
+	# guarantee an overlap, triggering a hostile skirmish between two
+	# haulers that should never fight each other.
+	if dominion_trader_icon != null and freehold_trader_icon != null:
+		var dominion_dock := dominion_trader_icon.route_away_point()
+		var freehold_dock := freehold_trader_icon.route_away_point()
+		if dominion_dock == freehold_dock:
+			failures.append("expected Dominion's and Freehold's trader haulers to dock at distinct points near HomeBase")
+		elif dominion_dock.distance_to(freehold_dock) < 60.0:
+			failures.append("expected the two factions' dock points to be far enough apart to avoid mutual collision, got distance=%s" % dominion_dock.distance_to(freehold_dock))
 
 	campaign_state.reset()
 	scene.queue_free()
@@ -269,5 +304,29 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if is_instance_valid(leaked_scene) and not leaked_scene.is_queued_for_deletion():
 			leaked_scene.queue_free()
 			await tree.process_frame
+
+	# Fix 4 coverage: CampaignScene._ready()'s loot-panel wiring -- when
+	# CampaignState.pending_loot_fleet is set before the scene loads, _ready()
+	# must open the LootPanel for it and clear the pending flag. Existing
+	# tests cover LootPanel.open_for and CampaignState.pending_loot_fleet in
+	# isolation, but not this specific wiring seam between them.
+	campaign_state.reset()
+	var loot_fleet := CampaignFleet.new()
+	loot_fleet.faction = CampaignFleet.Faction.DOMINION
+	loot_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 0.0, "max_shield": 50.0, "current_shield": 0.0}]
+	loot_fleet.cargo = {Commodity.Type.ORE: 5.0}
+	campaign_state.pending_loot_fleet = loot_fleet
+
+	var loot_scene: Node2D = CampaignSceneScene.instantiate()
+	tree.root.add_child(loot_scene)
+	await tree.process_frame
+
+	if not loot_scene.loot_panel.visible:
+		failures.append("expected CampaignScene._ready() to open the LootPanel for a pending_loot_fleet set before the scene loaded")
+	if campaign_state.pending_loot_fleet != null:
+		failures.append("expected CampaignScene._ready() to clear pending_loot_fleet after opening the LootPanel for it")
+
+	campaign_state.reset()
+	loot_scene.queue_free()
 
 	return failures

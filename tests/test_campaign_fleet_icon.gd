@@ -118,4 +118,75 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	route_icon.queue_free()
 
+	# set_route_endpoints(reset_state): re-wiring an in-progress route with the
+	# SAME endpoints and reset_state=false (as CampaignScene._ready() does on
+	# every return from CombatScene) must preserve route progress -- a hauler
+	# mid-trip toward home should keep heading home, not get rewound. Passing
+	# reset_state=true (the default, for a genuine initial/role-change config)
+	# at the same mid-trip point DOES rewind it back toward the away point.
+	var preserved_fleet := CampaignFleet.new()
+	preserved_fleet.position = Vector2(100, 0)
+	preserved_fleet.speed = 400.0
+	var preserved_icon: Area2D = CampaignFleetIconScene.instantiate()
+	preserved_icon.behavior_type = preserved_icon.BehaviorType.TRADER
+	preserved_icon.arrival_radius = 10.0
+	tree.root.add_child(preserved_icon)
+	preserved_icon.setup(preserved_fleet, Vector2.ZERO)
+	var preserved_home := Vector2(0, 0)
+	var preserved_away := Vector2(100, 0)
+	preserved_icon.set_route_endpoints(preserved_home, preserved_away)
+	preserved_icon.global_position = preserved_away
+
+	var preserved_arrivals: Array = []
+	preserved_icon.trader_arrived.connect(func(at_home: bool): preserved_arrivals.append(at_home))
+	await tree.physics_frame
+	if preserved_arrivals.size() != 1 or preserved_arrivals[0] != false:
+		failures.append("set_route_endpoints: test setup expected arrival at the away point first, got %s" % [preserved_arrivals])
+
+	# Now mid-trip toward home -- snap to a midpoint, then re-wire with the
+	# SAME endpoints and reset_state=false.
+	preserved_icon.global_position = Vector2(50, 0)
+	preserved_icon.set_route_endpoints(preserved_home, preserved_away, false)
+	for i in 20:
+		await tree.physics_frame
+		if preserved_arrivals.size() >= 2:
+			break
+	if preserved_arrivals.size() < 2 or preserved_arrivals[1] != true:
+		failures.append("set_route_endpoints: expected reset_state=false to preserve in-progress route state (continue home), got %s" % [preserved_arrivals])
+
+	preserved_icon.queue_free()
+
+	var rewound_fleet := CampaignFleet.new()
+	rewound_fleet.position = Vector2(100, 0)
+	rewound_fleet.speed = 400.0
+	var rewound_icon: Area2D = CampaignFleetIconScene.instantiate()
+	rewound_icon.behavior_type = rewound_icon.BehaviorType.TRADER
+	rewound_icon.arrival_radius = 10.0
+	tree.root.add_child(rewound_icon)
+	rewound_icon.setup(rewound_fleet, Vector2.ZERO)
+	var rewound_home := Vector2(0, 0)
+	var rewound_away := Vector2(100, 0)
+	rewound_icon.set_route_endpoints(rewound_home, rewound_away)
+	rewound_icon.global_position = rewound_away
+
+	var rewound_arrivals: Array = []
+	rewound_icon.trader_arrived.connect(func(at_home: bool): rewound_arrivals.append(at_home))
+	await tree.physics_frame
+	if rewound_arrivals.size() != 1 or rewound_arrivals[0] != false:
+		failures.append("set_route_endpoints: test setup expected arrival at the away point first, got %s" % [rewound_arrivals])
+
+	# Mid-trip toward home, but this time re-wire with reset_state=true (the
+	# default) -- route state must rewind, sending it back toward the away
+	# point instead of continuing home.
+	rewound_icon.global_position = Vector2(50, 0)
+	rewound_icon.set_route_endpoints(rewound_home, rewound_away)
+	for i in 20:
+		await tree.physics_frame
+		if rewound_arrivals.size() >= 2:
+			break
+	if rewound_arrivals.size() < 2 or rewound_arrivals[1] != false:
+		failures.append("set_route_endpoints: expected reset_state=true to rewind route state (back to the away point), got %s" % [rewound_arrivals])
+
+	rewound_icon.queue_free()
+
 	return failures

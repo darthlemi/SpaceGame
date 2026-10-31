@@ -35,10 +35,17 @@ func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
 func set_move_target(target: Vector2) -> void:
 	_move_target = target
 
-func set_route_endpoints(home_pos: Vector2, away_pos: Vector2) -> void:
+func set_route_endpoints(home_pos: Vector2, away_pos: Vector2, reset_state: bool = true) -> void:
 	_home_position = home_pos
 	_spawn_point = away_pos
-	_route_state = TraderBehavior.RouteState.FROM_BASE
+	if reset_state:
+		_route_state = TraderBehavior.RouteState.FROM_BASE
+
+func route_endpoints_match(home_pos: Vector2, away_pos: Vector2) -> bool:
+	return _home_position == home_pos and _spawn_point == away_pos
+
+func route_away_point() -> Vector2:
+	return _spawn_point
 
 func _physics_process(delta: float) -> void:
 	if fleet == null or frozen:

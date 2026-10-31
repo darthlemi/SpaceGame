@@ -243,16 +243,7 @@ func _unload_and_load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> voi
 	fleet.cargo = {}
 
 	var net := economy.net_commodities()
-	for commodity in net:
-		if net[commodity] <= 0.0:
-			continue
-		var available: float = economy.stock.get(commodity, 0.0)
-		var space: float = fleet.cargo_capacity() - fleet.cargo_total()
-		var amount: float = min(available, space)
-		if amount <= 0.0:
-			continue
-		economy.stock[commodity] = available - amount
-		fleet.cargo[commodity] = fleet.cargo.get(commodity, 0.0) + amount
+	_load_qualifying_commodities(fleet, net, true, economy.stock)
 
 func _unload_and_load_deficit(fleet: CampaignFleet, economy: BaseEconomy) -> void:
 	for commodity in fleet.cargo:
@@ -263,13 +254,23 @@ func _unload_and_load_deficit(fleet: CampaignFleet, economy: BaseEconomy) -> voi
 	fleet.cargo = {}
 
 	var net := economy.net_commodities()
+	_load_qualifying_commodities(fleet, net, false, home_base_economy.stock)
+
+func _load_qualifying_commodities(fleet: CampaignFleet, net: Dictionary, positive: bool, stock: Dictionary) -> void:
+	var qualifying: Array = []
 	for commodity in net:
-		if net[commodity] >= 0.0:
+		var qualifies: bool = net[commodity] > 0.0 if positive else net[commodity] < 0.0
+		if not qualifies or stock.get(commodity, 0.0) <= 0.0:
 			continue
-		var available: float = home_base_economy.stock.get(commodity, 0.0)
-		var space: float = fleet.cargo_capacity() - fleet.cargo_total()
-		var amount: float = min(available, space)
+		qualifying.append(commodity)
+	if qualifying.is_empty():
+		return
+
+	var share: float = (fleet.cargo_capacity() - fleet.cargo_total()) / qualifying.size()
+	for commodity in qualifying:
+		var available: float = stock.get(commodity, 0.0)
+		var amount: float = min(available, share)
 		if amount <= 0.0:
 			continue
-		home_base_economy.stock[commodity] = available - amount
+		stock[commodity] = available - amount
 		fleet.cargo[commodity] = fleet.cargo.get(commodity, 0.0) + amount

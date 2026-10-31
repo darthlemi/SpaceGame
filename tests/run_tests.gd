@@ -83,6 +83,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [campaign_scene_test.resource_path, f])
 	total_failures += campaign_scene_failures.size()
 
+	var campaign_economy_bootstrap_test = load("res://tests/test_campaign_economy_bootstrap.gd")
+	var campaign_economy_bootstrap_failures: Array[String] = await campaign_economy_bootstrap_test.run_async(self)
+	for f in campaign_economy_bootstrap_failures:
+		print("FAIL [%s]: %s" % [campaign_economy_bootstrap_test.resource_path, f])
+	total_failures += campaign_economy_bootstrap_failures.size()
+
 	var campaign_fleet_icon_test = preload("res://tests/test_campaign_fleet_icon.gd")
 	var campaign_fleet_icon_failures: Array[String] = await campaign_fleet_icon_test.run_async(self)
 	for f in campaign_fleet_icon_failures:

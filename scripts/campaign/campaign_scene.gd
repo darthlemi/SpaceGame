@@ -104,6 +104,29 @@ func _bootstrap_default_campaign() -> void:
 
 	CampaignState.enemy_fleets = [pirate, trader, patrol, dominion_fleet, freehold_fleet]
 
+	CampaignState.home_base_economy = BaseEconomy.new()
+	CampaignState.home_base_economy.slots = [EconomyRole.trade_hub()]
+	CampaignState.home_base_economy.max_slots = 1
+	for commodity in Commodity.Type.values():
+		CampaignState.home_base_economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
+
+	dominion_faction.economy = BaseEconomy.new()
+	dominion_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
+	dominion_faction.economy.max_slots = 2
+	dominion_faction.economy.stock = {
+		Commodity.Type.ORE: 50.0,
+		Commodity.Type.FUEL: 50.0,
+		Commodity.Type.FOOD: 50.0,
+	}
+
+	freehold_faction.economy = BaseEconomy.new()
+	freehold_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
+	freehold_faction.economy.max_slots = 2
+	freehold_faction.economy.stock = {
+		Commodity.Type.ORE: 50.0,
+		Commodity.Type.FOOD: 50.0,
+	}
+
 func _behavior_for_faction(faction: CampaignFleet.Faction) -> CampaignFleetIcon.BehaviorType:
 	match faction:
 		CampaignFleet.Faction.PIRATE:
@@ -150,6 +173,7 @@ func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignF
 
 func _physics_process(delta: float) -> void:
 	CampaignState.tick_skirmishes(delta)
+	CampaignState.tick_economy(delta)
 
 func _on_engage_pressed() -> void:
 	if _pending_enemy_icon == null:

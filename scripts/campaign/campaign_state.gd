@@ -1,6 +1,8 @@
 extends Node
 
 signal skirmish_resolved(winner_fleet: CampaignFleet, loser_fleet: CampaignFleet)
+signal fleet_spawn_requested(fleet: CampaignFleet)
+signal fleet_role_changed(fleet: CampaignFleet)
 
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
@@ -56,6 +58,7 @@ func tick_economy(delta: float) -> void:
 		for faction in factions:
 			if faction.economy != null:
 				faction.economy.tick()
+				_apply_fleet_allocation(faction)
 
 func buy(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bool:
 	var price := base_economy.price_for(commodity)
@@ -163,6 +166,69 @@ func _power_faction_for(faction_enum: CampaignFleet.Faction) -> PowerFaction:
 		if faction.faction_enum == faction_enum:
 			return faction
 	return null
+
+func _apply_fleet_allocation(faction: PowerFaction) -> void:
+	var combat_fleets := _fleets_for(faction.faction_enum, CampaignFleet.Role.COMBAT)
+	var trader_fleets := _fleets_for(faction.faction_enum, CampaignFleet.Role.TRADER)
+	var economic_health := _economic_health(faction.economy)
+	var threat_ratio := _threat_ratio(combat_fleets)
+	var action := FleetAllocationPolicy.decide(economic_health, threat_ratio, trader_fleets.size())
+	match action:
+		FleetAllocationPolicy.Action.GROW_COMBAT:
+			_grow_fleet(faction, combat_fleets, trader_fleets, CampaignFleet.Role.COMBAT)
+		FleetAllocationPolicy.Action.GROW_TRADE:
+			_grow_fleet(faction, combat_fleets, trader_fleets, CampaignFleet.Role.TRADER)
+		FleetAllocationPolicy.Action.REALLOCATE_TO_COMBAT:
+			if trader_fleets.size() > 1:
+				trader_fleets[0].role = CampaignFleet.Role.COMBAT
+				fleet_role_changed.emit(trader_fleets[0])
+		FleetAllocationPolicy.Action.NONE:
+			pass
+
+func _fleets_for(faction_enum: CampaignFleet.Faction, role: CampaignFleet.Role) -> Array[CampaignFleet]:
+	var result: Array[CampaignFleet] = []
+	for fleet in enemy_fleets:
+		if fleet.faction == faction_enum and fleet.role == role:
+			result.append(fleet)
+	return result
+
+func _economic_health(economy: BaseEconomy) -> FleetAllocationPolicy.EconomicHealth:
+	for streak in economy.deficit_streaks.values():
+		if streak > 0:
+			return FleetAllocationPolicy.EconomicHealth.DEFICIT
+	if economy.surplus_streak >= BaseEconomy.SURPLUS_STREAK_THRESHOLD:
+		return FleetAllocationPolicy.EconomicHealth.STRONG
+	return FleetAllocationPolicy.EconomicHealth.STABLE
+
+func _threat_ratio(combat_fleets: Array[CampaignFleet]) -> float:
+	var pirate_strength := 0.0
+	for fleet in enemy_fleets:
+		if fleet.faction == CampaignFleet.Faction.PIRATE:
+			pirate_strength += fleet.total_strength()
+	var combat_strength := 0.0
+	for fleet in combat_fleets:
+		combat_strength += fleet.total_strength()
+	return pirate_strength / max(combat_strength, 1.0)
+
+func _grow_fleet(faction: PowerFaction, combat_fleets: Array[CampaignFleet], trader_fleets: Array[CampaignFleet], role: CampaignFleet.Role) -> void:
+	var fleets_of_role := combat_fleets if role == CampaignFleet.Role.COMBAT else trader_fleets
+	for fleet in fleets_of_role:
+		if fleet.ship_compositions.size() < FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
+			fleet.ship_compositions.append(_new_ship_template())
+			return
+	if combat_fleets.size() + trader_fleets.size() >= FleetAllocationPolicy.MAX_FLEETS:
+		return
+	var new_fleet := CampaignFleet.new()
+	new_fleet.faction = faction.faction_enum
+	new_fleet.role = role
+	new_fleet.position = faction.base_position
+	new_fleet.speed = 100.0
+	new_fleet.ship_compositions = [_new_ship_template()]
+	enemy_fleets.append(new_fleet)
+	fleet_spawn_requested.emit(new_fleet)
+
+func _new_ship_template() -> Dictionary:
+	return {"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}
 
 func _load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> void:
 	var net := economy.net_commodities()

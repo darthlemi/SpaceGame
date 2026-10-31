@@ -253,6 +253,93 @@ static func run() -> Array[String]:
 	if no_home_base_faction.economy.stock.get(Commodity.Type.ORE, 0.0) != 50.0:
 		failures.append("run_npc_trade_for_fleet: expected faction stock unchanged when home_base_economy is null")
 
+	# Fleet allocation: a faction outmatched by pirates, with a healthy
+	# economy, grows a ship on its existing combat fleet.
+	var grow_combat_state := CampaignState.new()
+	var grow_combat_faction := PowerFaction.new()
+	grow_combat_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	grow_combat_faction.economy = BaseEconomy.new()
+	grow_combat_faction.economy.slots = [EconomyRole.mining()]  # no consumption -> never in deficit
+	grow_combat_state.factions = [grow_combat_faction]
+	grow_combat_state.home_base_economy = BaseEconomy.new()
+
+	var weak_combat_fleet := CampaignFleet.new()
+	weak_combat_fleet.faction = CampaignFleet.Faction.DOMINION
+	weak_combat_fleet.role = CampaignFleet.Role.COMBAT
+	weak_combat_fleet.ship_compositions = [{"max_hp": 10.0, "current_hp": 10.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var strong_pirate_fleet := CampaignFleet.new()
+	strong_pirate_fleet.faction = CampaignFleet.Faction.PIRATE
+	strong_pirate_fleet.ship_compositions = [{"max_hp": 1000.0, "current_hp": 1000.0, "max_shield": 0.0, "current_shield": 0.0}]
+	grow_combat_state.enemy_fleets = [weak_combat_fleet, strong_pirate_fleet]
+
+	var ships_before: int = weak_combat_fleet.ship_compositions.size()
+	grow_combat_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+	if weak_combat_fleet.ship_compositions.size() != ships_before + 1:
+		failures.append("tick_economy: expected an outmatched combat fleet to grow a ship, had %d before, %d after" % [ships_before, weak_combat_fleet.ship_compositions.size()])
+
+	# A faction that's economically strong and safe from pirates grows a new
+	# trader fleet (spawn, since its one existing trader is already at the
+	# ship cap would be a separate case -- here there is no trader fleet yet,
+	# so this exercises the spawn-a-new-fleet path).
+	var grow_trade_state := CampaignState.new()
+	var grow_trade_faction := PowerFaction.new()
+	grow_trade_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
+	grow_trade_faction.economy = BaseEconomy.new()
+	grow_trade_faction.economy.slots = [EconomyRole.mining()]
+	grow_trade_faction.base_position = Vector2(150, 150)
+	grow_trade_state.factions = [grow_trade_faction]
+	grow_trade_state.home_base_economy = BaseEconomy.new()
+
+	var safe_combat_fleet := CampaignFleet.new()
+	safe_combat_fleet.faction = CampaignFleet.Faction.FREEHOLD
+	safe_combat_fleet.role = CampaignFleet.Role.COMBAT
+	safe_combat_fleet.ship_compositions = [{"max_hp": 1000.0, "current_hp": 1000.0, "max_shield": 0.0, "current_shield": 0.0}]
+	grow_trade_state.enemy_fleets = [safe_combat_fleet]
+
+	var spawned := []
+	grow_trade_state.fleet_spawn_requested.connect(func(fleet: CampaignFleet): spawned.append(fleet))
+	for i in BaseEconomy.SURPLUS_STREAK_THRESHOLD + 1:
+		grow_trade_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+	if spawned.is_empty():
+		failures.append("tick_economy: expected an economically strong, safe faction to spawn a new trader fleet")
+	elif spawned[0].role != CampaignFleet.Role.TRADER:
+		failures.append("tick_economy: expected the spawned fleet's role to be TRADER")
+
+	# Reallocation: an outmatched faction in economic deficit with 2 trader
+	# fleets flips one to COMBAT instead of growing (can't afford to grow).
+	var reallocate_state := CampaignState.new()
+	var reallocate_faction := PowerFaction.new()
+	reallocate_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	reallocate_faction.economy = BaseEconomy.new()
+	reallocate_faction.economy.slots = [EconomyRole.industrial()]  # will starve immediately, no inputs
+	reallocate_state.factions = [reallocate_faction]
+	reallocate_state.home_base_economy = BaseEconomy.new()
+
+	var weak_combat_fleet_2 := CampaignFleet.new()
+	weak_combat_fleet_2.faction = CampaignFleet.Faction.DOMINION
+	weak_combat_fleet_2.role = CampaignFleet.Role.COMBAT
+	weak_combat_fleet_2.ship_compositions = [{"max_hp": 1.0, "current_hp": 1.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var trader_fleet_1 := CampaignFleet.new()
+	trader_fleet_1.faction = CampaignFleet.Faction.DOMINION
+	trader_fleet_1.role = CampaignFleet.Role.TRADER
+	trader_fleet_1.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var trader_fleet_2 := CampaignFleet.new()
+	trader_fleet_2.faction = CampaignFleet.Faction.DOMINION
+	trader_fleet_2.role = CampaignFleet.Role.TRADER
+	trader_fleet_2.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var strong_pirate_fleet_2 := CampaignFleet.new()
+	strong_pirate_fleet_2.faction = CampaignFleet.Faction.PIRATE
+	strong_pirate_fleet_2.ship_compositions = [{"max_hp": 1000.0, "current_hp": 1000.0, "max_shield": 0.0, "current_shield": 0.0}]
+	reallocate_state.enemy_fleets = [weak_combat_fleet_2, trader_fleet_1, trader_fleet_2, strong_pirate_fleet_2]
+
+	var role_changes := []
+	reallocate_state.fleet_role_changed.connect(func(fleet: CampaignFleet): role_changes.append(fleet))
+	reallocate_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+	if role_changes.size() != 1:
+		failures.append("tick_economy: expected exactly one fleet reallocated to COMBAT, got %d" % role_changes.size())
+	elif role_changes[0].role != CampaignFleet.Role.COMBAT:
+		failures.append("tick_economy: expected the reallocated fleet's role to now be COMBAT")
+
 	return failures
 
 class SkirmishResolvedTracker:

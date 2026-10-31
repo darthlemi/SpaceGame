@@ -8,6 +8,7 @@ extends CharacterBody2D
 var weapon_mounts: Array[WeaponMount] = []
 var current_order: Order
 
+@export var ship_type: ShipType.Kind = ShipType.Kind.CORVETTE
 @export var enemy_group: StringName = &""
 @export var arrival_radius: float = 20.0
 @export var aggro_range: float = 0.0

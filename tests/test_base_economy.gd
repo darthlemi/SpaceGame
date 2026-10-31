@@ -84,4 +84,26 @@ static func run() -> Array[String]:
 	if trade_hub_base.slots.size() != 1:
 		failures.append("tick: expected TRADE_HUB slot to never decay, got %d slots" % trade_hub_base.slots.size())
 
+	# Pricing: stock-ratio bands relative to Commodity.TARGET_STOCK.
+	var pricing_base := BaseEconomy.new()
+	var ore_target: float = Commodity.TARGET_STOCK[Commodity.Type.ORE]
+	var ore_base_price: float = Commodity.BASE_PRICE[Commodity.Type.ORE]
+
+	pricing_base.stock = {Commodity.Type.ORE: ore_target * 0.1}  # critical: <20%
+	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.6) > 0.001:
+		failures.append("price_for: expected critical band 1.6x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
+
+	pricing_base.stock = {Commodity.Type.ORE: ore_target * 1.0}  # normal: 60-140%
+	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.0) > 0.001:
+		failures.append("price_for: expected normal band 1.0x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
+
+	pricing_base.stock = {Commodity.Type.ORE: ore_target * 2.0}  # surplus: >180%
+	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 0.6) > 0.001:
+		failures.append("price_for: expected surplus band 0.6x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
+
+	var buy: float = pricing_base.price_for(Commodity.Type.ORE)
+	var sell: float = pricing_base.sell_price_for(Commodity.Type.ORE)
+	if abs(sell - buy * 0.8) > 0.001:
+		failures.append("sell_price_for: expected 80%% of buy price, got buy=%s sell=%s" % [buy, sell])
+
 	return failures

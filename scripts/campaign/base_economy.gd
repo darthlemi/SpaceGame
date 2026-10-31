@@ -2,6 +2,9 @@ class_name BaseEconomy
 extends Resource
 
 const DEFICIT_STREAK_THRESHOLD := 5
+const BAND_THRESHOLDS := [0.2, 0.6, 1.4, 1.8]
+const BAND_MULTIPLIERS := [1.6, 1.3, 1.0, 0.8, 0.6]
+const SELL_SPREAD := 0.8
 
 @export var slots: Array[EconomyRole] = []
 @export var max_slots: int = 2
@@ -37,3 +40,16 @@ func tick() -> void:
 				slots.remove_at(slots.size() - 1)
 				deficit_streaks.clear()
 				break
+
+func price_for(commodity: int) -> float:
+	var target: float = Commodity.TARGET_STOCK[commodity]
+	var ratio: float = stock.get(commodity, 0.0) / target
+	var multiplier: float = BAND_MULTIPLIERS[BAND_MULTIPLIERS.size() - 1]
+	for i in BAND_THRESHOLDS.size():
+		if ratio < BAND_THRESHOLDS[i]:
+			multiplier = BAND_MULTIPLIERS[i]
+			break
+	return Commodity.BASE_PRICE[commodity] * multiplier
+
+func sell_price_for(commodity: int) -> float:
+	return price_for(commodity) * SELL_SPREAD

@@ -120,4 +120,32 @@ static func run() -> Array[String]:
 	if abs(sell - buy * 0.8) > 0.001:
 		failures.append("sell_price_for: expected 80%% of buy price, got buy=%s sell=%s" % [buy, sell])
 
+	# net_commodities: sums produces-minus-consumes across all slots.
+	var net_base := BaseEconomy.new()
+	net_base.slots = [EconomyRole.industrial(), EconomyRole.mining()]
+	var net: Dictionary = net_base.net_commodities()
+	if abs(net.get(Commodity.Type.ORE, 0.0) - 2.0) > 0.001:
+		failures.append("net_commodities: expected Ore net +2.0 (mining +5 - industrial -3), got %s" % net.get(Commodity.Type.ORE, 0.0))
+	if abs(net.get(Commodity.Type.FUEL, 0.0) - (-2.0)) > 0.001:
+		failures.append("net_commodities: expected Fuel net -2.0, got %s" % net.get(Commodity.Type.FUEL, 0.0))
+	if abs(net.get(Commodity.Type.WEAPONS, 0.0) - 2.0) > 0.001:
+		failures.append("net_commodities: expected Weapons net +2.0, got %s" % net.get(Commodity.Type.WEAPONS, 0.0))
+
+	# surplus_streak: increments on a clean tick, resets to 0 on any deficit.
+	var surplus_base := BaseEconomy.new()
+	surplus_base.slots = [EconomyRole.mining()]
+	surplus_base.max_slots = 1
+	surplus_base.tick()
+	surplus_base.tick()
+	if surplus_base.surplus_streak != 2:
+		failures.append("surplus_streak: expected 2 after two clean ticks, got %s" % surplus_base.surplus_streak)
+
+	var deficit_then_clean_base := BaseEconomy.new()
+	deficit_then_clean_base.slots = [EconomyRole.industrial()]
+	deficit_then_clean_base.max_slots = 1
+	deficit_then_clean_base.stock = {}
+	deficit_then_clean_base.tick()
+	if deficit_then_clean_base.surplus_streak != 0:
+		failures.append("surplus_streak: expected 0 after a deficit tick, got %s" % deficit_then_clean_base.surplus_streak)
+
 	return failures

@@ -161,7 +161,7 @@ func run_npc_trade_for_fleet(fleet: CampaignFleet, at_home: bool) -> void:
 	if faction == null or faction.economy == null or home_base_economy == null:
 		return
 	if at_home:
-		_load_surplus(fleet, faction.economy)
+		_unload_and_load_surplus(fleet, faction.economy)
 	else:
 		_unload_and_load_deficit(fleet, faction.economy)
 
@@ -234,7 +234,14 @@ func _grow_fleet(faction: PowerFaction, combat_fleets: Array[CampaignFleet], tra
 func _new_ship_template() -> Dictionary:
 	return {"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}
 
-func _load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> void:
+func _unload_and_load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> void:
+	for commodity in fleet.cargo:
+		var amount: float = fleet.cargo[commodity]
+		if amount <= 0.0:
+			continue
+		economy.stock[commodity] = economy.stock.get(commodity, 0.0) + amount
+	fleet.cargo = {}
+
 	var net := economy.net_commodities()
 	for commodity in net:
 		if net[commodity] <= 0.0:

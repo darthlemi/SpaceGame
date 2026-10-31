@@ -80,15 +80,27 @@ static func run_async(tree: SceneTree) -> Array[String]:
 				failures.append("expected the DOMINION trader icon to have loaded deficit cargo after reaching HomeBase")
 
 			# Closing the loop: teleporting back to the faction base triggers
-			# trader_arrived(true), running CampaignState._load_surplus. That
-			# only tops cargo up with whatever surplus commodities the faction
-			# produces (none here, since Dominion's only net-positive good,
-			# WEAPONS, has no stock) -- it doesn't clear existing cargo, so no
-			# further cargo assertion is made here, just that the signal wiring
-			# doesn't error out on this leg of the route.
+			# trader_arrived(true), running CampaignState._unload_and_load_surplus,
+			# which must dump the deficit cargo just picked up at HomeBase into
+			# the faction's own economy.stock (the actual resupply) before
+			# topping cargo back up with any surplus commodities. Snapshot the
+			# carried cargo and the faction's stock for those commodities
+			# beforehand, then confirm delivery actually landed in stock.
+			var cargo_before_delivery: Dictionary = dominion_trader_icon.fleet.cargo.duplicate()
+			var stock_before_delivery: Dictionary = {}
+			for commodity in cargo_before_delivery:
+				stock_before_delivery[commodity] = dominion_power_faction.economy.stock.get(commodity, 0.0)
+
 			dominion_trader_icon.global_position = dominion_power_faction.base_position
 			for i in 5:
 				await tree.physics_frame
+
+			var delivered_to_faction_stock := false
+			for commodity in cargo_before_delivery:
+				if cargo_before_delivery[commodity] > 0.0 and dominion_power_faction.economy.stock.get(commodity, 0.0) > stock_before_delivery[commodity]:
+					delivered_to_faction_stock = true
+			if not delivered_to_faction_stock:
+				failures.append("expected the DOMINION trader icon to deliver its carried cargo into the faction's own economy.stock on returning home")
 
 			# Teleporting the trader icon onto HOME_BASE_POSITION above also
 			# overlapped the stationary player_icon (which sits there for the

@@ -23,6 +23,8 @@ var _spawn_point: Vector2
 var _home_position: Vector2
 var _route_state: TraderBehavior.RouteState = TraderBehavior.RouteState.TO_BASE
 
+signal trader_arrived(at_home: bool)
+
 func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
 	fleet = campaign_fleet
 	global_position = fleet.position
@@ -32,6 +34,11 @@ func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
 
 func set_move_target(target: Vector2) -> void:
 	_move_target = target
+
+func set_route_endpoints(home_pos: Vector2, away_pos: Vector2) -> void:
+	_home_position = home_pos
+	_spawn_point = away_pos
+	_route_state = TraderBehavior.RouteState.FROM_BASE
 
 func _physics_process(delta: float) -> void:
 	if fleet == null or frozen:
@@ -52,8 +59,11 @@ func _process_trader() -> void:
 	if player_target != null and is_instance_valid(player_target) and TraderBehavior.should_flee(global_position, player_target.global_position, flee_range):
 		_move_target = TraderBehavior.flee_target(global_position, player_target.global_position, flee_distance)
 		return
+	var previous_state := _route_state
 	_route_state = TraderBehavior.next_route_state(_route_state, global_position, _home_position, _spawn_point, arrival_radius)
 	_move_target = TraderBehavior.route_target(_route_state, _home_position, _spawn_point)
+	if _route_state != previous_state:
+		trader_arrived.emit(_route_state == TraderBehavior.RouteState.FROM_BASE)
 
 func _process_pirate() -> void:
 	if player_target != null and is_instance_valid(player_target) and player_target.fleet != null and PirateBehavior.in_detection_range(global_position, player_target.global_position, detection_range):

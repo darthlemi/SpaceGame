@@ -82,4 +82,40 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	frozen_icon.queue_free()
 
+	# Trader route retargeting + trader_arrived signal: an icon set up with
+	# set_route_endpoints should route between those exact points (not its
+	# spawn point) and emit trader_arrived(true) on reaching home, then
+	# trader_arrived(false) on reaching the away point.
+	var route_fleet := CampaignFleet.new()
+	route_fleet.position = Vector2(500, 500)
+	route_fleet.speed = 400.0
+	var route_icon: Area2D = CampaignFleetIconScene.instantiate()
+	route_icon.behavior_type = route_icon.BehaviorType.TRADER
+	route_icon.arrival_radius = 10.0
+	tree.root.add_child(route_icon)
+	route_icon.setup(route_fleet, Vector2.ZERO)
+	var home_pos := Vector2(0, 0)
+	var away_pos := Vector2(100, 0)
+	route_icon.set_route_endpoints(home_pos, away_pos)
+	route_icon.global_position = home_pos
+
+	var arrivals: Array = []
+	route_icon.trader_arrived.connect(func(at_home: bool): arrivals.append(at_home))
+
+	for i in 60:
+		await tree.physics_frame
+		if arrivals.size() >= 1:
+			break
+	if arrivals.size() < 1 or arrivals[0] != false:
+		failures.append("trader_arrived: expected first arrival to be at the away point (false), got %s" % [arrivals])
+
+	for i in 60:
+		await tree.physics_frame
+		if arrivals.size() >= 2:
+			break
+	if arrivals.size() < 2 or arrivals[1] != true:
+		failures.append("trader_arrived: expected second arrival to be at home (true), got %s" % [arrivals])
+
+	route_icon.queue_free()
+
 	return failures

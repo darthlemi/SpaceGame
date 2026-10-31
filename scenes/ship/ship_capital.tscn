@@ -1,0 +1,83 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ship/shield.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon_mount.gd" id="5"]
+[ext_resource type="Resource" path="res://resources/weapons/kinetic_cannon.tres" id="6"]
+[ext_resource type="Script" path="res://scripts/ship/ship_vfx.gd" id="7"]
+
+[sub_resource type="CircleShape2D" id="1"]
+radius = 34.0
+
+[node name="Ship" type="CharacterBody2D"]
+script = ExtResource("1")
+ship_type = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("1")
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(34, 0, 14, -20, -24, -20, -34, 0, -24, 20, 14, 20)
+color = Color(0.55, 0.3, 0.3, 1)
+
+[node name="Hull" type="Node" parent="."]
+script = ExtResource("2")
+max_hp = 220.0
+
+[node name="Shield" type="Node" parent="."]
+script = ExtResource("3")
+max_shield = 80.0
+
+[node name="Engine" type="Node" parent="."]
+script = ExtResource("4")
+max_speed = 90.0
+turn_rate = 1.0
+acceleration = 60.0
+
+[node name="WeaponMount" type="Node2D" parent="."]
+script = ExtResource("5")
+position = Vector2(24, 0)
+weapon = ExtResource("6")
+
+[node name="WeaponMount2" type="Node2D" parent="."]
+script = ExtResource("5")
+position = Vector2(10, -14)
+weapon = ExtResource("6")
+
+[node name="WeaponMount3" type="Node2D" parent="."]
+script = ExtResource("5")
+position = Vector2(10, 14)
+weapon = ExtResource("6")
+
+[node name="VFX" type="Node2D" parent="."]
+script = ExtResource("7")
+
+[node name="HitSpark" type="CPUParticles2D" parent="VFX"]
+emitting = false
+amount = 12
+lifetime = 0.3
+one_shot = true
+explosiveness = 1.0
+direction = Vector2(1, 0)
+spread = 180.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 40.0
+initial_velocity_max = 90.0
+scale_amount_min = 2.0
+scale_amount_max = 4.0
+color = Color(1, 0.9, 0.4, 1)
+
+[node name="SmokeTrail" type="CPUParticles2D" parent="VFX"]
+emitting = false
+amount = 16
+lifetime = 0.6
+direction = Vector2(-1, 0)
+spread = 25.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 15.0
+initial_velocity_max = 30.0
+scale_amount_min = 3.0
+scale_amount_max = 5.0
+color = Color(0.3, 0.3, 0.3, 0.8)

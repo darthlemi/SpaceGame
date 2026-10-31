@@ -1,0 +1,66 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ship/shield.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/ship/ship_vfx.gd" id="5"]
+
+[sub_resource type="CircleShape2D" id="1"]
+radius = 22.0
+
+[node name="Ship" type="CharacterBody2D"]
+script = ExtResource("1")
+ship_type = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("1")
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(22, 10, 22, -10, -22, -10, -22, 10)
+color = Color(0.75, 0.55, 0.25, 1)
+
+[node name="Hull" type="Node" parent="."]
+script = ExtResource("2")
+max_hp = 80.0
+
+[node name="Shield" type="Node" parent="."]
+script = ExtResource("3")
+max_shield = 20.0
+
+[node name="Engine" type="Node" parent="."]
+script = ExtResource("4")
+max_speed = 110.0
+turn_rate = 1.5
+acceleration = 80.0
+
+[node name="VFX" type="Node2D" parent="."]
+script = ExtResource("5")
+
+[node name="HitSpark" type="CPUParticles2D" parent="VFX"]
+emitting = false
+amount = 12
+lifetime = 0.3
+one_shot = true
+explosiveness = 1.0
+direction = Vector2(1, 0)
+spread = 180.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 40.0
+initial_velocity_max = 90.0
+scale_amount_min = 2.0
+scale_amount_max = 4.0
+color = Color(1, 0.9, 0.4, 1)
+
+[node name="SmokeTrail" type="CPUParticles2D" parent="VFX"]
+emitting = false
+amount = 16
+lifetime = 0.6
+direction = Vector2(-1, 0)
+spread = 25.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 15.0
+initial_velocity_max = 30.0
+scale_amount_min = 3.0
+scale_amount_max = 5.0
+color = Color(0.3, 0.3, 0.3, 0.8)

@@ -41,6 +41,64 @@ static func run() -> Array[String]:
 	if not state.factions.is_empty() or state.factions_at_war != true or not state.active_skirmishes.is_empty():
 		failures.append("reset: expected factions, factions_at_war, and active_skirmishes cleared")
 
+	# Credits, cargo capacity, and buy/sell.
+	var trade_state := CampaignState.new()
+	trade_state.credits = 50.0
+	var trade_economy := BaseEconomy.new()
+	trade_economy.stock = {Commodity.Type.ORE: 10.0}
+	var trade_fleet := CampaignFleet.new()
+	trade_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+
+	var buy_price: float = trade_economy.price_for(Commodity.Type.ORE)
+	var bought: bool = trade_state.buy(trade_economy, Commodity.Type.ORE, trade_fleet)
+	if not bought:
+		failures.append("buy: expected a well-funded, in-capacity purchase to succeed")
+	if abs(trade_state.credits - (50.0 - buy_price)) > 0.001:
+		failures.append("buy: expected credits reduced by buy_price, got %s" % trade_state.credits)
+	if trade_economy.stock.get(Commodity.Type.ORE, 0.0) != 9.0:
+		failures.append("buy: expected base stock reduced by 1, got %s" % trade_economy.stock.get(Commodity.Type.ORE, 0.0))
+	if trade_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 1.0:
+		failures.append("buy: expected fleet cargo increased by 1, got %s" % trade_fleet.cargo.get(Commodity.Type.ORE, 0.0))
+
+	trade_state.credits = 0.0
+	var bought_broke: bool = trade_state.buy(trade_economy, Commodity.Type.ORE, trade_fleet)
+	if bought_broke:
+		failures.append("buy: expected purchase to fail with 0 credits")
+
+	var sell_price: float = trade_economy.sell_price_for(Commodity.Type.ORE)
+	var sold: bool = trade_state.sell(trade_economy, Commodity.Type.ORE, trade_fleet)
+	if not sold:
+		failures.append("sell: expected selling held cargo to succeed")
+	if abs(trade_state.credits - sell_price) > 0.001:
+		failures.append("sell: expected credits increased by sell_price, got %s" % trade_state.credits)
+	if trade_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("sell: expected fleet cargo reduced by 1, got %s" % trade_fleet.cargo.get(Commodity.Type.ORE, 0.0))
+
+	var sold_empty: bool = trade_state.sell(trade_economy, Commodity.Type.ORE, trade_fleet)
+	if sold_empty:
+		failures.append("sell: expected selling with no cargo held to fail")
+
+	# tick_economy: fires on a fixed interval, not every delta.
+	var tick_state := CampaignState.new()
+	var ticked_economy := BaseEconomy.new()
+	ticked_economy.slots = [EconomyRole.mining()]
+	ticked_economy.max_slots = 1
+	tick_state.home_base_economy = ticked_economy
+	tick_state.tick_economy(1.0)
+	if ticked_economy.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("tick_economy: expected no tick yet before the interval elapses")
+	tick_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+	if ticked_economy.stock.get(Commodity.Type.ORE, 0.0) != 5.0:
+		failures.append("tick_economy: expected one economy tick once the interval elapses, got Ore=%s" % ticked_economy.stock.get(Commodity.Type.ORE, 0.0))
+
+	# reset() clears the new economy fields too.
+	tick_state.credits = 10.0
+	tick_state.reset()
+	if tick_state.credits != 500.0:
+		failures.append("reset: expected credits reset to 500.0, got %s" % tick_state.credits)
+	if tick_state.home_base_economy != null:
+		failures.append("reset: expected home_base_economy cleared to null")
+
 	return failures
 
 class SkirmishResolvedTracker:

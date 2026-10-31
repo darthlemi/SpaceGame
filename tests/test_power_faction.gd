@@ -25,4 +25,10 @@ static func run() -> Array[String]:
 	if faction.base_position != Vector2(1000, 550):
 		failures.append("PowerFaction: expected base_position to be settable")
 
+	if faction.economy != null:
+		failures.append("PowerFaction: expected default economy == null")
+	faction.economy = BaseEconomy.new()
+	if faction.economy == null:
+		failures.append("PowerFaction: expected economy to be settable")
+
 	return failures

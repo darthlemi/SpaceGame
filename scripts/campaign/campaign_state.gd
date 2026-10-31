@@ -4,6 +4,7 @@ signal skirmish_resolved(winner_fleet: CampaignFleet, loser_fleet: CampaignFleet
 
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
+const ECONOMY_TICK_INTERVAL := 5.0
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
@@ -11,6 +12,9 @@ var active_enemy_fleet: CampaignFleet
 var factions: Array[PowerFaction] = []
 var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
+var credits: float = 500.0
+var home_base_economy: BaseEconomy = null
+var _economy_tick_elapsed: float = 0.0
 
 func start_engagement(enemy_fleet: CampaignFleet) -> void:
 	for skirmish in active_skirmishes.duplicate():
@@ -39,6 +43,39 @@ func reset() -> void:
 	factions = []
 	factions_at_war = true
 	active_skirmishes = []
+	credits = 500.0
+	home_base_economy = null
+	_economy_tick_elapsed = 0.0
+
+func tick_economy(delta: float) -> void:
+	_economy_tick_elapsed += delta
+	while _economy_tick_elapsed >= ECONOMY_TICK_INTERVAL:
+		_economy_tick_elapsed -= ECONOMY_TICK_INTERVAL
+		if home_base_economy != null:
+			home_base_economy.tick()
+		for faction in factions:
+			if faction.economy != null:
+				faction.economy.tick()
+
+func buy(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bool:
+	var price := base_economy.price_for(commodity)
+	var stock: float = base_economy.stock.get(commodity, 0.0)
+	if credits < price or stock < 1.0 or fleet.cargo_total() + 1.0 > fleet.cargo_capacity():
+		return false
+	credits -= price
+	base_economy.stock[commodity] = stock - 1.0
+	fleet.cargo[commodity] = fleet.cargo.get(commodity, 0.0) + 1.0
+	return true
+
+func sell(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bool:
+	var held: float = fleet.cargo.get(commodity, 0.0)
+	if held < 1.0:
+		return false
+	var price := base_economy.sell_price_for(commodity)
+	credits += price
+	fleet.cargo[commodity] = held - 1.0
+	base_economy.stock[commodity] = base_economy.stock.get(commodity, 0.0) + 1.0
+	return true
 
 func are_hostile(fleet_a: CampaignFleet, fleet_b: CampaignFleet) -> bool:
 	var a := fleet_a.faction

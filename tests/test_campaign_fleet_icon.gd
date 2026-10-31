@@ -189,4 +189,40 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	rewound_icon.queue_free()
 
+	# Ship dots: setup() should create one Polygon2D dot per ship
+	# composition, each within CLUMP_RADIUS of the icon's local origin.
+	var dots_fleet := CampaignFleet.new()
+	dots_fleet.position = Vector2(200, 200)
+	dots_fleet.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	var dots_icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(dots_icon)
+	dots_icon.setup(dots_fleet, Vector2.ZERO)
+
+	var dot_nodes: Array = dots_icon.get_children().filter(func(c): return c is Polygon2D)
+	if dot_nodes.size() != 3:
+		failures.append("ship dots: expected 3 dots for a 3-ship fleet, got %d" % dot_nodes.size())
+	for dot in dot_nodes:
+		if dot.position.length() > CampaignFleetIcon.CLUMP_RADIUS:
+			failures.append("ship dots: expected dot offset within CLUMP_RADIUS, got %s" % dot.position)
+
+	# Live update: shrinking ship_compositions and ticking physics should
+	# remove dots to match, without moving the surviving dots' positions.
+	var surviving_positions: Array = []
+	for dot in dot_nodes.slice(0, 2):
+		surviving_positions.append(dot.position)
+	dots_fleet.ship_compositions = dots_fleet.ship_compositions.slice(0, 2)
+	await tree.physics_frame
+	var dot_nodes_after: Array = dots_icon.get_children().filter(func(c): return c is Polygon2D)
+	if dot_nodes_after.size() != 2:
+		failures.append("ship dots: expected dot count to drop to 2 after composition shrank, got %d" % dot_nodes_after.size())
+	for i in dot_nodes_after.size():
+		if dot_nodes_after[i].position != surviving_positions[i]:
+			failures.append("ship dots: expected surviving dot %d to keep its position %s, got %s" % [i, surviving_positions[i], dot_nodes_after[i].position])
+
+	dots_icon.queue_free()
+
 	return failures

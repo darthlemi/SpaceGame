@@ -12,7 +12,6 @@ enum Role { COMBAT, TRADER }
 @export var heading: Vector2 = Vector2.RIGHT
 @export var speed: float = 80.0
 
-const CARGO_CAPACITY_PER_SHIP := 20.0
 @export var cargo: Dictionary = {}
 
 func total_strength() -> float:
@@ -38,7 +37,10 @@ func apply_fractional_damage(fraction: float) -> void:
 		comp["current_shield"] = max(0.0, comp["current_shield"] * (1.0 - fraction))
 
 func cargo_capacity() -> float:
-	return ship_compositions.size() * CARGO_CAPACITY_PER_SHIP
+	var sum := 0.0
+	for comp in ship_compositions:
+		sum += ShipType.cargo_capacity_for(ShipType.kind_of(comp))
+	return sum
 
 func cargo_total() -> float:
 	var sum := 0.0

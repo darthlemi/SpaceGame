@@ -74,6 +74,14 @@ static func run() -> Array[String]:
 	if cargo_fleet.cargo_total() != 15.0:
 		failures.append("cargo_total: expected 15.0 with cargo {0:10.0, 1:5.0}, got %s" % cargo_fleet.cargo_total())
 
+	var mixed_cargo_fleet := CampaignFleet.new()
+	mixed_cargo_fleet.ship_compositions = [
+		ShipType.new_composition(ShipType.Kind.FREIGHTER),
+		ShipType.new_composition(ShipType.Kind.CORVETTE),
+	]
+	if mixed_cargo_fleet.cargo_capacity() != 80.0:
+		failures.append("cargo_capacity: expected 80.0 for 1 Freighter (60.0) + 1 Corvette (20.0), got %s" % mixed_cargo_fleet.cargo_capacity())
+
 	var default_role_fleet := CampaignFleet.new()
 	if default_role_fleet.role != CampaignFleet.Role.COMBAT:
 		failures.append("role: expected default role == COMBAT, got %s" % default_role_fleet.role)

@@ -23,6 +23,7 @@ func _run_all() -> void:
 		preload("res://tests/test_campaign_state.gd"),
 		preload("res://tests/test_faction_base.gd"),
 		preload("res://tests/test_power_faction.gd"),
+		preload("res://tests/test_commodity.gd"),
 		preload("res://tests/test_skirmish_resolution.gd"),
 	]
 	var total_failures := 0

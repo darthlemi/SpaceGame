@@ -58,6 +58,23 @@ static func run() -> Array[String]:
 	if decaying_base.deficit_streaks.values().any(func(v): return v != 0):
 		failures.append("tick: expected all deficit streaks reset to 0 after a slot is removed")
 
+	# Ordering: production for ALL slots must apply before ANY consumption is
+	# evaluated. An earlier-indexed consuming slot (industrial) must see a
+	# later-indexed producing slot's (mining) same-tick output.
+	var ordering_base := BaseEconomy.new()
+	ordering_base.slots = [EconomyRole.industrial(), EconomyRole.mining()]
+	ordering_base.max_slots = 2
+	ordering_base.stock = {Commodity.Type.FUEL: 2.0}
+	ordering_base.tick()
+	if ordering_base.stock.get(Commodity.Type.ORE, 0.0) != 2.0:
+		failures.append("tick: expected Ore produced by mining (5.0) then drawn down by industrial (3.0) to 2.0, got %s" % ordering_base.stock.get(Commodity.Type.ORE, 0.0))
+	if ordering_base.stock.get(Commodity.Type.FUEL, 0.0) != 0.0:
+		failures.append("tick: expected Fuel drawn down to 0.0, got %s" % ordering_base.stock.get(Commodity.Type.FUEL, 0.0))
+	if ordering_base.stock.get(Commodity.Type.WEAPONS, 0.0) != 2.0:
+		failures.append("tick: expected Weapons produced to 2.0, got %s" % ordering_base.stock.get(Commodity.Type.WEAPONS, 0.0))
+	if ordering_base.deficit_streaks.get(0, 0) != 0:
+		failures.append("tick: expected industrial deficit streak == 0 (affordable using same-tick mining production), got %s" % ordering_base.deficit_streaks.get(0, 0))
+
 	# TRADE_HUB (no production/consumption) never decays regardless of ticks.
 	var trade_hub_base := BaseEconomy.new()
 	trade_hub_base.slots = [EconomyRole.trade_hub()]

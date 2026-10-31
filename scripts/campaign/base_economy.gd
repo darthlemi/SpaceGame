@@ -9,11 +9,14 @@ var stock: Dictionary = {}
 var deficit_streaks: Dictionary = {}
 
 func tick() -> void:
-	for i in slots.size():
-		var slot: EconomyRole = slots[i]
+	for slot in slots:
 		if slot.consumes.is_empty():
 			for commodity in slot.produces:
 				stock[commodity] = stock.get(commodity, 0.0) + slot.produces[commodity]
+
+	for i in slots.size():
+		var slot: EconomyRole = slots[i]
+		if slot.consumes.is_empty():
 			continue
 		var can_afford := true
 		for commodity in slot.consumes:

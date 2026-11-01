@@ -269,4 +269,54 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	heading_icon.queue_free()
 
+	# Map bounds: a player's mouse-click target set far beyond MAP_MAX should
+	# be clamped, so the icon never ends up outside the map rectangle even
+	# when driven toward a point far outside it.
+	var bounds_player_fleet := CampaignFleet.new()
+	bounds_player_fleet.position = Vector2(3999, 1199)
+	bounds_player_fleet.speed = 1000.0
+	var bounds_player_icon: Area2D = CampaignFleetIconScene.instantiate()
+	bounds_player_icon.behavior_type = bounds_player_icon.BehaviorType.PLAYER
+	tree.root.add_child(bounds_player_icon)
+	bounds_player_icon.setup(bounds_player_fleet, Vector2.ZERO)
+	bounds_player_icon.global_position = Vector2(3999, 1199)
+	bounds_player_icon.set_move_target(Vector2(9999, 9999))
+
+	for i in 20:
+		await tree.physics_frame
+	if bounds_player_icon.global_position.x > CampaignFleetIcon.MAP_MAX.x or bounds_player_icon.global_position.y > CampaignFleetIcon.MAP_MAX.y:
+		failures.append("map bounds: expected player target clamped to MAP_MAX, got position %s" % bounds_player_icon.global_position)
+
+	bounds_player_icon.queue_free()
+
+	# Map bounds: a trader fleeing past MAP_MAX.x should also get clamped.
+	# flee_target() = position + normalized(position - threat) * flee_distance;
+	# with position (3950,1200), threat (3850,1200), default flee_distance 300,
+	# the raw (unclamped) target is (4250, 1200) -- past MAP_MAX.x (4000).
+	var bounds_threat_fleet := CampaignFleet.new()
+	bounds_threat_fleet.position = Vector2(3850, 1200)
+	var bounds_threat_icon: Area2D = CampaignFleetIconScene.instantiate()
+	bounds_threat_icon.behavior_type = bounds_threat_icon.BehaviorType.PLAYER
+	tree.root.add_child(bounds_threat_icon)
+	bounds_threat_icon.setup(bounds_threat_fleet, Vector2.ZERO)
+	bounds_threat_icon.global_position = Vector2(3850, 1200)
+
+	var bounds_trader_fleet := CampaignFleet.new()
+	bounds_trader_fleet.position = Vector2(3950, 1200)
+	bounds_trader_fleet.speed = 1000.0
+	var bounds_trader_icon: Area2D = CampaignFleetIconScene.instantiate()
+	bounds_trader_icon.behavior_type = bounds_trader_icon.BehaviorType.TRADER
+	tree.root.add_child(bounds_trader_icon)
+	bounds_trader_icon.setup(bounds_trader_fleet, Vector2.ZERO)
+	bounds_trader_icon.global_position = Vector2(3950, 1200)
+	bounds_trader_icon.player_target = bounds_threat_icon
+
+	for i in 20:
+		await tree.physics_frame
+	if bounds_trader_icon.global_position.x > CampaignFleetIcon.MAP_MAX.x:
+		failures.append("map bounds: expected fleeing trader's target clamped to MAP_MAX.x, got position %s" % bounds_trader_icon.global_position)
+
+	bounds_trader_icon.queue_free()
+	bounds_threat_icon.queue_free()
+
 	return failures

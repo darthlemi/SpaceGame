@@ -23,6 +23,8 @@ const ENGINE_TRAIL_VELOCITY_MIN := 20.0
 const ENGINE_TRAIL_VELOCITY_MAX := 40.0
 const ENGINE_TRAIL_SCALE_MIN := 1.5
 const ENGINE_TRAIL_SCALE_MAX := 2.5
+const MAP_MIN := Vector2(0, 0)
+const MAP_MAX := Vector2(4000, 2400)
 
 @export var behavior_type: BehaviorType = BehaviorType.PATROL
 @export var wander_radius: float = 150.0
@@ -87,6 +89,7 @@ func _physics_process(delta: float) -> void:
 			_process_pirate()
 		BehaviorType.PLAYER:
 			pass
+	_move_target = _move_target.clamp(MAP_MIN, MAP_MAX)
 	var previous_position := global_position
 	global_position = global_position.move_toward(_move_target, fleet.speed * delta)
 	fleet.position = global_position

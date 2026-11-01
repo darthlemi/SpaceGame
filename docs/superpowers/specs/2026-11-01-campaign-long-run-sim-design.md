@@ -140,9 +140,13 @@ res://tests/run_tests.gd` after adding it. Expect:
 
 - Full suite still reports `All tests passed.` for every pre-existing
   test.
-- The new test reports **one failure** (pirate engagement gap) plus
-  distance-from-spawn data for both the 5-minute and 20-minute runs,
-  printed to stdout.
+- The new test reports **6 failures** (pirate engagement gap): the
+  default bootstrap spawns 7 enemy fleets + 1 player = 8 icons total (16
+  distance-print lines across both durations), with 3 non-pirate enemy
+  pairs — two PATROL fleets and one TRADER fleet — each getting an
+  `opportunity_seen` that the pirate never acts on, across both the
+  5-minute and 20-minute runs (3 pairs × 2 durations = 6), plus
+  distance-from-spawn data for every icon, printed to stdout.
 - Total run time for the new test should be sub-second; if it's not,
   something (likely an accidental `await tree.physics_frame` reintroduced
   into the loop) is turning simulated time back into real time.

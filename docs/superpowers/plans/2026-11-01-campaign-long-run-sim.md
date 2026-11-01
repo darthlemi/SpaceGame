@@ -193,7 +193,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 Run: `godot.windows.opt.tools.64.exe --headless --path . --script res://tests/run_tests.gd`
 
-Time the run (e.g. wrap with PowerShell `Measure-Command`). Expected: `All tests passed.`, distance lines printed once for `[sim 300s]` and once for `[sim 1200s]` per icon (6 lines total for 3 icons), and the whole `run_tests.gd` invocation still completes in a few seconds total (dominated by the rest of the suite, not this test) — not tens of seconds. If it's noticeably slower than Task 1's run, stop and check for an accidental `await tree.physics_frame` in the step loop before continuing.
+Time the run (e.g. wrap with PowerShell `Measure-Command`). Expected: `All tests passed.`, distance lines printed once for `[sim 300s]` and once for `[sim 1200s]` per icon. The default campaign bootstrap spawns 7 enemy fleets + 1 player = 8 icons, so that's 16 distance-print lines total (not 6 lines for 3 icons), and the whole `run_tests.gd` invocation still completes in a few seconds total (dominated by the rest of the suite, not this test) — not tens of seconds. If it's noticeably slower than Task 1's run, stop and check for an accidental `await tree.physics_frame` in the step loop before continuing.
 
 - [ ] **Step 3: Commit**
 
@@ -299,9 +299,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 Run: `godot.windows.opt.tools.64.exe --headless --path . --script res://tests/run_tests.gd`
 
-Expected: output includes two `FAIL [res://tests/test_campaign_long_run_sim.gd]: [sim 300s] pirate never targeted enemy[...] (TRADER) despite coming within detection range` / `[sim 1200s] ...` lines, the run finishes with `N test failure(s).` where N is exactly the pre-existing failure count (0, from `git status` at plan time) plus 2, and no other test in the suite regresses. This is the expected, documented state — do not attempt to make this pass; that's the pirate-hunting fix, a separate later spec.
+Expected: output includes `FAIL [res://tests/test_campaign_long_run_sim.gd]: [sim 300s] pirate never targeted enemy[...] despite coming within detection range` / `[sim 1200s] ...` lines, the run finishes with `N test failure(s).` where N is exactly the pre-existing failure count (0, from `git status` at plan time) plus **6**, and no other test in the suite regresses. Empirically (verified across 3 runs), the default bootstrap's 3 non-pirate enemy fleets — two PATROL fleets and one TRADER fleet — each get an `opportunity_seen` the pirate never acts on, across both durations (3 pairs x 2 durations = 6 failures). This is the expected, documented state — do not attempt to make this pass; that's the pirate-hunting fix, a separate later spec.
 
-If instead `opportunity_seen` never becomes true for either duration (i.e. no failure and no `engaged` either — check by temporarily adding a debug print of `opportunity_seen`/`engaged` if the output is ambiguous), the pirate and trader never came within `detection_range` of each other during the run — note the actual bootstrap spawn distance between the pirate (`Vector2(1000, 200)`) and trader (`Vector2(200, 550)`) in `campaign_scene.gd` is well outside the default `detection_range = 200.0`, and both wander/patrol near their own spawn points, so this is a real possible outcome, not just a hypothetical. If it happens, report it as-is (print whatever the data shows) rather than forcing a failure — the point of this task is to find out, not to engineer a particular result.
+Note: the pirate (`Vector2(1000, 200)`) and trader (`Vector2(200, 550)`) spawn well outside the default `detection_range = 200.0`, which might suggest no opportunity ever occurs between that pair. In practice this prediction does not hold for the fleet set as a whole: one of the faction PATROL fleets' wander circles actually overlaps the pirate's, so an opportunity does occur for at least one pair (and empirically for all 3 non-pirate pairs, across both durations). Don't assume spawn-point distance alone rules out an opportunity — wander/patrol movement can still bring fleets within range.
 
 - [ ] **Step 3: Commit**
 

@@ -1,5 +1,20 @@
 extends RefCounted
 
+# Runs the real campaign scene forward 5 and 20 simulated minutes via manual
+# physics-stepping (not real time), observing fleet drift and pirate-targeting
+# behavior.
+#
+# The pirate-engagement assertion is EXPECTED TO FAIL today: pirates only ever
+# target the player, never other fleets. This is a known, documented gap (see
+# docs/superpowers/specs/2026-11-01-campaign-long-run-sim-design.md), not a bug
+# in this test. Do not "fix" this test to make it pass — the real fix is a
+# separate future piece of work on pirate behavior.
+#
+# Distance-from-spawn output is report-only; no map-bounds constant exists yet
+# to assert against. Reading `_move_target` (underscore-prefixed) is a
+# deliberate one-file exception to verify internal pirate-targeting behavior,
+# not a pattern to copy elsewhere.
+
 const CampaignSceneScene = preload("res://scenes/campaign/campaign_scene.tscn")
 
 const SIM_DURATIONS_SECONDS: Array[float] = [300.0, 1200.0]  # 5 min, 20 min
@@ -64,9 +79,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			var label: String = "player" if icon == scene.player_icon else "enemy[%d] (%s)" % [scene.enemy_icons.find(icon), CampaignFleetIcon.BehaviorType.keys()[icon.behavior_type]]
 			print("[sim %0.0fs] %s max distance from spawn: %.1f" % [duration, label, max_distance[icon]])
 
+		if pirate_icon == null:
+			failures.append("[sim %0.0fs] no pirate icon found in bootstrap — cannot check pirate engagement" % duration)
 		for other in others:
+			var other_label: String = "enemy[%d] (%s)" % [scene.enemy_icons.find(other), CampaignFleetIcon.BehaviorType.keys()[other.behavior_type]]
+			print("[sim %0.0fs] pirate vs %s: opportunity_seen=%s engaged=%s" % [duration, other_label, opportunity_seen[other], engaged[other]])
 			if opportunity_seen[other] and not engaged[other]:
-				var other_label: String = "enemy[%d] (%s)" % [scene.enemy_icons.find(other), CampaignFleetIcon.BehaviorType.keys()[other.behavior_type]]
 				failures.append("[sim %0.0fs] pirate never targeted %s despite coming within detection range" % [duration, other_label])
 
 		scene.queue_free()

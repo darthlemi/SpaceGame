@@ -62,6 +62,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var frozen_fleet := CampaignFleet.new()
 	frozen_fleet.position = Vector2(300, 300)
 	frozen_fleet.speed = 400.0
+	frozen_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
 	var frozen_icon: Area2D = CampaignFleetIconScene.instantiate()
 	frozen_icon.behavior_type = frozen_icon.BehaviorType.PATROL
 	frozen_icon.wander_radius = 50.0
@@ -224,8 +225,15 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if dot.texture == null:
 			failures.append("ship dots: expected dot to have a ship texture assigned")
 
+	# Per-ship trails: one CPUParticles2D per ship dot, not one shared trail
+	# for the whole fleet.
+	var trail_nodes: Array = dots_icon.get_children().filter(func(c): return c is CPUParticles2D)
+	if trail_nodes.size() != 3:
+		failures.append("ship trails: expected one trail per ship dot (3), got %d" % trail_nodes.size())
+
 	# Live update: shrinking ship_compositions and ticking physics should
-	# remove dots to match, without moving the surviving dots' positions.
+	# remove dots (and their paired trails) to match, without moving the
+	# surviving dots' positions.
 	var surviving_positions: Array = []
 	for dot in dot_nodes.slice(0, 2):
 		surviving_positions.append(dot.position)
@@ -237,6 +245,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	for i in dot_nodes_after.size():
 		if dot_nodes_after[i].position != surviving_positions[i]:
 			failures.append("ship dots: expected surviving dot %d to keep its position %s, got %s" % [i, surviving_positions[i], dot_nodes_after[i].position])
+	var trail_nodes_after: Array = dots_icon.get_children().filter(func(c): return c is CPUParticles2D)
+	if trail_nodes_after.size() != 2:
+		failures.append("ship trails: expected trail count to drop to 2 after composition shrank, got %d" % trail_nodes_after.size())
 
 	dots_icon.queue_free()
 
@@ -318,5 +329,38 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	bounds_trader_icon.queue_free()
 	bounds_threat_icon.queue_free()
+
+	# Faction circle: radius should grow with ship count (sqrt scaling), and
+	# the color map should return a distinct color per faction, falling back
+	# to the neutral color for an unmapped value.
+	var small_fleet := CampaignFleet.new()
+	small_fleet.faction = CampaignFleet.Faction.PLAYER
+	small_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var small_icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(small_icon)
+	small_icon.setup(small_fleet, Vector2.ZERO)
+
+	var large_fleet := CampaignFleet.new()
+	large_fleet.faction = CampaignFleet.Faction.PIRATE
+	large_fleet.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0},
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0},
+	]
+	var large_icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
+	tree.root.add_child(large_icon)
+	large_icon.setup(large_fleet, Vector2.ZERO)
+
+	if large_icon._faction_circle_radius <= small_icon._faction_circle_radius:
+		failures.append("faction circle: expected a 4-ship fleet's circle radius (%s) to be larger than a 1-ship fleet's (%s)" % [large_icon._faction_circle_radius, small_icon._faction_circle_radius])
+
+	if CampaignFleetIcon.FACTION_COLORS[CampaignFleet.Faction.PLAYER] != Color(0.2, 0.9, 0.2, 1.0):
+		failures.append("faction circle: expected PLAYER color to be green, got %s" % CampaignFleetIcon.FACTION_COLORS[CampaignFleet.Faction.PLAYER])
+	if CampaignFleetIcon.FACTION_COLORS[CampaignFleet.Faction.PIRATE] != Color(0.9, 0.2, 0.2, 1.0):
+		failures.append("faction circle: expected PIRATE color to be red, got %s" % CampaignFleetIcon.FACTION_COLORS[CampaignFleet.Faction.PIRATE])
+
+	small_icon.queue_free()
+	large_icon.queue_free()
 
 	return failures

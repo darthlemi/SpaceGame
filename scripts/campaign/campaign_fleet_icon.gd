@@ -7,8 +7,8 @@ const PirateBehavior = preload("res://scripts/campaign/behaviors/pirate_behavior
 
 enum BehaviorType { PLAYER, PATROL, TRADER, PIRATE }
 
-const CLUMP_RADIUS := 18.0
-const SHIP_ICON_MAX_DIM := 10.0
+const CLUMP_RADIUS := 36.0
+const SHIP_ICON_MAX_DIM := 20.0
 const SHIP_ICON_TEXTURES := {
 	ShipType.Kind.CORVETTE: "res://assets/sprites/ships/corvette.png",
 	ShipType.Kind.FREIGHTER: "res://assets/sprites/ships/freighter.png",
@@ -25,6 +25,18 @@ const ENGINE_TRAIL_SCALE_MIN := 1.5
 const ENGINE_TRAIL_SCALE_MAX := 2.5
 const MAP_MIN := Vector2(0, 0)
 const MAP_MAX := Vector2(4000, 2400)
+const FACTION_CIRCLE_PADDING := 12.0
+const FACTION_CIRCLE_WIDTH := 2.0
+const SHIP_OFFSET_SPACING := 14.0
+const SHIP_OFFSET_GOLDEN_ANGLE := 2.39996
+const FACTION_COLORS := {
+	CampaignFleet.Faction.PLAYER: Color(0.2, 0.9, 0.2, 1.0),
+	CampaignFleet.Faction.PIRATE: Color(0.9, 0.2, 0.2, 1.0),
+	CampaignFleet.Faction.DOMINION: Color(0.95, 0.55, 0.1, 1.0),
+	CampaignFleet.Faction.FREEHOLD: Color(0.2, 0.85, 0.85, 1.0),
+	CampaignFleet.Faction.TRADER: Color(0.6, 0.6, 0.6, 1.0),
+	CampaignFleet.Faction.NEUTRAL: Color(0.6, 0.6, 0.6, 1.0),
+}
 
 @export var behavior_type: BehaviorType = BehaviorType.PATROL
 @export var wander_radius: float = 150.0
@@ -44,8 +56,9 @@ var _route_state: TraderBehavior.RouteState = TraderBehavior.RouteState.TO_BASE
 
 var _ship_dots: Array[Sprite2D] = []
 var _ship_dot_offsets: Array[Vector2] = []
+var _ship_trails: Array[CPUParticles2D] = []
 var _heading_angle: float = 0.0
-var _engine_trail: CPUParticles2D
+var _faction_circle_radius: float = 0.0
 
 signal trader_arrived(at_home: bool)
 
@@ -55,7 +68,6 @@ func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
 	_spawn_point = fleet.position
 	_move_target = fleet.position
 	_home_position = home_pos
-	_ensure_engine_trail()
 	_sync_ship_dots()
 
 func set_move_target(target: Vector2) -> void:
@@ -78,7 +90,8 @@ func _physics_process(delta: float) -> void:
 		return
 	_sync_ship_dots()
 	if frozen:
-		_engine_trail.emitting = false
+		for trail in _ship_trails:
+			trail.emitting = false
 		return
 	match behavior_type:
 		BehaviorType.PATROL:
@@ -96,10 +109,12 @@ func _physics_process(delta: float) -> void:
 	var movement := global_position - previous_position
 	if movement.length() > HEADING_EPSILON:
 		_heading_angle = movement.angle()
-	for dot in _ship_dots:
-		dot.rotation = _heading_angle
-	_engine_trail.rotation = _heading_angle
-	_engine_trail.emitting = movement.length() > HEADING_EPSILON
+	var is_moving := movement.length() > HEADING_EPSILON
+	for i in _ship_dots.size():
+		_ship_dots[i].rotation = _heading_angle
+		_ship_trails[i].position = _ship_dot_offsets[i]
+		_ship_trails[i].rotation = _heading_angle
+		_ship_trails[i].emitting = is_moving
 
 func _process_trader() -> void:
 	if player_target != null and is_instance_valid(player_target) and TraderBehavior.should_flee(global_position, player_target.global_position, flee_range):
@@ -118,30 +133,13 @@ func _process_pirate() -> void:
 			return
 	_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, global_position, wander_radius, arrival_radius)
 
-func _ensure_engine_trail() -> void:
-	if _engine_trail != null:
-		return
-	_engine_trail = CPUParticles2D.new()
-	_engine_trail.emitting = false
-	_engine_trail.amount = ENGINE_TRAIL_AMOUNT
-	_engine_trail.lifetime = ENGINE_TRAIL_LIFETIME
-	_engine_trail.direction = Vector2(-1, 0)
-	_engine_trail.spread = ENGINE_TRAIL_SPREAD
-	_engine_trail.gravity = Vector2.ZERO
-	_engine_trail.initial_velocity_min = ENGINE_TRAIL_VELOCITY_MIN
-	_engine_trail.initial_velocity_max = ENGINE_TRAIL_VELOCITY_MAX
-	_engine_trail.scale_amount_min = ENGINE_TRAIL_SCALE_MIN
-	_engine_trail.scale_amount_max = ENGINE_TRAIL_SCALE_MAX
-	_engine_trail.color = ENGINE_TRAIL_COLOR
-	add_child(_engine_trail)
-
 func _sync_ship_dots() -> void:
 	var target: int = fleet.ship_compositions.size()
 	while _ship_dots.size() < target:
 		var index := _ship_dots.size()
 		if index >= _ship_dot_offsets.size():
-			var angle := randf_range(0.0, TAU)
-			var distance := randf_range(0.0, CLUMP_RADIUS)
+			var angle := index * SHIP_OFFSET_GOLDEN_ANGLE
+			var distance: float = min(CLUMP_RADIUS, SHIP_OFFSET_SPACING * sqrt(float(index)))
 			_ship_dot_offsets.append(Vector2.RIGHT.rotated(angle) * distance)
 		var dot := Sprite2D.new()
 		dot.texture = _ship_icon_texture(fleet.ship_compositions[index])
@@ -151,10 +149,41 @@ func _sync_ship_dots() -> void:
 		dot.rotation = _heading_angle
 		add_child(dot)
 		_ship_dots.append(dot)
+		_ship_trails.append(_make_engine_trail())
 	while _ship_dots.size() > target:
 		var dot: Sprite2D = _ship_dots.pop_back()
 		dot.queue_free()
+		var trail: CPUParticles2D = _ship_trails.pop_back()
+		trail.queue_free()
+	if _ship_dots.size() != target:
+		return
+	var new_radius := CLUMP_RADIUS + FACTION_CIRCLE_PADDING * sqrt(max(target, 1))
+	if new_radius != _faction_circle_radius:
+		_faction_circle_radius = new_radius
+		queue_redraw()
+
+func _make_engine_trail() -> CPUParticles2D:
+	var trail := CPUParticles2D.new()
+	trail.emitting = false
+	trail.amount = max(1, ENGINE_TRAIL_AMOUNT / max(fleet.ship_compositions.size(), 1))
+	trail.lifetime = ENGINE_TRAIL_LIFETIME
+	trail.direction = Vector2(-1, 0)
+	trail.spread = ENGINE_TRAIL_SPREAD
+	trail.gravity = Vector2.ZERO
+	trail.initial_velocity_min = ENGINE_TRAIL_VELOCITY_MIN
+	trail.initial_velocity_max = ENGINE_TRAIL_VELOCITY_MAX
+	trail.scale_amount_min = ENGINE_TRAIL_SCALE_MIN
+	trail.scale_amount_max = ENGINE_TRAIL_SCALE_MAX
+	trail.color = ENGINE_TRAIL_COLOR
+	add_child(trail)
+	return trail
 
 func _ship_icon_texture(comp: Dictionary) -> Texture2D:
 	var kind: ShipType.Kind = ShipType.kind_of(comp)
 	return load(SHIP_ICON_TEXTURES[kind])
+
+func _draw() -> void:
+	if fleet == null or _faction_circle_radius <= 0.0:
+		return
+	var color: Color = FACTION_COLORS.get(fleet.faction, FACTION_COLORS[CampaignFleet.Faction.NEUTRAL])
+	draw_arc(Vector2.ZERO, _faction_circle_radius, 0.0, TAU, 48, color, FACTION_CIRCLE_WIDTH)

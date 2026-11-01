@@ -10,10 +10,13 @@ extends RefCounted
 # in this test. Do not "fix" this test to make it pass — the real fix is a
 # separate future piece of work on pirate behavior.
 #
-# Distance-from-spawn output is report-only; no map-bounds constant exists yet
-# to assert against. Reading `_move_target` (underscore-prefixed) is a
-# deliberate one-file exception to verify internal pirate-targeting behavior,
-# not a pattern to copy elsewhere.
+# Distance-from-spawn output is report-only (informational, no "right"
+# answer). Map bounds ARE asserted: every icon's position must stay within
+# CampaignFleetIcon.MAP_MIN/MAP_MAX at every sampled step -- unlike the
+# pirate-engagement assertion above, this one is expected to pass; a failure
+# here is a real bug in the clamp, not a documented gap. Reading `_move_target`
+# (underscore-prefixed) is a deliberate one-file exception to verify internal
+# pirate-targeting behavior, not a pattern to copy elsewhere.
 
 const CampaignSceneScene = preload("res://scenes/campaign/campaign_scene.tscn")
 
@@ -37,6 +40,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 		var spawn_positions: Dictionary = {}
 		var max_distance: Dictionary = {}
+		var out_of_bounds: Dictionary = {}
 		for icon in icons:
 			spawn_positions[icon] = icon.global_position
 			max_distance[icon] = 0.0
@@ -67,6 +71,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 				var d: float = icon.global_position.distance_to(spawn_positions[icon])
 				if d > max_distance[icon]:
 					max_distance[icon] = d
+				var pos: Vector2 = icon.global_position
+				if not out_of_bounds.has(icon) and (pos.x < CampaignFleetIcon.MAP_MIN.x or pos.x > CampaignFleetIcon.MAP_MAX.x or pos.y < CampaignFleetIcon.MAP_MIN.y or pos.y > CampaignFleetIcon.MAP_MAX.y):
+					out_of_bounds[icon] = pos
 			if pirate_icon != null:
 				for other in others:
 					var pirate_distance: float = pirate_icon.global_position.distance_to(other.global_position)
@@ -78,6 +85,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		for icon in icons:
 			var label: String = "player" if icon == scene.player_icon else "enemy[%d] (%s)" % [scene.enemy_icons.find(icon), CampaignFleetIcon.BehaviorType.keys()[icon.behavior_type]]
 			print("[sim %0.0fs] %s max distance from spawn: %.1f" % [duration, label, max_distance[icon]])
+			if out_of_bounds.has(icon):
+				failures.append("[sim %0.0fs] %s went out of map bounds: %s" % [duration, label, out_of_bounds[icon]])
 
 		if pirate_icon == null:
 			failures.append("[sim %0.0fs] no pirate icon found in bootstrap — cannot check pirate engagement" % duration)

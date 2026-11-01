@@ -1,3 +1,135 @@
+# Carry Forward — 2026-11-01 session (base art)
+
+## Done this session
+
+Picked up from the ships session's queued "ships next" list — bases were
+the user's flagged next category, with a reference image already gathered
+(but, as noted below, never saved to disk). Brainstormed → short spec →
+iterated sprites with the user → wired into Godot, same flow as the ship
+art session (asset-design work, not a formal plan/subagent cycle).
+Spec: `docs/superpowers/specs/2026-11-01-base-art-design.md`.
+
+- First: committed the previous session's **ship art** work that had been
+  left uncommitted (`b3949bb`) — `ship_vfx.gd`, the three ship `.tscn`
+  files, `art/src/ships.px.js`, `assets/sprites/ships/*.png`. Left
+  `carry_forward.md`'s own pending edit and the stray `.gd.uid`/
+  `.art_review*` clutter alone (not part of that commit's scope).
+- Found the bases reference images: the previously-mentioned ringed
+  orbital station reference was never saved to the repo. User pointed to
+  `C:\Users\corbi\OneDrive\Desktop\trainer\images6/7/8` (two `.jfif`, one
+  `.webp`) — all three show toroidal/ring stations with a central hub and
+  radial docking-arm clusters. `.jfif` files don't render via the Read
+  tool directly; copying to a `.jpg` extension in the scratchpad first
+  (jfif is JPEG under a different extension) fixed that.
+- **Three distinct base sprites** built with `pxl` into new
+  `art/src/bases.px.js`, staying in the locked ship palette
+  (`art/src/palette.px.js`) but mixing accents more freely than the
+  one-accent-per-ship rule:
+  - **Dominion** FactionBase — full ring/torus + central hub + cross
+    spokes + diagonal docking struts + paneled greebling. Red+orange
+    accent. Closest to the references; reads as authoritative/industrial
+    (matches its `INDUSTRIAL + POPULATION` economy).
+  - **Freehold** FactionBase — asymmetric mining-rig cluster (hex hub,
+    segmented drill-arm wedge, 3 strutted ore silos, radiator fins,
+    antenna). Green+yellow accent. Deliberately not ring-shaped — scrappy
+    /utilitarian, matches `MINING + AGRICULTURE`.
+  - **Player HomeBase** — compact hub-and-spoke, all-blue accent, smaller
+    and tidier than both faction bases (modest "player's starting point"
+    vs. power-faction capitals). Matches `TRADE_HUB + REFINERY`.
+- **Wired into Godot**: `home_base.tscn` swapped its `Polygon2D` for a
+  `Sprite2D` + the new texture (scale 1.2, chosen to roughly match the
+  existing `CircleShape2D` radius-30 collision footprint, same approach as
+  ship scaling). `faction_base.tscn` is a **shared** scene for both
+  Dominion and Freehold (one scene, `faction_enum` field distinguishes
+  instances) — it already had an unused `faction_enum` export; added
+  `_ready()` to `faction_base.gd` that picks the Dominion or Freehold
+  texture based on that field. Collision shapes untouched on all three.
+- Test suite passes clean after the `--headless --editor --quit` warm pass
+  (needed for the new PNGs, same gotcha as every session touching
+  textures). `tests/test_faction_base.gd` doesn't exercise `_ready()`
+  (instantiates without adding to the tree), so it wasn't a signal either
+  way for the new texture-picking logic — confirmed visually instead (see
+  below), not just trusted on the test suite.
+- **Visually verified in the actual running game**, not just sprite
+  previews: launched the real project (see "Running the game" below),
+  closed the trade panel that opens on start, and screenshotted the
+  overworld — all three bases render distinctly and at reasonable scale
+  (Freehold small/scrappy top-left, player HomeBase blue hub-and-spoke
+  center, Dominion ring station bottom-right). This is the first session
+  to actually confirm art in-engine rather than stopping at `pxl`'s
+  preview PNGs.
+
+## Running the game (now solved — previously an open gap)
+
+User supplied the actual exe location, which isn't on PATH and wasn't
+previously known to any carry-forward note:
+`C:\Program Files (x86)\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe`
+(Steam-installed; distinct from the WinGet-installed
+`godot.windows.opt.tools.64_console.exe` used for `--headless` test runs —
+both exist on this machine, use whichever fits: console/WinGet build for
+headless test/import commands, this Steam build for actually launching the
+game window.)
+
+To launch and play: `Start-Process <that-exe> -ArgumentList "--path", "<repo-path>"`
+(no `--editor` flag) opens the game window directly in play mode, titled
+"SpaceGame (DEBUG)". To screenshot it from this environment (no
+claude-in-chrome equivalent for native Win32 apps): PowerShell +
+`user32.dll` P/Invoke (`GetWindowRect`, `SetForegroundWindow`) to find/focus
+the window, then `System.Drawing.Graphics.CopyFromScreen` over that
+rect, saved to a PNG and read back with the Read tool. Mouse clicks (e.g.
+closing a panel) work the same way via `mouse_event` P/Invoke at absolute
+screen coordinates computed from the window rect. Close the process after
+with `Stop-Process -Force` — don't leave it running across turns.
+
+## Gotchas hit this session
+
+- **Copied the wrong pxl output directory the first time**: `pxl build`
+  writes both `out/_preview/<name>.png` (10x upscaled, for humans looking
+  at previews) and `out/sprites/<name>.png` (raw pixel size, what actually
+  belongs in `assets/sprites/`). Initially copied from `_preview/` by
+  habit from eyeballing previews in-session — caught it by comparing
+  dimensions against the already-correct `assets/sprites/ships/corvette.png`
+  (44x36, matching its 42x34 sprite + 1px outline) before anything got
+  wired into a scene. Always diff dimensions against an existing correct
+  asset before trusting a copy, not just against what "looks right" in a
+  preview tool.
+- `pxl`'s `ring(cx, cy, r, c)` is circle-only (4 args: center, radius,
+  color) — passing it `rect`-style args (`ring(x, y, w, h, c)`, 5 args) to
+  outline a rectangular docking pad fails loudly at build time (not a
+  silent wrong-render). Use `box(x, y, w, h, c)` for a 1px rectangle
+  border instead.
+- To draw a ring/annulus band (needed for the Dominion torus) with no
+  boolean-subtract op available: fill a big `circ()` in the hull color,
+  then `circ()` again at a smaller radius in `"_"` (erase-to-transparent)
+  to punch the hole. `ring()` then adds a crisp 1px rim on top for
+  shading definition.
+- No GUI-driving tooling is set up for this native Godot desktop app in
+  this environment (no project `run` skill, no screenshot/interaction
+  path like the Playwright/Electron patterns cover) — verification this
+  session stopped at the test suite + sprite previews, not an actual
+  in-game look at the campaign map. Flagged to the user rather than
+  claimed as verified. If this keeps coming up, `/run-skill-generator`
+  could capture a real path (e.g. Godot's `--headless` + a screenshot
+  dump some other way) as a project skill.
+
+## Next step
+
+Per the art-pipeline session's original category list, still queued:
+**projectiles/weapon VFX**, **UI panel icons** (trade/loot),
+**background/starfield**. Bases are now done. Also still queued (not
+started): the **ship-customization feature** (gameplay/UI, not art — picks
+a ship skin per hull, e.g. freighter cargo vs. fuel-tanker truss variant;
+needs its own brainstorm).
+
+Repo is **not** committed for this session's base-art changes —
+`faction_base.tscn`, `faction_base.gd`, `home_base.tscn`,
+`art/src/bases.px.js`, `assets/sprites/bases/*.png` are sitting as working
+tree changes; commit only if/when asked. The same pre-existing
+`.gd.uid`/`.art_review*` clutter from prior sessions is still untouched —
+still unclear if the user wants it, still not this session's to decide.
+
+---
+
 # Carry Forward — 2026-10-31 session (overworld fleet clump)
 
 ## Done this session
@@ -262,3 +394,115 @@ Repo is clean on `master`, no uncommitted work. No remote configured
 directory at `.claude/worktrees/trade-routes` may still exist on disk
 (git already deregistered it) — safe to delete manually if Windows will
 release the lock.
+
+---
+
+# Carry Forward — 2026-10-31 session (ship art, picking up the art-pipeline thread)
+
+## Done this session
+
+Picked up the art-pipeline session's queued "ships next" thread. Heavy
+back-and-forth visual iteration directly with the user (screenshots via a
+published Artifact gallery, not a formal brainstorm/spec/plan cycle — this
+was asset-design work, not a code feature) landing on a finalized set now
+wired into the actual game:
+
+- **`art/src/ships.px.js`** (new) — final noir-only sprite defs (the
+  4-way style comparison — noir/neon/military/arcade — was exploratory;
+  noir is the one that shipped, matching the already-locked
+  `palette.px.js`). Built with `pxl` (cloned at `../UIilianks/pxl`
+  relative to the repo, per the pipeline spec), output copied into
+  `assets/sprites/ships/*.png` (new, now tracked).
+- **Corvette** — dart hull with big sweeping delta wings (swept well past
+  the hull silhouette, not the small triangle nubs from the first pass)
+  and an isometric canopy block.
+- **Freighter** — kept the original asymmetric-cargo-pod design as the
+  wired sprite. Two more variants exist in the same file but are **not
+  wired to any scene**: `freighter_fuel` and `freighter_cargo`, a modular
+  "truss" design (slim spine + cockpit module + swappable 2x2 pod
+  cluster) from a Pinterest "Mule Class Freighter" reference. User
+  explicitly wants multiple ship skins selectable later via an
+  unbuilt **ship-customization feature** — these are held for that, not
+  dead code.
+- **Capital** — replaced the original hexagon-ish hull (read as "a fish,
+  not a big bad ultimate ship") with a Star-Wars-contour dagger hull
+  (Nebula-class silhouette + bold centerline stripe; a forked-bow
+  Venator-style variant was tried and explicitly rejected as "fish
+  eating a triangle" — bow is a plain taper). Bridge is twin isometric
+  tower blocks, elongated lengthwise (not square cubes — also rejected
+  once), symmetric above/below the long axis, standing in for the
+  reference's "twin sails either side."
+- Several other explored-but-not-committed variants exist only in this
+  session's chat/scratchpad (not in the repo): a stepped/forked-bow
+  capital redesign, and `destroyer_a`/`destroyer_b` tier-deck studies.
+  Not saved anywhere on disk — if ever wanted again, they'd need to be
+  rebuilt from scratch (not worth preserving given the user converged on
+  the Star-Wars-contour design).
+- **Wired into Godot**: `ship_corvette.tscn`, `ship_freighter.tscn`,
+  `ship_capital.tscn` each swapped their flat-color `Polygon2D` placeholder
+  for a `Sprite2D` + the new texture (scale 0.8 / 0.75 / 0.6 respectively,
+  chosen so each sprite's nose offset from origin roughly matches the old
+  polygon's nose offset, since collision shapes and `WeaponMount` positions
+  on the capital are tuned against that origin and weren't touched).
+- **Bug caught by the test suite, fixed**: `scripts/ship/ship_vfx.gd` had
+  a hardcoded `get_node("Polygon2D")` for the hit-flash tween. Swapping to
+  `Sprite2D` broke it silently until `tests/run_tests.gd` surfaced
+  `Node not found: "Polygon2D"` + a null-instance `modulate` assignment
+  error (tests still reported "All tests passed" — these were runtime
+  script errors during a passing run, not assertion failures, easy to
+  miss). Fixed by looking up `Sprite2D` first and falling back to
+  `Polygon2D` (the generic `scenes/ship/ship.tscn` used by several unit
+  tests still has the old `Polygon2D`, untouched, so the fallback is
+  load-bearing, not defensive dead code).
+
+## Gotchas hit this session
+
+- Same Godot import/cache gotcha as always, extended to **textures**: new
+  PNGs under `assets/` aren't picked up by `--headless --script` test runs
+  until one `--headless --editor --quit` pass reimports them. Ran that
+  before the test suite; skipping it would have made the new `Sprite2D`
+  nodes reference unimported textures.
+- `isobox()` (pxl's 2:1 isometric block primitive) does not stretch along
+  screen-horizontal when you grow `w` — its `w` axis renders toward
+  **lower-right** on screen, `d` toward **lower-left** (true isometric
+  axes, not screen x/y). For a ship pointing screen-right, `w` elongated
+  (`d: 1`) is the closest achievable approximation to "along the hull" and
+  is what shipped. Also: `isobox`'s pixel footprint for a given
+  `{size, at}` is not obvious from the parameters — don't try to compute
+  placement analytically, iterate visually (a too-large `size` produced
+  huge diagonal shapes completely disconnected from the hull on the first
+  truss-freighter pod attempt).
+- `pxl`'s op functions (`rect()`, `circ()`, etc.) only do anything when
+  passed directly as arguments to `sprite()`/`scene()` — calling them
+  inside a helper function and discarding the return value draws nothing.
+  Shared geometry (the truss freighter's spine+cockpit, used by both the
+  fuel and cargo variant) has to be a function that **returns an array**
+  of ops, spread into `sprite()` with `...helperFn()`.
+
+## Next step
+
+Ships are done for now ("seems fine for now" / "continue with this art
+style for all ships" — noir locked in). Per the art-pipeline session's
+original category list, still queued: **projectiles/weapon VFX**,
+**campaign map icons** (fleet icons, faction/home bases), **UI panel
+icons** (trade/loot), **background/starfield**. User separately flagged
+**bases** as the next likely category and supplied a reference (an AI-
+generated ringed orbital station/capital-ship-hybrid image — concentric
+rings, greebled hull, lit window grid, docking arms) — check in before
+assuming that's next rather than one of the other queued categories.
+
+Also now explicitly queued (not started): a **ship-customization feature**
+letting the player pick a ship skin per hull (e.g. freighter: cargo vs.
+fuel-tanker truss variant). This is a gameplay/UI feature, not just art —
+needs its own brainstorm when picked up, separate from the art pipeline
+itself. The unwired `freighter_fuel`/`freighter_cargo` sprites in
+`art/src/ships.px.js` are the art half of that, already done.
+
+Repo is **not** committed — `git status` shows the new/modified files
+(`art/src/ships.px.js`, `assets/sprites/ships/*.png`, the three ship
+`.tscn` files, `scripts/ship/ship_vfx.gd`) sitting as working-tree changes,
+same as every other session in this file; commit only if/when the user
+asks. Pre-existing untracked clutter at repo root from before this session
+(`.art_review${f}_ref.jpg` and two garbled-filename artifacts from a
+broken shell command) was left alone — not created this session, unclear
+if the user wants them, investigate before touching.

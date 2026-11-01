@@ -189,7 +189,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	rewound_icon.queue_free()
 
-	# Ship dots: setup() should create one Polygon2D dot per ship
+	# Ship dots: setup() should create one Sprite2D dot per ship
 	# composition, each within CLUMP_RADIUS of the icon's local origin.
 	var dots_fleet := CampaignFleet.new()
 	dots_fleet.position = Vector2(200, 200)
@@ -202,12 +202,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.root.add_child(dots_icon)
 	dots_icon.setup(dots_fleet, Vector2.ZERO)
 
-	var dot_nodes: Array = dots_icon.get_children().filter(func(c): return c is Polygon2D)
+	var dot_nodes: Array = dots_icon.get_children().filter(func(c): return c is Sprite2D)
 	if dot_nodes.size() != 3:
 		failures.append("ship dots: expected 3 dots for a 3-ship fleet, got %d" % dot_nodes.size())
 	for dot in dot_nodes:
 		if dot.position.length() > CampaignFleetIcon.CLUMP_RADIUS:
 			failures.append("ship dots: expected dot offset within CLUMP_RADIUS, got %s" % dot.position)
+		if dot.texture == null:
+			failures.append("ship dots: expected dot to have a ship texture assigned")
 
 	# Live update: shrinking ship_compositions and ticking physics should
 	# remove dots to match, without moving the surviving dots' positions.
@@ -216,7 +218,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		surviving_positions.append(dot.position)
 	dots_fleet.ship_compositions = dots_fleet.ship_compositions.slice(0, 2)
 	await tree.physics_frame
-	var dot_nodes_after: Array = dots_icon.get_children().filter(func(c): return c is Polygon2D)
+	var dot_nodes_after: Array = dots_icon.get_children().filter(func(c): return c is Sprite2D)
 	if dot_nodes_after.size() != 2:
 		failures.append("ship dots: expected dot count to drop to 2 after composition shrank, got %d" % dot_nodes_after.size())
 	for i in dot_nodes_after.size():
@@ -224,5 +226,34 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("ship dots: expected surviving dot %d to keep its position %s, got %s" % [i, surviving_positions[i], dot_nodes_after[i].position])
 
 	dots_icon.queue_free()
+
+	# Heading rotation: a moving fleet's ship sprites should rotate to face
+	# the direction of travel.
+	var heading_fleet := CampaignFleet.new()
+	heading_fleet.position = Vector2(0, 0)
+	heading_fleet.speed = 400.0
+	heading_fleet.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	var heading_icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
+	heading_icon.behavior_type = heading_icon.BehaviorType.PLAYER
+	tree.root.add_child(heading_icon)
+	heading_icon.setup(heading_fleet, Vector2.ZERO)
+	heading_icon.set_move_target(Vector2(0, 100))
+
+	for i in 10:
+		await tree.physics_frame
+	var heading_sprite: Sprite2D = heading_icon.get_children().filter(func(c): return c is Sprite2D)[0]
+	var expected_angle: float = Vector2(0, 100).angle()
+	if not is_equal_approx(wrapf(heading_sprite.rotation, 0, TAU), wrapf(expected_angle, 0, TAU)):
+		failures.append("ship dots: expected sprite rotation to face direction of travel (%s), got %s" % [expected_angle, heading_sprite.rotation])
+
+	var engine_trail: CPUParticles2D = heading_icon.get_children().filter(func(c): return c is CPUParticles2D)[0]
+	if not engine_trail.emitting:
+		failures.append("ship dots: expected EngineTrail emitting while fleet is moving")
+	if not is_equal_approx(wrapf(engine_trail.rotation, 0, TAU), wrapf(expected_angle, 0, TAU)):
+		failures.append("ship dots: expected EngineTrail rotation to match heading (%s), got %s" % [expected_angle, engine_trail.rotation])
+
+	heading_icon.queue_free()
 
 	return failures

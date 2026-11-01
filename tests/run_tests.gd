@@ -103,6 +103,14 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [campaign_scene_trading_test.resource_path, f])
 	total_failures += campaign_scene_trading_failures.size()
 
+	# Loaded (not preloaded) for the same reason as campaign_scene_test above:
+	# campaign_scene.gd bare-references the CampaignState autoload.
+	var campaign_long_run_sim_test = load("res://tests/test_campaign_long_run_sim.gd")
+	var campaign_long_run_sim_failures: Array[String] = await campaign_long_run_sim_test.run_async(self)
+	for f in campaign_long_run_sim_failures:
+		print("FAIL [%s]: %s" % [campaign_long_run_sim_test.resource_path, f])
+	total_failures += campaign_long_run_sim_failures.size()
+
 	var campaign_fleet_icon_test = preload("res://tests/test_campaign_fleet_icon.gd")
 	var campaign_fleet_icon_failures: Array[String] = await campaign_fleet_icon_test.run_async(self)
 	for f in campaign_fleet_icon_failures:

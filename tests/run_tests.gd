@@ -10,6 +10,7 @@ func _run_all() -> void:
 		preload("res://tests/test_shield.gd"),
 		preload("res://tests/test_ship_engine.gd"),
 		preload("res://tests/test_weapon_mount.gd"),
+		preload("res://tests/test_projectile.gd"),
 		preload("res://tests/test_ship.gd"),
 		preload("res://tests/test_ai_controller_state.gd"),
 		preload("res://tests/test_formation.gd"),

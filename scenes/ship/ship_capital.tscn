@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/weapons/weapon_mount.gd" id="5"]
 [ext_resource type="Resource" path="res://resources/weapons/kinetic_cannon.tres" id="6"]
 [ext_resource type="Script" path="res://scripts/ship/ship_vfx.gd" id="7"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ships/capital.png" id="8"]
 
 [sub_resource type="CircleShape2D" id="1"]
 radius = 34.0
@@ -18,9 +19,9 @@ ship_type = 2
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("1")
 
-[node name="Polygon2D" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(34, 0, 14, -20, -24, -20, -34, 0, -24, 20, 14, 20)
-color = Color(0.55, 0.3, 0.3, 1)
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("8")
+scale = Vector2(0.6, 0.6)
 
 [node name="Hull" type="Node" parent="."]
 script = ExtResource("2")

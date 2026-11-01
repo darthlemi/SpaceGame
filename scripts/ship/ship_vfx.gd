@@ -7,7 +7,11 @@ extends Node2D
 
 const ExplosionScene = preload("res://scenes/vfx/explosion.tscn")
 
-@onready var _polygon: Polygon2D = get_parent().get_node("Polygon2D")
+@onready var _visual: CanvasItem = (
+	get_parent().get_node_or_null("Sprite2D") as CanvasItem
+	if get_parent().has_node("Sprite2D")
+	else get_parent().get_node("Polygon2D") as CanvasItem
+)
 @onready var _hull: Hull = get_parent().get_node("Hull")
 @onready var _hit_spark: CPUParticles2D = $HitSpark
 @onready var _smoke_trail: CPUParticles2D = $SmokeTrail
@@ -27,9 +31,9 @@ func _on_hull_damaged(_amount: float, remaining: float) -> void:
 func _flash() -> void:
 	if _flash_tween:
 		_flash_tween.kill()
-	_polygon.modulate = flash_color
+	_visual.modulate = flash_color
 	_flash_tween = create_tween()
-	_flash_tween.tween_property(_polygon, "modulate", Color.WHITE, flash_duration)
+	_flash_tween.tween_property(_visual, "modulate", Color.WHITE, flash_duration)
 
 func _on_hull_destroyed() -> void:
 	var ship_node := get_parent()

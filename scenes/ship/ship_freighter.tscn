@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/ship/shield.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/ship/ship_vfx.gd" id="5"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ships/freighter.png" id="6"]
 
 [sub_resource type="CircleShape2D" id="1"]
 radius = 22.0
@@ -16,9 +17,9 @@ ship_type = 1
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("1")
 
-[node name="Polygon2D" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(22, 10, 22, -10, -22, -10, -22, 10)
-color = Color(0.75, 0.55, 0.25, 1)
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("6")
+scale = Vector2(0.75, 0.75)
 
 [node name="Hull" type="Node" parent="."]
 script = ExtResource("2")

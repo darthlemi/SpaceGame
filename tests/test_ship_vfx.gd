@@ -34,6 +34,25 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if smoke.emitting:
 		failures.append("ShipVfx: expected SmokeTrail not emitting while hp_ratio is above low_hp_threshold")
 
+	var engine_trail: CPUParticles2D = vfx.get_node("EngineTrail")
+	if engine_trail.emitting:
+		failures.append("ShipVfx: expected EngineTrail not emitting before any movement")
+
+	# Drive ShipVfx._physics_process directly (same pattern as
+	# tests/test_weapon_mount.gd's direct mount._physics_process(0.5) call)
+	# rather than ticking the tree and relying on Ship's own AI steering --
+	# Order.hold()'s loiter behavior never truly settles to zero velocity,
+	# so it can't be used to exercise the "stopped" case.
+	ship.velocity = Vector2(50, 0)
+	vfx._physics_process(0.016)
+	if not engine_trail.emitting:
+		failures.append("ShipVfx: expected EngineTrail emitting once ship.velocity exceeds ENGINE_TRAIL_SPEED_THRESHOLD")
+
+	ship.velocity = Vector2.ZERO
+	vfx._physics_process(0.016)
+	if engine_trail.emitting:
+		failures.append("ShipVfx: expected EngineTrail not emitting once ship.velocity drops back to zero")
+
 	ship.hull.apply_damage(ship.hull.max_hp * 0.8)
 	if not smoke.emitting:
 		failures.append("ShipVfx: expected SmokeTrail emitting once hp_ratio drops at/below low_hp_threshold")

@@ -16,6 +16,7 @@ func setup(p_target: Node2D, p_damage: float, p_weapon_range: float = 0.0) -> vo
 	damage = p_damage
 	if is_instance_valid(target):
 		travel_direction = (target.global_position - global_position).normalized()
+	rotation = travel_direction.angle()
 	if p_weapon_range > 0.0:
 		max_travel = p_weapon_range * 1.5
 

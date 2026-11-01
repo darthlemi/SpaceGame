@@ -5,6 +5,7 @@ extends Node2D
 @export var flash_duration: float = 0.12
 @export var low_hp_threshold: float = 0.25
 
+const ENGINE_TRAIL_SPEED_THRESHOLD := 5.0
 const ExplosionScene = preload("res://scenes/vfx/explosion.tscn")
 
 @onready var _visual: CanvasItem = (
@@ -15,12 +16,17 @@ const ExplosionScene = preload("res://scenes/vfx/explosion.tscn")
 @onready var _hull: Hull = get_parent().get_node("Hull")
 @onready var _hit_spark: CPUParticles2D = $HitSpark
 @onready var _smoke_trail: CPUParticles2D = $SmokeTrail
+@onready var _engine_trail: CPUParticles2D = $EngineTrail
+@onready var _body: CharacterBody2D = get_parent()
 
 var _flash_tween: Tween
 
 func _ready() -> void:
 	_hull.damaged.connect(_on_hull_damaged)
 	_hull.destroyed.connect(_on_hull_destroyed)
+
+func _physics_process(_delta: float) -> void:
+	_engine_trail.emitting = _body.velocity.length() > ENGINE_TRAIL_SPEED_THRESHOLD
 
 func _on_hull_damaged(_amount: float, remaining: float) -> void:
 	_flash()

@@ -57,16 +57,29 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	target_icon.queue_free()
 
 	# Frozen: a patrol icon should not move at all while frozen, then
-	# should resume wandering once unfrozen.
+	# should resume wandering once unfrozen. Also: a fleet frozen mid-travel
+	# should stop emitting its engine trail, not leave it emitting forever.
 	var frozen_fleet := CampaignFleet.new()
 	frozen_fleet.position = Vector2(300, 300)
 	frozen_fleet.speed = 400.0
 	var frozen_icon: Area2D = CampaignFleetIconScene.instantiate()
 	frozen_icon.behavior_type = frozen_icon.BehaviorType.PATROL
 	frozen_icon.wander_radius = 50.0
-	frozen_icon.frozen = true
 	tree.root.add_child(frozen_icon)
 	frozen_icon.setup(frozen_fleet, Vector2.ZERO)
+
+	# Let it wander un-frozen first so the engine trail actually turns on,
+	# then freeze it mid-travel (the normal case when entering combat).
+	for i in 15:
+		await tree.physics_frame
+	var frozen_trail: CPUParticles2D = frozen_icon.get_children().filter(func(c): return c is CPUParticles2D)[0]
+	if not frozen_trail.emitting:
+		failures.append("frozen: expected EngineTrail to be emitting while moving, before freeze")
+
+	frozen_icon.frozen = true
+	await tree.physics_frame
+	if frozen_trail.emitting:
+		failures.append("frozen: expected EngineTrail not emitting while frozen")
 
 	var frozen_start: Vector2 = frozen_icon.global_position
 	for i in 15:

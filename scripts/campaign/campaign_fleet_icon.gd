@@ -76,6 +76,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_sync_ship_dots()
 	if frozen:
+		_engine_trail.emitting = false
 		return
 	match behavior_type:
 		BehaviorType.PATROL:

@@ -33,3 +33,4 @@ func _spawn_projectile(target: Node2D) -> void:
 	var muzzle_flash: Node2D = MuzzleFlashScene.instantiate()
 	host.add_child(muzzle_flash)
 	muzzle_flash.global_position = global_position
+	muzzle_flash.rotation = (target.global_position - global_position).angle()

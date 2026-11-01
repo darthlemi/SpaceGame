@@ -174,6 +174,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if ship.weapon_mounts.size() != 1:
 		failures.append("run_async: expected _ready()'s auto-discovery loop to find 1 WeaponMount, got %d" % ship.weapon_mounts.size())
 
+	if ship.ship_type != ShipType.Kind.CORVETTE:
+		failures.append("run_async: expected ship.tscn's default ship_type == CORVETTE, got %s" % ship.ship_type)
+
 	if ship.hull != null:
 		if ship.is_queued_for_deletion():
 			failures.append("run_async: ship unexpectedly already queued for deletion before hull destruction")

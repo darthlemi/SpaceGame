@@ -20,6 +20,17 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if not home_role_types.has(EconomyRole.RoleType.REFINERY):
 			failures.append("expected home_base_economy to have a REFINERY slot")
 
+	if campaign_state.player_fleet == null:
+		failures.append("expected bootstrap to set CampaignState.player_fleet")
+	else:
+		var player_types: Array = campaign_state.player_fleet.ship_compositions.map(func(c): return ShipType.kind_of(c))
+		if not player_types.has(ShipType.Kind.CORVETTE):
+			failures.append("expected the player's bootstrap fleet to include a CORVETTE")
+		if not player_types.has(ShipType.Kind.FREIGHTER):
+			failures.append("expected the player's bootstrap fleet to include a FREIGHTER")
+		if not player_types.has(ShipType.Kind.CAPITAL):
+			failures.append("expected the player's bootstrap fleet to include a CAPITAL")
+
 	var dominion: PowerFaction = null
 	var freehold: PowerFaction = null
 	for faction in campaign_state.factions:

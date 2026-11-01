@@ -17,6 +17,7 @@ func _run_all() -> void:
 		preload("res://tests/test_debug_console.gd"),
 		preload("res://tests/test_ship_vfx.gd"),
 		preload("res://tests/test_campaign_fleet.gd"),
+		preload("res://tests/test_ship_type.gd"),
 		preload("res://tests/test_patrol_behavior.gd"),
 		preload("res://tests/test_trader_behavior.gd"),
 		preload("res://tests/test_pirate_behavior.gd"),
@@ -55,6 +56,12 @@ func _run_all() -> void:
 	for f in ship_vfx_failures:
 		print("FAIL [%s]: %s" % [ship_vfx_test.resource_path, f])
 	total_failures += ship_vfx_failures.size()
+
+	var ship_type_scenes_test = preload("res://tests/test_ship_type_scenes.gd")
+	var ship_type_scenes_failures: Array[String] = await ship_type_scenes_test.run_async(self)
+	for f in ship_type_scenes_failures:
+		print("FAIL [%s]: %s" % [ship_type_scenes_test.resource_path, f])
+	total_failures += ship_type_scenes_failures.size()
 
 	# Loaded (not preloaded) because combat_scene.gd now bare-references the
 	# CampaignState autoload at the top of its _ready(); preload() would resolve

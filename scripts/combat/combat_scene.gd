@@ -1,6 +1,6 @@
 extends Node2D
 
-const ShipScene = preload("res://scenes/ship/ship.tscn")
+const ShipScene = preload("res://scenes/ship/ship_corvette.tscn")
 const PLAYER_GROUP := &"player_fleet"
 const ENEMY_GROUP := &"enemy_fleet"
 
@@ -59,7 +59,9 @@ func _spawn_fleet_from_data(fleet_data: CampaignFleet, points: Array[Vector2], o
 	var spawned: Array[Ship] = []
 	for i in fleet_data.ship_compositions.size():
 		var point: Vector2 = points[i % points.size()]
-		var ship: Ship = ShipScene.instantiate()
+		var comp: Dictionary = fleet_data.ship_compositions[i]
+		var ship_scene: PackedScene = ShipType.scene_for(ShipType.kind_of(comp))
+		var ship: Ship = ship_scene.instantiate()
 		add_child(ship)
 		ship.global_position = point
 		ship.rotation = facing_rotation
@@ -159,6 +161,7 @@ func _collect_survivor_data(ships: Array[Ship]) -> Array[Dictionary]:
 	for ship in ships:
 		if is_instance_valid(ship) and not ship.hull.is_destroyed():
 			survivors.append({
+				"ship_type": ship.ship_type,
 				"max_hp": ship.hull.max_hp,
 				"current_hp": ship.hull.current_hp,
 				"max_shield": ship.shield.max_shield,

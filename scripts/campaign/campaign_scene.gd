@@ -55,9 +55,9 @@ func _bootstrap_default_campaign() -> void:
 	player.position = HOME_BASE_POSITION
 	player.speed = 120.0
 	player.ship_compositions = [
-		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
-		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
-		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
 	]
 	CampaignState.player_fleet = player
 
@@ -65,19 +65,19 @@ func _bootstrap_default_campaign() -> void:
 	pirate.faction = CampaignFleet.Faction.PIRATE
 	pirate.position = Vector2(1000, 200)
 	pirate.speed = 100.0
-	pirate.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	pirate.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
 	var trader := CampaignFleet.new()
 	trader.faction = CampaignFleet.Faction.TRADER
 	trader.position = Vector2(200, 550)
 	trader.speed = 80.0
-	trader.ship_compositions = [{"max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0}]
+	trader.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0}]
 
 	var patrol := CampaignFleet.new()
 	patrol.faction = CampaignFleet.Faction.NEUTRAL
 	patrol.position = Vector2(900, 450)
 	patrol.speed = 90.0
-	patrol.ship_compositions = [{"max_hp": 80.0, "current_hp": 80.0, "max_shield": 30.0, "current_shield": 30.0}]
+	patrol.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 30.0, "current_shield": 30.0}]
 
 	var dominion_faction := PowerFaction.new()
 	dominion_faction.faction_enum = CampaignFleet.Faction.DOMINION
@@ -98,27 +98,27 @@ func _bootstrap_default_campaign() -> void:
 	dominion_fleet.faction = CampaignFleet.Faction.DOMINION
 	dominion_fleet.position = Vector2(980, 480)
 	dominion_fleet.speed = 100.0
-	dominion_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	dominion_fleet.ship_compositions = [{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
 	var freehold_fleet := CampaignFleet.new()
 	freehold_fleet.faction = CampaignFleet.Faction.FREEHOLD
 	freehold_fleet.position = Vector2(200, 200)
 	freehold_fleet.speed = 100.0
-	freehold_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	freehold_fleet.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
 	var dominion_trader_fleet := CampaignFleet.new()
 	dominion_trader_fleet.faction = CampaignFleet.Faction.DOMINION
 	dominion_trader_fleet.role = CampaignFleet.Role.TRADER
 	dominion_trader_fleet.position = dominion_faction.base_position
 	dominion_trader_fleet.speed = 100.0
-	dominion_trader_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	dominion_trader_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
 	var freehold_trader_fleet := CampaignFleet.new()
 	freehold_trader_fleet.faction = CampaignFleet.Faction.FREEHOLD
 	freehold_trader_fleet.role = CampaignFleet.Role.TRADER
 	freehold_trader_fleet.position = freehold_faction.base_position
 	freehold_trader_fleet.speed = 100.0
-	freehold_trader_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	freehold_trader_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
 	CampaignState.enemy_fleets = [pirate, trader, patrol, dominion_fleet, freehold_fleet, dominion_trader_fleet, freehold_trader_fleet]
 

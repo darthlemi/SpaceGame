@@ -1,6 +1,8 @@
 class_name WeaponMount
 extends Node2D
 
+const MuzzleFlashScene = preload("res://scenes/vfx/muzzle_flash.tscn")
+
 @export var weapon: Weapon
 var cooldown_remaining: float = 0.0
 
@@ -28,3 +30,6 @@ func _spawn_projectile(target: Node2D) -> void:
 	host.add_child(projectile)
 	projectile.global_position = global_position
 	projectile.setup(target, weapon.damage, weapon.weapon_range)
+	var muzzle_flash: Node2D = MuzzleFlashScene.instantiate()
+	host.add_child(muzzle_flash)
+	muzzle_flash.global_position = global_position

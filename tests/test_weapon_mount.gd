@@ -68,3 +68,39 @@ static func run() -> Array[String]:
 	close_target.free()
 	mount.free()
 	return failures
+
+static func run_async(tree: SceneTree) -> Array[String]:
+	var failures: Array[String] = []
+
+	var weapon := Weapon.new()
+	weapon.weapon_name = "Kinetic Cannon"
+	weapon.damage = 10.0
+	weapon.fire_rate = 2.0
+	weapon.weapon_range = 300.0
+	weapon.projectile_scene = preload("res://scenes/weapons/projectile.tscn")
+
+	var mount := WeaponMount.new()
+	mount.weapon = weapon
+	tree.root.add_child(mount)
+	mount.global_position = Vector2.ZERO
+
+	var target := Node2D.new()
+	target.global_position = Vector2(100.0, 0.0)
+	tree.root.add_child(target)
+
+	var particles_before := tree.root.get_children().filter(func(c): return c is CPUParticles2D).size()
+	var fired := mount.try_fire(target)
+	if not fired:
+		failures.append("try_fire: expected true for an in-range target with a real projectile scene")
+
+	var particles_after: Array = tree.root.get_children().filter(func(c): return c is CPUParticles2D)
+	if particles_after.size() != particles_before + 1:
+		failures.append("_spawn_projectile: expected exactly one new muzzle flash particle node, got %d new" % (particles_after.size() - particles_before))
+	elif not particles_after[particles_after.size() - 1].global_position.is_equal_approx(mount.global_position):
+		failures.append("_spawn_projectile: expected muzzle flash at mount position %s, got %s" % [mount.global_position, particles_after[particles_after.size() - 1].global_position])
+
+	for c in tree.root.get_children():
+		if (c == target or c == mount or c is CPUParticles2D or c is Projectile) and is_instance_valid(c):
+			c.queue_free()
+
+	return failures

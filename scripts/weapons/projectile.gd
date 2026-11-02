@@ -7,13 +7,15 @@ const DEFAULT_MAX_TRAVEL := 450.0
 @export var speed: float = 500.0
 var target: Node2D
 var damage: float = 0.0
+var weapon: Weapon
 var travel_direction: Vector2 = Vector2.RIGHT
 var max_travel: float = DEFAULT_MAX_TRAVEL
 var _distance_traveled: float = 0.0
 
-func setup(p_target: Node2D, p_damage: float, p_weapon_range: float = 0.0) -> void:
+func setup(p_target: Node2D, p_damage: float, p_weapon_range: float = 0.0, p_weapon: Weapon = null) -> void:
 	target = p_target
 	damage = p_damage
+	weapon = p_weapon
 	if is_instance_valid(target):
 		travel_direction = (target.global_position - global_position).normalized()
 	rotation = travel_direction.angle()
@@ -34,6 +36,9 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _hit() -> void:
-	if is_instance_valid(target) and target.has_method("receive_damage"):
-		target.receive_damage(damage, global_position)
+	if is_instance_valid(target):
+		if weapon != null and target.has_method("receive_weapon_damage"):
+			target.receive_weapon_damage(weapon, global_position)
+		elif target.has_method("receive_damage"):
+			target.receive_damage(damage, global_position)
 	queue_free()

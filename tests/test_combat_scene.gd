@@ -76,6 +76,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0,
 		"engine_max_hp": 25.0, "engine_current_hp": 5.0,
 		"weapon_mount_max_hp": [15.0], "weapon_mount_current_hp": [3.0],
+		"weapon_mount_items": ["res://resources/weapons/railgun.tres"],
+		"shield_item": "res://resources/shields/shield_dominion_aegis.tres",
+		"engine_item": "res://resources/engines/engine_freehold_racer.tres",
 	}]
 	var enemy_fleet := CampaignFleet.new()
 	enemy_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 20.0, "current_shield": 20.0}]
@@ -102,6 +105,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		var spawned_player: Ship = campaign_scene.player_ships[0]
 		if not is_equal_approx(spawned_player.engine.current_hp, 5.0):
 			failures.append("campaign battle: expected spawned player engine.current_hp carried over from composition, got %s" % spawned_player.engine.current_hp)
+		if spawned_player.weapon_mounts[0].weapon == null or spawned_player.weapon_mounts[0].weapon.weapon_name != "Railgun":
+			failures.append("campaign battle: expected the equipped railgun applied to the spawned player's weapon mount")
+		if not is_equal_approx(spawned_player.shield.max_shield, 35.0):
+			failures.append("campaign battle: expected the equipped aegis shield's max_shield (35.0) applied, got %s" % spawned_player.shield.max_shield)
+		if not is_equal_approx(spawned_player.engine.max_speed, 300.0):
+			failures.append("campaign battle: expected the equipped racer engine's max_speed (300.0) applied, got %s" % spawned_player.engine.max_speed)
 		if spawned_player.weapon_mounts.size() != 1 or not is_equal_approx(spawned_player.weapon_mounts[0].current_hp, 3.0):
 			failures.append("campaign battle: expected spawned player mount current_hp carried over from composition")
 
@@ -127,6 +136,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("campaign battle: expected the destroyed engine's 0 hp carried back into the composition, got %s" % surviving_comp.get("engine_current_hp"))
 		if surviving_comp.get("weapon_mount_current_hp", [-1.0])[0] != 0.0:
 			failures.append("campaign battle: expected the destroyed mount's 0 hp carried back into the composition, got %s" % surviving_comp.get("weapon_mount_current_hp"))
+		if surviving_comp.get("weapon_mount_items", []) != ["res://resources/weapons/railgun.tres"]:
+			failures.append("campaign battle: expected equipped weapon item path carried back into the surviving composition, got %s" % surviving_comp.get("weapon_mount_items"))
+		if surviving_comp.get("shield_item", "") != "res://resources/shields/shield_dominion_aegis.tres":
+			failures.append("campaign battle: expected equipped shield item path carried back into the surviving composition")
+		if surviving_comp.get("engine_item", "") != "res://resources/engines/engine_freehold_racer.tres":
+			failures.append("campaign battle: expected equipped engine item path carried back into the surviving composition")
 
 	campaign_state.reset()
 	if is_instance_valid(campaign_scene) and not campaign_scene.is_queued_for_deletion():

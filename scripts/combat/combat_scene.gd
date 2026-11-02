@@ -77,6 +77,16 @@ func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
 		ships[i].hull.current_hp = comp["current_hp"]
 		ships[i].shield.max_shield = comp["max_shield"]
 		ships[i].shield.current_shield = comp["current_shield"]
+		if comp.has("engine_max_hp"):
+			ships[i].engine.max_hp = comp["engine_max_hp"]
+			ships[i].engine.current_hp = comp["engine_current_hp"]
+		if comp.has("weapon_mount_max_hp"):
+			var mount_max: Array = comp["weapon_mount_max_hp"]
+			var mount_cur: Array = comp["weapon_mount_current_hp"]
+			for j in ships[i].weapon_mounts.size():
+				if j < mount_max.size():
+					ships[i].weapon_mounts[j].max_hp = mount_max[j]
+					ships[i].weapon_mounts[j].current_hp = mount_cur[j]
 
 func _wire_ai(ship: Ship) -> void:
 	var ai := AIController.new()
@@ -160,12 +170,21 @@ func _collect_survivor_data(ships: Array[Ship]) -> Array[Dictionary]:
 	var survivors: Array[Dictionary] = []
 	for ship in ships:
 		if is_instance_valid(ship) and not ship.hull.is_destroyed():
+			var mount_max: Array[float] = []
+			var mount_cur: Array[float] = []
+			for mount in ship.weapon_mounts:
+				mount_max.append(mount.max_hp)
+				mount_cur.append(mount.current_hp)
 			survivors.append({
 				"ship_type": ship.ship_type,
 				"max_hp": ship.hull.max_hp,
 				"current_hp": ship.hull.current_hp,
 				"max_shield": ship.shield.max_shield,
 				"current_shield": ship.shield.current_shield,
+				"engine_max_hp": ship.engine.max_hp,
+				"engine_current_hp": ship.engine.current_hp,
+				"weapon_mount_max_hp": mount_max,
+				"weapon_mount_current_hp": mount_cur,
 			})
 	return survivors
 

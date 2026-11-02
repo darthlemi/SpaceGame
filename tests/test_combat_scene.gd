@@ -72,7 +72,11 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	var CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 	var player_fleet := CampaignFleet.new()
-	player_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	player_fleet.ship_compositions = [{
+		"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0,
+		"engine_max_hp": 25.0, "engine_current_hp": 5.0,
+		"weapon_mount_max_hp": [15.0], "weapon_mount_current_hp": [3.0],
+	}]
 	var enemy_fleet := CampaignFleet.new()
 	enemy_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 20.0, "current_shield": 20.0}]
 	campaign_state.player_fleet = player_fleet
@@ -94,6 +98,16 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if spawned_enemy.weapon_mounts.size() != 0:
 			failures.append("campaign battle: expected the spawned FREIGHTER ship to have 0 weapon mounts, got %d" % spawned_enemy.weapon_mounts.size())
 
+	if campaign_scene.player_ships.size() == 1:
+		var spawned_player: Ship = campaign_scene.player_ships[0]
+		if not is_equal_approx(spawned_player.engine.current_hp, 5.0):
+			failures.append("campaign battle: expected spawned player engine.current_hp carried over from composition, got %s" % spawned_player.engine.current_hp)
+		if spawned_player.weapon_mounts.size() != 1 or not is_equal_approx(spawned_player.weapon_mounts[0].current_hp, 3.0):
+			failures.append("campaign battle: expected spawned player mount current_hp carried over from composition")
+
+		spawned_player.engine.apply_damage(1000.0)
+		spawned_player.weapon_mounts[0].apply_damage(1000.0)
+
 	for ship in campaign_scene.enemy_ships.duplicate():
 		ship.hull.apply_damage(ship.hull.max_hp)
 	await tree.process_frame
@@ -107,6 +121,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("campaign battle: expected player_fleet to still have 1 surviving ship composition, got %d" % campaign_state.player_fleet.ship_compositions.size())
 	elif campaign_state.player_fleet.ship_compositions[0].get("ship_type") != ShipType.Kind.CORVETTE:
 		failures.append("campaign battle: expected the surviving player ship's composition to carry ship_type CORVETTE back from combat, got %s" % campaign_state.player_fleet.ship_compositions[0].get("ship_type"))
+	else:
+		var surviving_comp: Dictionary = campaign_state.player_fleet.ship_compositions[0]
+		if surviving_comp.get("engine_current_hp", -1.0) != 0.0:
+			failures.append("campaign battle: expected the destroyed engine's 0 hp carried back into the composition, got %s" % surviving_comp.get("engine_current_hp"))
+		if surviving_comp.get("weapon_mount_current_hp", [-1.0])[0] != 0.0:
+			failures.append("campaign battle: expected the destroyed mount's 0 hp carried back into the composition, got %s" % surviving_comp.get("weapon_mount_current_hp"))
 
 	campaign_state.reset()
 	if is_instance_valid(campaign_scene) and not campaign_scene.is_queued_for_deletion():

@@ -15,6 +15,7 @@ radius = 34.0
 [node name="Ship" type="CharacterBody2D"]
 script = ExtResource("1")
 ship_type = 2
+hit_radius = 34.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("1")
@@ -36,21 +37,30 @@ script = ExtResource("4")
 max_speed = 90.0
 turn_rate = 1.0
 acceleration = 60.0
+hitbox_radius = 10.0
+position = Vector2(-20, 0)
 
 [node name="WeaponMount" type="Node2D" parent="."]
 script = ExtResource("5")
 position = Vector2(24, 0)
 weapon = ExtResource("6")
+hitbox_radius = 9.0
 
 [node name="WeaponMount2" type="Node2D" parent="."]
 script = ExtResource("5")
 position = Vector2(10, -14)
 weapon = ExtResource("6")
+hitbox_radius = 9.0
 
 [node name="WeaponMount3" type="Node2D" parent="."]
 script = ExtResource("5")
 position = Vector2(10, 14)
 weapon = ExtResource("6")
+hitbox_radius = 9.0
+
+[node name="ShieldGlow" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(42, 0, 29.7, 29.7, 0, 42, -29.7, 29.7, -42, 0, -29.7, -29.7, 0, -42, 29.7, -29.7)
+color = Color(0.4, 0.8, 1, 0.35)
 
 [node name="VFX" type="Node2D" parent="."]
 script = ExtResource("7")

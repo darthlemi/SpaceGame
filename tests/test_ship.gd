@@ -71,6 +71,15 @@ static func _check_scene_structure(failures: Array[String]) -> void:
 	if not (ship.get_child_count() >= 1):
 		failures.append("ship.tscn: root has no children")
 
+	if not is_equal_approx(ship.hit_radius, 16.0):
+		failures.append("ship.tscn: expected hit_radius 16.0, got %s" % ship.hit_radius)
+	for child in ship.get_children():
+		if child is WeaponMount and child.hitbox_radius <= 0.0:
+			failures.append("ship.tscn: expected the WeaponMount to have a positive hitbox_radius")
+	var generic_engine := ship.get_node_or_null("Engine")
+	if generic_engine != null and generic_engine.hitbox_radius <= 0.0:
+		failures.append("ship.tscn: expected the Engine to have a positive hitbox_radius")
+
 	ship.free()
 
 static func _check_ship_logic(failures: Array[String]) -> void:

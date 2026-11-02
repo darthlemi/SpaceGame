@@ -78,6 +78,38 @@ static func run() -> Array[String]:
 		failures.append("try_fire: expected false once the mount is destroyed, even with target in range")
 	dying_mount.free()
 
+	# Fire-arc gating: a narrow-arc (e.g. Fixed) weapon mounted facing +X (rotation 0)
+	# should refuse to fire at a target far off to the side, and accept one dead ahead.
+	var narrow_weapon := Weapon.new()
+	narrow_weapon.weapon_name = "Railgun"
+	narrow_weapon.damage = 35.0
+	narrow_weapon.fire_rate = 1.0
+	narrow_weapon.weapon_range = 500.0
+	narrow_weapon.fire_arc_degrees = 10.0
+
+	var narrow_mount := WeaponMount.new()
+	narrow_mount.weapon = narrow_weapon
+	narrow_mount.global_position = Vector2.ZERO
+	narrow_mount.rotation = 0.0
+
+	var ahead_target := Node2D.new()
+	ahead_target.global_position = Vector2(200.0, 0.0)
+	if not narrow_mount._within_arc(ahead_target):
+		failures.append("_within_arc: expected target dead ahead to be within a 10-degree arc")
+
+	var side_target := Node2D.new()
+	side_target.global_position = Vector2(0.0, 200.0)
+	if narrow_mount._within_arc(side_target):
+		failures.append("_within_arc: expected target 90 degrees off-axis to be outside a 10-degree arc")
+
+	# Default 360-degree arc (e.g. the existing Kinetic Cannon) must accept any angle.
+	if not mount._within_arc(side_target):
+		failures.append("_within_arc: expected default 360-degree arc to accept any target angle")
+
+	ahead_target.free()
+	side_target.free()
+	narrow_mount.free()
+
 	far_target.free()
 	close_target.free()
 	mount.free()

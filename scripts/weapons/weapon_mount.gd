@@ -18,9 +18,18 @@ func try_fire(target: Node2D) -> bool:
 		return false
 	if global_position.distance_to(target.global_position) > weapon.weapon_range:
 		return false
+	if not _within_arc(target):
+		return false
 	_spawn_projectile(target)
 	cooldown_remaining = 1.0 / weapon.fire_rate
 	return true
+
+func _within_arc(target: Node2D) -> bool:
+	if weapon.fire_arc_degrees >= 360.0:
+		return true
+	var to_target_angle := (target.global_position - global_position).angle()
+	var diff := wrapf(to_target_angle - global_rotation, -PI, PI)
+	return abs(diff) <= deg_to_rad(weapon.fire_arc_degrees) * 0.5
 
 func _spawn_projectile(target: Node2D) -> void:
 	if weapon.projectile_scene == null:

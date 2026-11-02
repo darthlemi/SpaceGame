@@ -199,7 +199,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		scene.player_icon.global_position = surviving_power_icon.global_position
 		for i in 5:
 			await tree.physics_frame
-		var engage_prompt_ctrl: Control = scene.get_node("EngagePrompt")
+		var engage_prompt_ctrl: Control = scene.get_node("UILayer/EngagePrompt")
 		if not engage_prompt_ctrl.visible:
 			failures.append("expected EngagePrompt visible after player overlaps the power-faction icon")
 
@@ -246,7 +246,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	for i in 5:
 		await tree.physics_frame
 
-	var prompt: Control = scene.get_node("EngagePrompt")
+	var prompt: Control = scene.get_node("UILayer/EngagePrompt")
 	if not prompt.visible:
 		failures.append("expected EngagePrompt visible after player icon overlaps an enemy icon")
 

@@ -10,12 +10,13 @@ const HOME_BASE_POSITION := Vector2(600, 400)
 var player_icon: CampaignFleetIcon
 var enemy_icons: Array[CampaignFleetIcon] = []
 
-@onready var engage_prompt: Control = $EngagePrompt
-@onready var trade_panel: TradePanel = $TradePanel
-@onready var loot_panel: LootPanel = $LootPanel
+@onready var engage_prompt: Control = $UILayer/EngagePrompt
+@onready var trade_panel: TradePanel = $UILayer/TradePanel
+@onready var loot_panel: LootPanel = $UILayer/LootPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
+var _travel_target: Area2D = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -230,14 +231,19 @@ func _dock_point_for(faction_enum: CampaignFleet.Faction) -> Vector2:
 	return HOME_BASE_POSITION + Vector2(-40, 0)
 
 func _on_player_area_entered(area: Area2D) -> void:
+	if area != _travel_target:
+		return
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
 		_pending_enemy_icon = area
 		engage_prompt.visible = true
+		get_tree().paused = true
+		_travel_target = null
 	elif area is HomeBase or area is FactionBase:
 		var economy := _economy_for_base(area)
 		if economy != null:
 			trade_panel.open_for(economy, CampaignState.player_fleet)
 			get_tree().paused = true
+			_travel_target = null
 
 func _on_player_area_exited(area: Area2D) -> void:
 	if area == _pending_enemy_icon:
@@ -263,7 +269,12 @@ func _physics_process(delta: float) -> void:
 		return
 	CampaignState.tick_skirmishes(delta)
 	CampaignState.tick_economy(delta)
-	if _mouse_held:
+	if _travel_target != null:
+		if not is_instance_valid(_travel_target) or _travel_target.is_queued_for_deletion():
+			_travel_target = null
+		else:
+			player_icon.set_move_target(_travel_target.global_position)
+	elif _mouse_held:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			player_icon.set_move_target(get_global_mouse_position())
 		else:
@@ -281,11 +292,31 @@ func _on_engage_pressed() -> void:
 func _on_disengage_pressed() -> void:
 	engage_prompt.visible = false
 	_pending_enemy_icon = null
+	get_tree().paused = false
+
+func _find_clickable_target(global_pos: Vector2) -> Area2D:
+	var query := PhysicsPointQueryParameters2D.new()
+	query.position = global_pos
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	for result in get_world_2d().direct_space_state.intersect_point(query):
+		var collider = result.collider
+		if collider == player_icon:
+			continue
+		if collider is CampaignFleetIcon or collider is HomeBase or collider is FactionBase:
+			return collider
+	return null
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if get_tree().paused:
 			get_tree().paused = false
 			Engine.time_scale = 1.0
-		_mouse_held = true
-		player_icon.set_move_target(get_global_mouse_position())
+		var target := _find_clickable_target(get_global_mouse_position())
+		if target != null:
+			_travel_target = target
+			_mouse_held = false
+		else:
+			_travel_target = null
+			_mouse_held = true
+			player_icon.set_move_target(get_global_mouse_position())

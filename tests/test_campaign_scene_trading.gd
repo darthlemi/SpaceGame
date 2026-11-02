@@ -15,7 +15,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# teleport-and-await-physics-frame checks below actually progress.
 	tree.paused = false
 
-	var trade_panel: TradePanel = scene.get_node("TradePanel")
+	var trade_panel: TradePanel = scene.get_node("UILayer/TradePanel")
 	if trade_panel.visible:
 		failures.append("expected TradePanel hidden before the player docks anywhere")
 

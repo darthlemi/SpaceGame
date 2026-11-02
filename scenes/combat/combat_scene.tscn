@@ -17,7 +17,9 @@ script = ExtResource("1")
 [node name="FleetCommander" type="Node2D" parent="."]
 script = ExtResource("2")
 
-[node name="ResultLabel" type="Label" parent="."]
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="ResultLabel" type="Label" parent="UILayer"]
 offset_left = 400.0
 offset_top = 100.0
 offset_right = 700.0
@@ -26,9 +28,9 @@ theme_override_font_sizes/font_size = 48
 text = ""
 visible = false
 
-[node name="DebugConsole" parent="." instance=ExtResource("3")]
+[node name="DebugConsole" parent="UILayer" instance=ExtResource("3")]
 
-[node name="SpeedControls" parent="." instance=ExtResource("4")]
+[node name="SpeedControls" parent="UILayer" instance=ExtResource("4")]
 
 [node name="Bounds" type="Node2D" parent="."]
 

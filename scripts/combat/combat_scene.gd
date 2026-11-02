@@ -8,8 +8,8 @@ const ENEMY_GROUP := &"enemy_fleet"
 @export var enemy_spawn_points: Array[Vector2] = [Vector2(800, 200), Vector2(800, 300), Vector2(800, 400)]
 
 @onready var fleet_commander: FleetCommander = $FleetCommander
-@onready var result_label: Label = $ResultLabel
-@onready var debug_console: Control = $DebugConsole/Panel
+@onready var result_label: Label = $UILayer/ResultLabel
+@onready var debug_console: Control = $UILayer/DebugConsole/Panel
 
 var player_ships: Array[Ship] = []
 var enemy_ships: Array[Ship] = []

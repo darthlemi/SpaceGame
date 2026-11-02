@@ -9,6 +9,7 @@ var weapon_mounts: Array[WeaponMount] = []
 var current_order: Order
 
 @export var ship_type: ShipType.Kind = ShipType.Kind.CORVETTE
+@export var hit_radius: float = 16.0
 @export var enemy_group: StringName = &""
 @export var arrival_radius: float = 20.0
 @export var aggro_range: float = 0.0
@@ -44,10 +45,35 @@ func attack_range() -> float:
 			max_range = max(max_range, mount.weapon.weapon_range)
 	return max_range
 
-func receive_damage(amount: float) -> void:
+func get_hit_radius() -> float:
+	return hit_radius
+
+func receive_damage(amount: float, impact_position: Vector2 = Vector2.INF) -> void:
 	var overflow := shield.absorb(amount)
-	if overflow > 0.0:
+	if overflow <= 0.0:
+		return
+	var pos := global_position if impact_position == Vector2.INF else impact_position
+	var hit_component := resolve_component_hit(pos)
+	if hit_component != null:
+		hit_component.apply_damage(overflow)
+	else:
 		hull.apply_damage(overflow)
+
+func resolve_component_hit(impact_pos: Vector2) -> ShipComponent:
+	var best: ShipComponent = null
+	var best_dist := INF
+	var candidates: Array[ShipComponent] = []
+	for mount in weapon_mounts:
+		candidates.append(mount)
+	candidates.append(engine)
+	for comp in candidates:
+		if comp == null or comp.is_destroyed() or comp.hitbox_radius <= 0.0:
+			continue
+		var d := comp.global_position.distance_to(impact_pos)
+		if d <= comp.hitbox_radius and d < best_dist:
+			best = comp
+			best_dist = d
+	return best
 
 func _physics_process(delta: float) -> void:
 	_process_order_movement(delta)

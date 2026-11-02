@@ -139,6 +139,47 @@ static func _check_ship_logic(failures: Array[String]) -> void:
 	if not ship.is_queued_for_deletion():
 		failures.append("Ship: expected ship to be queued for deletion after hull.destroyed fires")
 
+	# Component hit resolution: a mount positioned away from the ship's
+	# origin should absorb overflow damage exclusively, leaving hull/shield
+	# untouched, when the impact point lands inside its hitbox.
+	var hit_ship := Ship.new()
+	var hit_hull := Hull.new()
+	hit_hull.max_hp = 100.0
+	hit_hull._ready()
+	var hit_shield := Shield.new()
+	hit_shield.max_shield = 0.0
+	hit_shield.current_shield = 0.0
+	var hit_engine := ShipEngine.new()
+	hit_engine.max_hp = 20.0
+	hit_engine._ready()
+	var hit_mount := WeaponMount.new()
+	hit_mount.max_hp = 15.0
+	hit_mount._ready()
+	hit_mount.hitbox_radius = 8.0
+	hit_mount.position = Vector2(20, 0)
+	hit_ship.hull = hit_hull
+	hit_ship.shield = hit_shield
+	hit_ship.engine = hit_engine
+	hit_ship.weapon_mounts = [hit_mount]
+	hit_ship.add_child(hit_mount)
+	hit_ship.add_child(hit_engine)
+
+	hit_ship.receive_damage(10.0, Vector2(20, 2))
+	if not is_equal_approx(hit_mount.current_hp, 5.0):
+		failures.append("receive_damage: expected the mount's hitbox to absorb the hit, got mount.current_hp=%s" % hit_mount.current_hp)
+	if not is_equal_approx(hit_hull.current_hp, 100.0):
+		failures.append("receive_damage: expected hull untouched by a component-exclusive hit, got %s" % hit_hull.current_hp)
+
+	hit_ship.receive_damage(10.0, Vector2(-200, -200))
+	if not is_equal_approx(hit_hull.current_hp, 90.0):
+		failures.append("receive_damage: expected a hit outside every hitbox to fall through to hull, got %s" % hit_hull.current_hp)
+
+	hit_ship.receive_damage(10.0)
+	if not is_equal_approx(hit_hull.current_hp, 80.0):
+		failures.append("receive_damage: expected the default impact_position to route to hull (ship's own center), got %s" % hit_hull.current_hp)
+
+	hit_ship.free()
+
 	hull.free()
 	shield.free()
 	engine.free()

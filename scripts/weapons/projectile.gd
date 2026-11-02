@@ -27,12 +27,13 @@ func _physics_process(delta: float) -> void:
 	var step := travel_direction * speed * delta
 	global_position += step
 	_distance_traveled += step.length()
-	if global_position.distance_to(target.global_position) < HIT_RADIUS:
+	var effective_hit_radius: float = target.get_hit_radius() if target.has_method("get_hit_radius") else HIT_RADIUS
+	if global_position.distance_to(target.global_position) < effective_hit_radius:
 		_hit()
 	elif _distance_traveled >= max_travel:
 		queue_free()
 
 func _hit() -> void:
 	if is_instance_valid(target) and target.has_method("receive_damage"):
-		target.receive_damage(damage)
+		target.receive_damage(damage, global_position)
 	queue_free()

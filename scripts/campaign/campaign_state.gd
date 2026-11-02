@@ -135,6 +135,16 @@ func equip_part(comp: Dictionary, fleet: CampaignFleet, slot_type: ShipType.Slot
 		return false
 	var new_path: String = fleet.part_inventory[inventory_index]
 	var new_item: Resource = load(new_path)
+	match slot_type:
+		ShipType.SlotType.WEAPON:
+			if not new_item is Weapon:
+				return false
+		ShipType.SlotType.SHIELD:
+			if not new_item is ShieldGenerator:
+				return false
+		ShipType.SlotType.ENGINE:
+			if not new_item is EngineCore:
+				return false
 	var old_path := ShipType.equipped_path(comp, slot_type, slot_index)
 	var budget := ShipType.points_budget_for(ShipType.kind_of(comp))
 	var projected := ShipType.points_used(comp) - ShipType.points_of_path(old_path) + PartRarity.points_for(new_item.rarity)

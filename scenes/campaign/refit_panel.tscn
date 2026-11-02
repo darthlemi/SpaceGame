@@ -3,9 +3,9 @@
 [ext_resource type="Script" path="res://scripts/campaign/refit_panel.gd" id="1"]
 
 [node name="RefitPanel" type="Control"]
-offset_left = 720.0
+offset_left = 652.0
 offset_top = 100.0
-offset_right = 1220.0
+offset_right = 1152.0
 offset_bottom = 460.0
 mouse_filter = 2
 script = ExtResource("1")

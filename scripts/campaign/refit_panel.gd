@@ -57,7 +57,8 @@ func refresh() -> void:
 func _rebuild_ship_selector() -> void:
 	ship_selector.clear()
 	for i in _fleet.ship_compositions.size():
-		ship_selector.add_item("Ship %d" % (i + 1), i)
+		var comp: Dictionary = _fleet.ship_compositions[i]
+		ship_selector.add_item("Ship %d (%s)" % [i + 1, ShipType.Kind.keys()[ShipType.kind_of(comp)]], i)
 	if _selected_ship_index >= _fleet.ship_compositions.size():
 		_selected_ship_index = 0
 
@@ -106,6 +107,7 @@ func _rebuild_slot_rows() -> void:
 		slots_container.remove_child(child)
 		child.queue_free()
 	if _fleet.ship_compositions.is_empty():
+		points_label.text = "Points: -- / --"
 		return
 	var comp: Dictionary = _fleet.ship_compositions[_selected_ship_index]
 	var budget := ShipType.points_budget_for(ShipType.kind_of(comp))
@@ -113,11 +115,16 @@ func _rebuild_slot_rows() -> void:
 	points_label.text = "Points: %d / %d" % [used, budget]
 	var damaged := CampaignState.is_damaged(comp)
 
-	var mount_count: int = comp.get("weapon_mount_items", []).size()
+	var mount_count: int = int(ShipType.BASE_STATS[ShipType.kind_of(comp)]["weapon_mount_count"])
 	for j in mount_count:
 		_add_slot_row(comp, ShipType.SlotType.WEAPON, j, "Weapon %d" % (j + 1), Weapon, damaged, budget, used)
 	_add_slot_row(comp, ShipType.SlotType.SHIELD, 0, "Shield", ShieldGenerator, damaged, budget, used)
 	_add_slot_row(comp, ShipType.SlotType.ENGINE, 0, "Engine", EngineCore, damaged, budget, used)
+
+	if damaged:
+		var repair_label := Label.new()
+		repair_label.text = "Repair this ship before refitting"
+		slots_container.add_child(repair_label)
 
 func _add_slot_row(comp: Dictionary, slot_type: ShipType.SlotType, slot_index: int, label_text: String, item_class: Script, damaged: bool, budget: int, used: int) -> void:
 	var equipped_path := ShipType.equipped_path(comp, slot_type, slot_index)

@@ -87,4 +87,32 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	campaign_state.reset()
 	panel.queue_free()
+
+	# Regression: the real campaign bootstraps ship_compositions with bare dict
+	# literals (ship_type/max_hp/current_hp/max_shield/current_shield only --
+	# no weapon_mount_items key at all). Weapon slot count must be derived from
+	# the ship class's BASE_STATS, not from a (possibly absent) items array.
+	campaign_state.reset()
+	campaign_state.credits = 2000.0
+	var bare_panel: Control = RefitPanelScene.instantiate()
+	tree.root.add_child(bare_panel)
+	await tree.process_frame
+
+	var bare_fleet := CampaignFleet.new()
+	bare_fleet.ship_compositions = [
+		{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	var empty_catalog: Array[String] = []
+	bare_panel.open_for(bare_fleet, empty_catalog)
+	bare_panel.equip_button.pressed.emit()
+	if bare_panel.slots_container.get_child_count() != 3:
+		failures.append("RefitPanel: expected a bare-dict corvette composition (no weapon_mount_items key) to get 1 weapon slot row + shield + engine = 3, got %d" % bare_panel.slots_container.get_child_count())
+
+	bare_panel.ship_selector.item_selected.emit(1)
+	if bare_panel.slots_container.get_child_count() != 5:
+		failures.append("RefitPanel: expected a bare-dict capital composition (no weapon_mount_items key) to get 3 weapon slot rows + shield + engine = 5, got %d" % bare_panel.slots_container.get_child_count())
+
+	campaign_state.reset()
+	bare_panel.queue_free()
 	return failures

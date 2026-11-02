@@ -1261,6 +1261,7 @@ func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
 		ships[i].shield.current_shield = comp["current_shield"]
 		if comp.get("shield_item", "") != "":
 			var shield_item: ShieldGenerator = load(comp["shield_item"])
+			ships[i].shield.max_shield = shield_item.max_shield
 			ships[i].shield.regen_rate = shield_item.regen_rate
 		if comp.has("engine_max_hp"):
 			ships[i].engine.max_hp = comp["engine_max_hp"]

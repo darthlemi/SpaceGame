@@ -551,8 +551,27 @@ static func run() -> Array[String]:
 		failures.append("equip_part: expected equipping the UNCOMMON aegis shield (10 points, within budget) to succeed")
 	if not is_equal_approx(corvette_comp["max_shield"], 35.0):
 		failures.append("equip_part: expected max_shield updated to the aegis shield's 35.0, got %s" % corvette_comp["max_shield"])
+	if is_equal_approx(corvette_comp["max_shield"], old_max_shield):
+		failures.append("equip_part: expected max_shield to actually change from the pre-equip value %s" % old_max_shield)
 	if not is_equal_approx(corvette_comp["current_shield"], corvette_comp["max_shield"]):
 		failures.append("equip_part: expected current_shield scaled up to the new max (was full before swap)")
+
+	# equip_part: defensively rejects a type mismatch between the inventory
+	# item and the slot (e.g. a shield resource into a WEAPON slot), even if
+	# RefitPanel's UI-level filtering is bypassed or has a bug.
+	var mismatch_inventory_before: Array[String] = part_fleet.part_inventory.duplicate()
+	var mismatch_comp_before: Dictionary = corvette_comp.duplicate(true)
+	var mismatch_shield_index: int = part_fleet.part_inventory.find("res://resources/shields/shield_dominion_bulwark.tres")
+	if mismatch_shield_index == -1:
+		part_fleet.part_inventory.append("res://resources/shields/shield_dominion_bulwark.tres")
+		mismatch_shield_index = part_fleet.part_inventory.size() - 1
+		mismatch_inventory_before = part_fleet.part_inventory.duplicate()
+	if campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.WEAPON, 0, mismatch_shield_index):
+		failures.append("equip_part: expected equipping a shield into a WEAPON slot to fail")
+	if part_fleet.part_inventory != mismatch_inventory_before:
+		failures.append("equip_part: expected part_inventory unchanged after a rejected type-mismatch equip, got %s" % part_fleet.part_inventory)
+	if corvette_comp != mismatch_comp_before:
+		failures.append("equip_part: expected the composition unchanged after a rejected type-mismatch equip")
 
 	campaign_state.reset()
 

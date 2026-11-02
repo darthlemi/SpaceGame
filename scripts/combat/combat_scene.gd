@@ -187,13 +187,16 @@ func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dic
 	for i in ships.size():
 		var ship := ships[i]
 		if is_instance_valid(ship) and not ship.hull.is_destroyed():
+			var orig: Dictionary = original_compositions[i] if i < original_compositions.size() else {}
+			var orig_items: Array = orig.get("weapon_mount_items", [])
 			var mount_max: Array[float] = []
 			var mount_cur: Array[float] = []
 			var mount_items: Array[String] = []
-			for mount in ship.weapon_mounts:
+			for j in ship.weapon_mounts.size():
+				var mount := ship.weapon_mounts[j]
 				mount_max.append(mount.max_hp)
 				mount_cur.append(mount.current_hp)
-				mount_items.append(mount.weapon.resource_path if mount.weapon != null else "")
+				mount_items.append(orig_items[j] if j < orig_items.size() else "")
 			survivors.append({
 				"ship_type": ship.ship_type,
 				"max_hp": ship.hull.max_hp,
@@ -205,8 +208,8 @@ func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dic
 				"weapon_mount_max_hp": mount_max,
 				"weapon_mount_current_hp": mount_cur,
 				"weapon_mount_items": mount_items,
-				"shield_item": original_compositions[i].get("shield_item", ""),
-				"engine_item": original_compositions[i].get("engine_item", ""),
+				"shield_item": orig.get("shield_item", ""),
+				"engine_item": orig.get("engine_item", ""),
 			})
 	return survivors
 

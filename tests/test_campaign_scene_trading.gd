@@ -21,10 +21,19 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	# HomeBase sits at CampaignScene.HOME_BASE_POSITION; the player icon
 	# starts there too, but area_entered only fires on a fresh overlap
-	# transition, so move away first and then back onto it.
+	# transition, so move away first and then back onto it. Docking now
+	# only opens the panel when the overlap is the player's deliberate
+	# click target, so set _travel_target (what a real click would set)
+	# to the HomeBase node before re-approaching it.
 	scene.player_icon.global_position = Vector2(-5000, -5000)
 	for i in 3:
 		await tree.physics_frame
+	var home_base: HomeBase = null
+	for child in scene.get_children():
+		if child is HomeBase:
+			home_base = child
+			break
+	scene._travel_target = home_base
 	scene.player_icon.global_position = scene.HOME_BASE_POSITION
 	for i in 5:
 		await tree.physics_frame
@@ -53,6 +62,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if faction_base == null:
 		failures.append("expected at least one FactionBase spawned by bootstrap")
 	else:
+		scene._travel_target = faction_base
 		scene.player_icon.global_position = faction_base.global_position
 		for i in 5:
 			await tree.physics_frame
@@ -67,6 +77,74 @@ static func run_async(tree: SceneTree) -> Array[String]:
 				failures.append("expected TradePanel to open with the docked FactionBase's own economy")
 
 	tree.paused = false
+
+	# Flyby coverage: overlapping a base that was NOT the player's clicked
+	# travel target (e.g. drifting past it during free-drag movement) must
+	# not open the panel -- only a deliberate click (_travel_target set to
+	# that base) should.
+	scene.player_icon.global_position = Vector2(-5000, -5000)
+	for i in 3:
+		await tree.physics_frame
+	scene._travel_target = null
+	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	for i in 5:
+		await tree.physics_frame
+	if trade_panel.visible:
+		failures.append("expected TradePanel to stay hidden when overlapping HomeBase without it being the clicked travel target")
+	tree.paused = false
+
+	# Arrival coverage: reaching the clicked target must clear _travel_target
+	# so the player regains normal click control once the panel is open.
+	scene.player_icon.global_position = Vector2(-5000, -5000)
+	for i in 3:
+		await tree.physics_frame
+	scene._travel_target = home_base
+	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	for i in 5:
+		await tree.physics_frame
+	if scene._travel_target != null:
+		failures.append("expected _travel_target cleared after arriving at the clicked base")
+	tree.paused = false
+
+	# Bug coverage: a fleet icon sitting on top of a base, then clicking the
+	# base itself while already overlapping it. Disengaging from the fleet
+	# encounter leaves the player standing on the base with no fresh
+	# area_entered transition left to fire -- clicking the base (already
+	# overlapped) must still open the trade panel immediately.
+	var enemy_icon: CampaignFleetIcon = scene.enemy_icons[0]
+	var enemy_original_position: Vector2 = enemy_icon.global_position
+	scene.player_icon.global_position = Vector2(-5000, -5000)
+	enemy_icon.global_position = Vector2(-6000, -6000)
+	for i in 3:
+		await tree.physics_frame
+	enemy_icon.global_position = scene.HOME_BASE_POSITION
+	scene._travel_target = enemy_icon
+	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	for i in 5:
+		await tree.physics_frame
+	var engage_prompt: Control = scene.get_node("UILayer/EngagePrompt")
+	if not engage_prompt.visible:
+		failures.append("expected EngagePrompt visible after clicking a fleet icon overlapping a base")
+
+	engage_prompt.get_node("DisengageButton").pressed.emit()
+	if tree.paused:
+		failures.append("expected disengaging to unpause the tree")
+
+	# This is what a real click on the (already-overlapped) base does: set
+	# it as the travel target, then fire the arrival trigger directly since
+	# no fresh area_entered signal will come.
+	scene._travel_target = home_base
+	if scene.player_icon.get_overlapping_areas().has(home_base):
+		scene._trigger_arrival(home_base)
+	if not trade_panel.visible:
+		failures.append("expected clicking an already-overlapped base (after disengaging) to open the TradePanel immediately")
+	tree.paused = false
+
+	enemy_icon.global_position = enemy_original_position
+	scene.player_icon.global_position = Vector2(-5000, -5000)
+	for i in 3:
+		await tree.physics_frame
+
 	campaign_state.reset()
 	scene.queue_free()
 	return failures

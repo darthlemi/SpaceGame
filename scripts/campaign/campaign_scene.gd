@@ -44,6 +44,7 @@ func _ready() -> void:
 	engage_prompt.visible = false
 	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
 	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
+	trade_panel.close_button.pressed.connect(_on_trade_panel_closed)
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
@@ -233,6 +234,9 @@ func _dock_point_for(faction_enum: CampaignFleet.Faction) -> Vector2:
 func _on_player_area_entered(area: Area2D) -> void:
 	if area != _travel_target:
 		return
+	_trigger_arrival(area)
+
+func _trigger_arrival(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
 		_pending_enemy_icon = area
 		engage_prompt.visible = true
@@ -263,6 +267,7 @@ func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignF
 	if _pending_enemy_icon != null and (not is_instance_valid(_pending_enemy_icon) or _pending_enemy_icon.is_queued_for_deletion()):
 		_pending_enemy_icon = null
 		engage_prompt.visible = false
+		get_tree().paused = false
 
 func _physics_process(delta: float) -> void:
 	if get_tree().paused:
@@ -294,6 +299,10 @@ func _on_disengage_pressed() -> void:
 	_pending_enemy_icon = null
 	get_tree().paused = false
 
+func _on_trade_panel_closed() -> void:
+	get_tree().paused = false
+	_travel_target = null
+
 func _find_clickable_target(global_pos: Vector2) -> Area2D:
 	var query := PhysicsPointQueryParameters2D.new()
 	query.position = global_pos
@@ -309,6 +318,8 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if trade_panel.visible or engage_prompt.visible:
+			return
 		if get_tree().paused:
 			get_tree().paused = false
 			Engine.time_scale = 1.0
@@ -316,6 +327,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		if target != null:
 			_travel_target = target
 			_mouse_held = false
+			if player_icon.get_overlapping_areas().has(target):
+				# Already standing on the target -- no fresh area_entered
+				# transition will fire to drive the arrival trigger, so fire
+				# it directly (e.g. disengaging a fleet encountered on top of
+				# a base, then clicking that same base).
+				_trigger_arrival(target)
 		else:
 			_travel_target = null
 			_mouse_held = true

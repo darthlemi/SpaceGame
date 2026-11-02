@@ -196,12 +196,17 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if surviving_power_icon == null or pirate_icon == null:
 		failures.append("expected a surviving power-faction icon and a pirate icon to remain for the engage-prompt finding-1 test")
 	else:
+		# Interactions now only fire when the overlap is the player's
+		# deliberate click target, not any incidental overlap -- set
+		# _travel_target to simulate having clicked this icon.
+		scene._travel_target = surviving_power_icon
 		scene.player_icon.global_position = surviving_power_icon.global_position
 		for i in 5:
 			await tree.physics_frame
 		var engage_prompt_ctrl: Control = scene.get_node("UILayer/EngagePrompt")
 		if not engage_prompt_ctrl.visible:
 			failures.append("expected EngagePrompt visible after player overlaps the power-faction icon")
+		tree.paused = false
 
 		# A full-strength pirate fleet overlapping the already-damaged
 		# survivor (it took winner_damage_fraction damage in the earlier
@@ -239,9 +244,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		for i in 3:
 			await tree.physics_frame
 
-	# Simulate the player clicking to engage: directly overlap player_icon with
-	# the first enemy icon's position and let physics process the area_entered signal.
+	# Simulate the player clicking the enemy icon to travel there: set
+	# _travel_target (what a real click would set) then overlap player_icon
+	# with the first enemy icon's position and let physics process the
+	# gated area_entered signal.
 	var target_icon: CampaignFleetIcon = scene.enemy_icons[0]
+	scene._travel_target = target_icon
 	scene.player_icon.global_position = target_icon.global_position
 	for i in 5:
 		await tree.physics_frame
@@ -249,6 +257,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var prompt: Control = scene.get_node("UILayer/EngagePrompt")
 	if not prompt.visible:
 		failures.append("expected EngagePrompt visible after player icon overlaps an enemy icon")
+	tree.paused = false
 
 	# Fix 3 coverage: departing the overlap must hide the Engage prompt, not
 	# just clear _pending_enemy_icon -- otherwise the prompt stays visible
@@ -262,13 +271,15 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if scene._pending_enemy_icon != null:
 		failures.append("expected _pending_enemy_icon cleared after the overlapping icon departs")
 
-	# Re-establish the overlap so the Engage-button assertion below still
-	# has a valid pending target.
+	# Re-establish the overlap (re-clicking the target) so the Engage-button
+	# assertion below still has a valid pending target.
+	scene._travel_target = target_icon
 	scene.player_icon.global_position = target_icon.global_position
 	for i in 5:
 		await tree.physics_frame
 	if not prompt.visible:
 		failures.append("expected EngagePrompt visible again after re-overlapping the enemy icon")
+	tree.paused = false
 
 	prompt.get_node("EngageButton").pressed.emit()
 	if campaign_state.active_enemy_fleet != target_icon.fleet:

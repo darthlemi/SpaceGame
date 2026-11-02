@@ -59,7 +59,6 @@ static func run() -> Array[String]:
 	if not is_equal_approx(weapon.projectile_speed, 0.0):
 		failures.append("default projectile_speed: expected 0.0, got %s" % weapon.projectile_speed)
 
-	weapon.free()
 	return failures
 ```
 

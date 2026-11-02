@@ -1,3 +1,309 @@
+# Carry Forward — 2026-11-01 session (weapon types + drones)
+
+## Done this session
+
+User asked to design kinetic/missile/beam/point-defense/drone weapon
+variants (3-4 each) with shield/hull/component-damage balance, assuming
+shields and component damage exist (component damage didn't, yet).
+Brainstormed → spec → plan → implemented directly on `master` (user said
+"implement in master" each time a spec/plan was ready, skipping worktree
+isolation both times). Everything below is committed; nothing left
+uncommitted.
+
+- **Spec 1**: `docs/superpowers/specs/2026-11-01-weapon-types-design.md` —
+  18 weapon variants (4 kinetic, 4 missile, 4 beam, 2 PD, 4 drone) with
+  damage-model fields (`shield_mult`/`hull_mult`/`pierce_pct`/
+  `component_damage`/`mount_type`/`fire_arc_degrees`/`rarity`/
+  `submissile_count`/`projectile_speed`), balanced against existing ship
+  stats (corvette 60hp/20shield, freighter 80/20, capital 220/80).
+- **Conflict discovered mid-plan**: a different, already-committed
+  (but unexecuted) plan, `docs/superpowers/plans/2026-11-01-ship-components-damage-repair.md`,
+  independently designed component damage via real `ShipComponent`
+  hitboxes (geometric, position-based) — incompatible with this session's
+  first draft (a `ComponentPool` with random-weighted picks). User chose
+  to build the hitbox-based plan's **prerequisite tasks (1-5 only, not its
+  full 11)** first, then revise the weapon-types plan to route
+  `component_damage` through that foundation instead. Tasks 6-11 of that
+  other plan (shield-glow signals, campaign persistence, scene VFX,
+  station repair) remain **not implemented** — still queued if picked up
+  later, see that plan file.
+- **Prereq work implemented** (`scripts/ship/ship_component.gd` new base
+  class; `Hull`/`ShipEngine`/`WeaponMount` migrated to extend it;
+  `Ship.resolve_component_hit`/`receive_damage(amount, impact_position)`;
+  `Projectile._hit` now passes `global_position`). Caught and fixed one
+  real regression during this: `Hull` no longer redeclaring `max_hp`
+  meant it inherited `ShipComponent`'s default of `10.0` instead of the
+  old `100.0` — `scenes/ship/ship.tscn`'s generic Hull node (used by
+  several unit tests) never set `max_hp` explicitly and silently dropped
+  to 10hp until caught via `test_ship_vfx.gd` failing. Fixed by adding
+  `max_hp = 100.0` explicitly to that one scene node.
+- **Spec 2**: `docs/superpowers/specs/2026-11-01-drone-weapons-design.md`
+  — Drone was deliberately scoped out of the first implementation plan
+  (needs autonomous-entity behavior, not just weapon data) and designed
+  separately once the other 4 types shipped. Reuses the existing
+  `Ship`/`AIController`/`Order` architecture almost entirely instead of a
+  new entity type — key decisions from that session's Q&A: drones are
+  regular `enemy_group` combatants (shootable/AI-targetable like any
+  ship) but **not** player-right-click-selectable
+  (`Ship.player_targetable`); a `DroneBay` launches drones with a short
+  gap between successive launches but a much longer cooldown after a
+  slot's drone dies (user: "drones fire .3 gap they should battle
+  ready" — no spin-up delay, instantly combat-capable).
+- **Drone implementation**: `scripts/drones/drone_bay.gd` (bay-wide
+  `_launch_cooldown` gates any launch at `launch_interval`=0.3s,
+  independent per-slot `_slot_cooldowns` gate only post-death respawn at
+  `respawn_delay`=15s — **note**: the plan's first draft used one
+  per-slot cooldown for both purposes and TDD caught it as wrong
+  immediately, two cooldowns were needed); `scripts/drones/bomber_drone.gd`
+  (`BomberDrone extends Ship`, overrides `attack_range()`→
+  `detonate_radius` and `_process_weapons()` to hit-then-self-destruct
+  instead of firing a projectile); `scripts/drones/ew_drone.gd`
+  (`EwDrone extends Ship`, overrides `_process_weapons()` to set the
+  nearest enemy's new `Shield.regen_multiplier` each frame — resets to
+  `1.0` every physics frame in `Shield._physics_process` so the debuff
+  auto-expires when the drone leaves range/dies, no cleanup code needed).
+  Attack/Interceptor drones needed **no new scripts** — plain `Ship`
+  scenes with a tiny `Hull`/`WeaponMount`/small `Weapon` resource.
+- **Deferred** (documented in both specs' Out-of-scope sections, not
+  forgotten): PD's and Interceptor's "bonus vs missiles/drones" — no
+  missile-vs-drone entity distinction exists in the targeting system;
+  would need its own design pass if ever wanted. No ammo/lifetime limits
+  anywhere (drones persist until destroyed).
+- All 14 kinetic/missile/beam/PD weapon `.tres` resources created under
+  `resources/weapons/` (matching every stat in the spec table, including
+  `kinetic_cannon.tres`'s new fields layered onto its pre-existing
+  damage/fire_rate/range). All 4 drone scenes + their weapon/payload
+  resources under `scenes/drones/`.
+- **Mid-session, outside this agent's own tool calls**: a separate
+  worktree at `.claude/worktrees/ship-components` (branch
+  `worktree-ship-components`) was independently completing Tasks 6-11 of
+  `ship-components-damage-repair.md` (the ones this session deferred —
+  shield-glow VFX, engine/mount-destruction explosions, station repair UI,
+  campaign persistence of component damage) at the same time. Tool
+  system-reminders briefly showed literal unresolved conflict markers
+  (`<<<<<<< HEAD` / `>>>>>>> worktree-ship-components`) in several shared
+  files mid-edit — `grep`ing the actual files on disk at that moment came
+  back clean, so that was a stale/in-flight snapshot, not real corruption.
+  Shortly after, `git merge worktree-ship-components` (commit `f12ad94`,
+  outside any tool call this session made — presumably run directly by
+  the user) merged that branch into `master` cleanly via git's `ort`
+  strategy, no conflicts. **Tasks 6-11 are therefore now done, not
+  queued** — see the corrected Next-step note below. Re-ran the full
+  suite after: still green (same pre-existing baseline flake only).
+- Full suite green throughout (verified after every single task, ~20
+  individual runs) via
+  `& "C:\Program Files (x86)\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --headless --path . --script res://tests/run_tests.gd`
+  — only the pre-existing, known-flaky `test_campaign_long_run_sim.gd`
+  pirate-targeting failures remain (unrelated, predate this session, same
+  ones noted in earlier carry-forward entries below).
+- No Godot console-build executable found this session (the
+  `godot.windows.opt.tools.64_console.exe` referenced in a prior
+  carry-forward entry below wasn't located) — used the Steam-installed
+  non-console `godot.windows.opt.tools.64.exe` for headless test runs
+  too, not just for launching the playable game window. Worked fine via
+  PowerShell with `--headless`; no console-window gotcha hit.
+
+## Next step
+
+Weapon-types, drone-weapons, **and** the full ship-components-damage-repair
+plan (all 11 tasks, the last 6 via the external merge noted above) are now
+all fully implemented and merged into `master`. Natural next candidates,
+not started:
+- PD/Interceptor's deferred missile-vs-drone targeting bonus, if ever
+  wanted (needs new targeting infrastructure).
+- Wiring the new weapon/drone resources into actual ship loadouts/scenes
+  (ship_corvette.tscn etc. still only mount `kinetic_cannon.tres`) and
+  into whatever drop/shop system eventually uses the new `rarity` field
+  — rarity exists as data only, no spawn/loot rules use it yet (explicitly
+  out of scope per the weapon-types spec).
+- The `.claude/worktrees/ship-components` worktree directory may still
+  exist on disk after its branch was merged — check `git worktree list`
+  and `git worktree remove` it if it's just leftover clutter (same
+  Windows "device busy" caveat noted in the 2026-10-31 Trade Routes
+  entry below may apply).
+
+Repo is clean on `master`, nothing uncommitted from this session.
+
+---
+
+# Carry Forward — 2026-11-01 session (click-to-travel interactions)
+
+## Done this session
+
+Brainstormed (several `AskUserQuestion` rounds: scope, chase-vs-fixed-point
+for moving fleet targets, friendly-fleet dialog behavior, what cancels an
+in-progress travel) then the user said "implement in master" before a spec
+doc was written — implemented directly on `master`, no
+`docs/superpowers/specs/...` file for this change. Also fixed two bugs the
+user found via manual play-testing after the first pass. Committed as
+`80f9a35`.
+
+- **Click-to-travel model** in `scripts/campaign/campaign_scene.gd`: new
+  `_travel_target: Area2D`. `_unhandled_input` runs a
+  `PhysicsPointQueryParameters2D` point-query (`_find_clickable_target`) at
+  the click position — clicking a base or `CampaignFleetIcon` sets it as
+  the travel target (free-drag mode off); clicking empty space clears it
+  and resumes the old hold-and-drag movement unchanged.
+  `_physics_process` re-reads the target's **live** `global_position` every
+  frame (chases moving fleets, doesn't just head to a stale click point),
+  clearing `_travel_target` if the target is freed mid-chase.
+- **Arrival gating**: `_on_player_area_entered` (the existing Area2D
+  overlap signal) now only opens the trade panel / engage prompt when
+  `area == _travel_target` — flying past a base or fleet incidentally no
+  longer pops anything. Arrival at any fleet (hostile or not, per user's
+  explicit choice) now also pauses the tree, matching the trade panel's
+  pre-existing pause-on-dock behavior (previously only trade paused).
+  Logic factored into `_trigger_arrival(area)` so it can be called both
+  from the signal and directly (see bug fix below).
+- **Bug 1** (user caught in play-testing): a stray click anywhere on the
+  map while a dialog was open silently unpaused the game without closing
+  the dialog (`_unhandled_input` unconditionally unpaused on any paused
+  click). Fixed: `_unhandled_input` now returns immediately if
+  `trade_panel.visible or engage_prompt.visible` — unpausing only happens
+  via an explicit dialog action now. Added `_on_trade_panel_closed`
+  (wired to `trade_panel.close_button.pressed`) to unpause + clear
+  `_travel_target` on close, and `_on_disengage_pressed` gained an
+  explicit unpause (previously relied on the now-removed click fallback).
+- **Bug 2** (user caught in play-testing): disengaging from a fleet
+  encountered on top of a base, then clicking that same base while still
+  standing on it, did nothing — `area_entered` only fires on a *fresh*
+  overlap transition, and the player never left the base's collision area.
+  Fixed: when a click's target is already in
+  `player_icon.get_overlapping_areas()`, `_unhandled_input` calls
+  `_trigger_arrival(target)` directly instead of waiting on a signal that
+  will never re-fire.
+- Updated `tests/test_campaign_scene.gd` and
+  `tests/test_campaign_scene_trading.gd` to simulate real clicks by setting
+  `scene._travel_target` before teleporting icons (previously these tests
+  just teleported onto targets and relied on bare overlap). Added new
+  cases: flyby-without-click doesn't open the trade panel, arrival clears
+  `_travel_target`, and the already-overlapping-target bug scenario
+  (fleet-on-base → disengage → click base → trade panel opens immediately).
+- Full suite passes; only the pre-existing, known-flaky pirate-engagement
+  RNG failures in `test_campaign_long_run_sim.gd` remain (unrelated).
+
+## Next step
+
+No specific next step named. This closes out the click-to-travel request
+and both follow-up bug reports from this session.
+
+---
+
+# Carry Forward — 2026-11-01 session (campaign map bounds)
+
+## Done this session
+
+Implemented the `docs/superpowers/plans/2026-11-01-campaign-map-bounds.md`
+plan directly on `master` (user explicitly asked for it "in main", skipping
+the usual worktree isolation). Both tasks completed, verified via the
+headless test suite, and committed as two separate commits.
+
+- `scripts/campaign/campaign_fleet_icon.gd`: added `MAP_MIN := Vector2(0, 0)`
+  and `MAP_MAX := Vector2(4000, 2400)` constants, plus a single clamp line
+  (`_move_target = _move_target.clamp(MAP_MIN, MAP_MAX)`) right after the
+  `match behavior_type:` block in `_physics_process`, before the
+  `move_toward` call. One choke point covers every behavior (patrol,
+  trader, pirate) and the player's externally-set mouse-click target
+  uniformly — fleets glide to a stop at the map edge instead of being
+  teleported or bounced.
+- `tests/test_campaign_fleet_icon.gd`: two new cases — a player target set
+  far past `MAP_MAX` gets clamped, and a trader fleeing past `MAP_MAX.x`
+  (via `TraderBehavior.flee_target`) also gets clamped.
+- `tests/test_campaign_long_run_sim.gd`: the per-step distance-from-spawn
+  tracking gained a real `out_of_bounds` hard assertion (checked against
+  `CampaignFleetIcon.MAP_MIN`/`MAP_MAX`) instead of being report-only;
+  header comment updated accordingly.
+- Full suite run: only the pre-existing, intentionally-red pirate-
+  engagement failures in `test_campaign_long_run_sim.gd` remain (5-6,
+  varies with wander RNG) — zero new failures, zero "went out of map
+  bounds" failures.
+- Commits: `ab1affa` (clamp + unit tests), `a7c526c` (sim-test assertion).
+
+## Next step
+
+No specific next step named. Map-bounds work is closed out; nothing
+queued from this session.
+
+---
+
+# Carry Forward — 2026-11-01 session (overworld ship sprites)
+
+## Done this session
+
+Closed the long-queued "ship classes would feed into the clump's dot
+rendering too" follow-up from the 2026-10-31 overworld-fleet-clump session
+(see that entry below, and the "Follow-up queued" section further down) —
+ship classes (corvette/freighter/capital) already existed by this point, so
+this was ready to pick up. Brainstormed (two rounds of `AskUserQuestion`:
+sprite size small/dot-sized vs. larger, rotate-to-heading vs. fixed upright,
+then missing-`ship_type` fallback) and presented a design, but the user said
+"just implement code" before a spec/plan doc was written — so, unlike the
+usual house process, there is **no** `docs/superpowers/specs/...` file for
+this change. Implemented directly and verified via the test suite only (no
+in-game screenshot this session).
+
+- `scripts/campaign/campaign_fleet_icon.gd`: `_sync_ship_dots()` now creates
+  `Sprite2D` children instead of flat-color `Polygon2D` dots, one per
+  `fleet.ship_compositions` entry, textured via `ShipType.kind_of(comp)` →
+  a new `SHIP_ICON_TEXTURES` dict (loads the same
+  `assets/sprites/ships/*.png` files used by the real ship scenes directly,
+  not by instancing the ship scene). Each sprite is scaled so its longest
+  dimension is a new `SHIP_ICON_MAX_DIM := 10.0` px constant — comparable
+  footprint to the old dots, but now corvette/freighter/capital read as
+  visually distinct silhouettes instead of identical dots. Old
+  `SHIP_DOT_RADIUS`/`SHIP_DOT_SIDES`/`DOT_COLOR`/`_circle_polygon()` removed
+  as dead code. `CLUMP_RADIUS` (18px) and the cached-per-index random offset
+  behavior are unchanged.
+- Added heading rotation (user explicitly wanted this over fixed-upright):
+  `_physics_process` now captures position-before-move, computes the
+  frame's movement delta after the existing `move_toward` call, and if its
+  length clears a new `HEADING_EPSILON := 0.5` it updates a cached
+  `_heading_angle` (`movement.angle()`) applied to every sprite's
+  `rotation` each frame. A stationary fleet holds its last heading rather
+  than snapping to 0. Sprites rotate in place — they keep their scattered
+  clump offsets, this isn't a formation.
+- `ShipType` already has a global `class_name` (used bare elsewhere, e.g.
+  `campaign_fleet.gd`) — initially added a redundant
+  `const ShipType = preload(...)` in the icon script shadowing that global
+  class name; removed it once noticed. Worth remembering for any future
+  file that reaches for `ShipType` statics: no preload needed.
+- `tests/test_campaign_fleet_icon.gd`'s "ship dots" section updated to
+  assert `Sprite2D` (with a non-null `texture`) instead of `Polygon2D`, plus
+  a new case: a `PLAYER`-behavior icon given a move target, ticked 10
+  physics frames, should have its sprite's `rotation` match the direction
+  of travel.
+- Full suite passes via the same headless Godot command noted in prior
+  sessions (`godot.windows.opt.tools.64_console.exe --headless --path . --script res://tests/run_tests.gd`)
+  — "All tests passed" plus the usual pre-existing ObjectDB-leak/resource
+  warnings at exit, unrelated to this change.
+
+## Still open (not addressed this session)
+
+The 2026-10-31 fleet-clump session's parked reviewer note still applies,
+and now matters more: `CLUMP_RADIUS` is fixed regardless of fleet size, so
+a large fleet (~15+ ships) will visually saturate — with real ship
+silhouettes instead of plain dots this will look like an overlapping mess
+sooner than it did with small dots. Still fine for current fleet sizes;
+revisit scaling `CLUMP_RADIUS` with `sqrt(ship_count)` if that changes.
+
+## Next step
+
+No specific next step was named by the user this session. The broader
+queued-but-not-started items from prior sessions (ship-customization
+feature, projectiles/weapon VFX, UI panel icons, background/starfield, and
+whatever the base-art session below left pending) are all still just as
+queued as before — this session only closed the one specific clump/ship-
+class follow-up.
+
+Repo is **not** committed for this session's changes —
+`scripts/campaign/campaign_fleet_icon.gd` and
+`tests/test_campaign_fleet_icon.gd` are sitting as working-tree changes;
+commit only if/when asked. No spec/plan doc was written this session (see
+above) — don't go looking for one under `docs/superpowers/` for this
+feature.
+
+---
+
 # Carry Forward — 2026-11-01 session (base art)
 
 ## Done this session

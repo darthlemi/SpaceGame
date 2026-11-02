@@ -29,4 +29,16 @@ static func run() -> Array[String]:
 		failures.append("apply_damage: destroyed signal did not fire at 0 hp")
 
 	hull.free()
+
+	var guarded := Hull.new()
+	guarded.max_hp = 50.0
+	guarded.current_hp = 50.0
+	guarded.invulnerable = true
+	guarded.apply_damage(50.0)
+	if guarded.current_hp != 50.0:
+		failures.append("apply_damage: expected invulnerable hull to take no damage, got %s" % guarded.current_hp)
+	if not is_equal_approx(guarded.health_fraction(), 1.0):
+		failures.append("health_fraction: expected inherited health_fraction() to work on Hull, got %s" % guarded.health_fraction())
+	guarded.free()
+
 	return failures

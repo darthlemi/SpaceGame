@@ -23,7 +23,7 @@ shape = SubResource("1")
 texture = ExtResource("8")
 scale = Vector2(0.6, 0.6)
 
-[node name="Hull" type="Node" parent="."]
+[node name="Hull" type="Node2D" parent="."]
 script = ExtResource("2")
 max_hp = 220.0
 

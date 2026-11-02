@@ -21,8 +21,9 @@ shape = SubResource("1")
 polygon = PackedVector2Array(20, 0, -12, -10, -12, 10)
 color = Color(0.4, 0.8, 1, 1)
 
-[node name="Hull" type="Node" parent="."]
+[node name="Hull" type="Node2D" parent="."]
 script = ExtResource("2")
+max_hp = 100.0
 
 [node name="Shield" type="Node" parent="."]
 script = ExtResource("3")

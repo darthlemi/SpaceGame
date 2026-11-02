@@ -146,6 +146,46 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	elif not particles_after[particles_after.size() - 1].global_position.is_equal_approx(mount.global_position):
 		failures.append("_spawn_projectile: expected muzzle flash at mount position %s, got %s" % [mount.global_position, particles_after[particles_after.size() - 1].global_position])
 
+	# Submissile volley: a weapon with submissile_count 4 should spawn 4 projectiles
+	# but still exactly one muzzle flash, and projectile_speed should be applied.
+	var swarm_weapon := Weapon.new()
+	swarm_weapon.weapon_name = "Swarm Missile"
+	swarm_weapon.damage = 5.0
+	swarm_weapon.fire_rate = 1.0
+	swarm_weapon.weapon_range = 300.0
+	swarm_weapon.submissile_count = 4
+	swarm_weapon.projectile_speed = 80.0
+	swarm_weapon.projectile_scene = preload("res://scenes/weapons/projectile.tscn")
+
+	var swarm_mount := WeaponMount.new()
+	swarm_mount.weapon = swarm_weapon
+	swarm_mount._ready()
+	tree.root.add_child(swarm_mount)
+	swarm_mount.global_position = Vector2.ZERO
+
+	var projectiles_before: Array = tree.root.get_children().filter(func(c): return c is Projectile)
+	var flashes_before: Array = tree.root.get_children().filter(func(c): return c is CPUParticles2D)
+
+	var swarm_fired := swarm_mount.try_fire(target)
+	if not swarm_fired:
+		failures.append("try_fire: expected true for swarm volley with an in-range target")
+
+	var projectiles_after: Array = tree.root.get_children().filter(func(c): return c is Projectile)
+	if projectiles_after.size() != projectiles_before.size() + 4:
+		failures.append("_spawn_projectile: expected 4 new projectiles for submissile_count 4, got %d new" % (projectiles_after.size() - projectiles_before.size()))
+	for p in projectiles_after:
+		if p is Projectile and not projectiles_before.has(p):
+			if not is_equal_approx(p.speed, 80.0):
+				failures.append("_spawn_projectile: expected submissile speed 80.0, got %s" % p.speed)
+
+	var flashes_after: Array = tree.root.get_children().filter(func(c): return c is CPUParticles2D)
+	if flashes_after.size() != flashes_before.size() + 1:
+		failures.append("_spawn_projectile: expected exactly 1 new muzzle flash for a 4-submissile volley, got %d new" % (flashes_after.size() - flashes_before.size()))
+
+	for c in tree.root.get_children():
+		if (c == swarm_mount or (c is Projectile and not projectiles_before.has(c)) or (c is CPUParticles2D and not flashes_before.has(c))) and is_instance_valid(c):
+			c.queue_free()
+
 	for c in tree.root.get_children():
 		if (c == target or c == mount or c is CPUParticles2D or c is Projectile) and is_instance_valid(c):
 			c.queue_free()

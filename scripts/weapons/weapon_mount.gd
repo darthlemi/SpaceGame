@@ -34,11 +34,14 @@ func _within_arc(target: Node2D) -> bool:
 func _spawn_projectile(target: Node2D) -> void:
 	if weapon.projectile_scene == null:
 		return
-	var projectile: Node2D = weapon.projectile_scene.instantiate()
 	var host: Node = get_tree().current_scene if get_tree().current_scene else get_tree().root
-	host.add_child(projectile)
-	projectile.global_position = global_position
-	projectile.setup(target, weapon.damage, weapon.weapon_range)
+	for i in range(weapon.submissile_count):
+		var projectile: Node2D = weapon.projectile_scene.instantiate()
+		host.add_child(projectile)
+		projectile.global_position = global_position
+		if weapon.projectile_speed > 0.0:
+			projectile.speed = weapon.projectile_speed
+		projectile.setup(target, weapon.damage, weapon.weapon_range, weapon)
 	var muzzle_flash: Node2D = MuzzleFlashScene.instantiate()
 	host.add_child(muzzle_flash)
 	muzzle_flash.global_position = global_position

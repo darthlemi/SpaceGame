@@ -29,3 +29,12 @@ const NAMES := {
 	Type.WEAPONS: "Weapons",
 	Type.LUXURY_GOODS: "Luxury Goods",
 }
+
+const ICON_TEXTURES := {
+	Type.ORE: "res://assets/sprites/commodities/ore.png",
+	Type.FOOD: "res://assets/sprites/commodities/food.png",
+	Type.FUEL: "res://assets/sprites/commodities/fuel.png",
+	Type.HULL_PARTS: "res://assets/sprites/commodities/hull_parts.png",
+	Type.WEAPONS: "res://assets/sprites/commodities/weapons.png",
+	Type.LUXURY_GOODS: "res://assets/sprites/commodities/luxury_goods.png",
+}

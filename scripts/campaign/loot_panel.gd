@@ -40,14 +40,19 @@ func _rebuild_rows() -> void:
 		if _defeated_fleet.cargo[commodity] <= 0.0:
 			continue
 		var row_box := HBoxContainer.new()
+		var icon := TextureRect.new()
+		icon.texture = load(Commodity.ICON_TEXTURES[commodity])
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 		var label := Label.new()
 		var take_button := Button.new()
 		take_button.text = "Take"
 		take_button.pressed.connect(_on_take_pressed.bind(commodity))
+		row_box.add_child(icon)
 		row_box.add_child(label)
 		row_box.add_child(take_button)
 		rows_container.add_child(row_box)
-		_rows[commodity] = {"label": label, "take_button": take_button}
+		_rows[commodity] = {"icon": icon, "label": label, "take_button": take_button}
 	refresh()
 
 func _on_take_pressed(commodity: int) -> void:

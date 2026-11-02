@@ -22,6 +22,10 @@ config/features=PackedStringArray("4.7")
 
 CampaignState="*res://scripts/campaign/campaign_state.gd"
 
+[gui]
+
+theme/custom="res://assets/ui/theme.tres"
+
 [input]
 
 formation_none={

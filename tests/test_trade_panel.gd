@@ -28,6 +28,11 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if not panel.visible:
 		failures.append("TradePanel: expected visible after open_for")
 
+	for commodity in Commodity.Type.values():
+		var icon: TextureRect = panel._rows[commodity]["icon"]
+		if icon == null or icon.texture == null:
+			failures.append("TradePanel: expected a non-null icon texture for commodity %s" % commodity)
+
 	var buy_button: Button = panel._rows[Commodity.Type.ORE]["buy_button"]
 	var ore_buy_price: float = economy.price_for(Commodity.Type.ORE)
 	var credits_before: float = campaign_state.credits

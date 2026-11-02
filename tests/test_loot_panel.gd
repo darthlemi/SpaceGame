@@ -27,6 +27,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if panel._rows.has(Commodity.Type.FOOD):
 		failures.append("LootPanel: expected no row for Food (zero cargo)")
 
+	var ore_icon: TextureRect = panel._rows[Commodity.Type.ORE]["icon"]
+	if ore_icon == null or ore_icon.texture == null:
+		failures.append("LootPanel: expected a non-null icon texture for the Ore row")
+
 	var take_button: Button = panel._rows[Commodity.Type.ORE]["take_button"]
 	take_button.pressed.emit()
 	if defeated_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 2.0:

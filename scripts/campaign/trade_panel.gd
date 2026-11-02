@@ -44,6 +44,10 @@ func _build_rows() -> void:
 		return
 	for commodity in Commodity.Type.values():
 		var row_box := HBoxContainer.new()
+		var icon := TextureRect.new()
+		icon.texture = load(Commodity.ICON_TEXTURES[commodity])
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 		var label := Label.new()
 		var buy_button := Button.new()
 		buy_button.text = "Buy"
@@ -51,11 +55,12 @@ func _build_rows() -> void:
 		var sell_button := Button.new()
 		sell_button.text = "Sell"
 		sell_button.pressed.connect(_on_sell_pressed.bind(commodity))
+		row_box.add_child(icon)
 		row_box.add_child(label)
 		row_box.add_child(buy_button)
 		row_box.add_child(sell_button)
 		rows_container.add_child(row_box)
-		_rows[commodity] = {"label": label, "buy_button": buy_button, "sell_button": sell_button}
+		_rows[commodity] = {"icon": icon, "label": label, "buy_button": buy_button, "sell_button": sell_button}
 
 func _on_buy_pressed(commodity: int) -> void:
 	CampaignState.buy(_docked_base_economy, commodity, _player_fleet)

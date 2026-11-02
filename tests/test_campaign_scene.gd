@@ -9,6 +9,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	var scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(scene)
+	# The player fleet spawns already docked at HomeBase, which now auto-pauses
+	# the tree on area_entered. That signal fires on a physics step rather than
+	# immediately, so move the icon away before any frame elapses to avoid the
+	# race entirely instead of reactively clearing a pause that might land at
+	# an unpredictable point later in this test.
+	scene.player_icon.global_position = Vector2(-9000, -9000)
 	await tree.process_frame
 
 	if scene.player_icon == null:
@@ -320,6 +326,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var loot_scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(loot_scene)
 	await tree.process_frame
+	tree.paused = false
 
 	if not loot_scene.loot_panel.visible:
 		failures.append("expected CampaignScene._ready() to open the LootPanel for a pending_loot_fleet set before the scene loaded")

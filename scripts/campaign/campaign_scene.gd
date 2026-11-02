@@ -15,8 +15,11 @@ var enemy_icons: Array[CampaignFleetIcon] = []
 @onready var loot_panel: LootPanel = $LootPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
+var _mouse_held: bool = false
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 	if CampaignState.player_fleet == null:
 		_bootstrap_default_campaign()
 
@@ -234,6 +237,7 @@ func _on_player_area_entered(area: Area2D) -> void:
 		var economy := _economy_for_base(area)
 		if economy != null:
 			trade_panel.open_for(economy, CampaignState.player_fleet)
+			get_tree().paused = true
 
 func _on_player_area_exited(area: Area2D) -> void:
 	if area == _pending_enemy_icon:
@@ -241,6 +245,7 @@ func _on_player_area_exited(area: Area2D) -> void:
 		engage_prompt.visible = false
 	elif area is HomeBase or area is FactionBase:
 		trade_panel.close()
+		get_tree().paused = false
 
 func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
 	if other is CampaignFleetIcon and other != icon and other != player_icon:
@@ -254,8 +259,15 @@ func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignF
 		engage_prompt.visible = false
 
 func _physics_process(delta: float) -> void:
+	if get_tree().paused:
+		return
 	CampaignState.tick_skirmishes(delta)
 	CampaignState.tick_economy(delta)
+	if _mouse_held:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			player_icon.set_move_target(get_global_mouse_position())
+		else:
+			_mouse_held = false
 
 func _on_engage_pressed() -> void:
 	if _pending_enemy_icon == null:
@@ -272,4 +284,8 @@ func _on_disengage_pressed() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if get_tree().paused:
+			get_tree().paused = false
+			Engine.time_scale = 1.0
+		_mouse_held = true
 		player_icon.set_move_target(get_global_mouse_position())

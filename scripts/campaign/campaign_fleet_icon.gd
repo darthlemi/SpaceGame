@@ -62,6 +62,14 @@ var _faction_circle_radius: float = 0.0
 
 signal trader_arrived(at_home: bool)
 
+func _ready() -> void:
+	# CampaignScene itself runs with PROCESS_MODE_ALWAYS (so its pause-aware
+	# input handling keeps working while the tree is paused), which would
+	# otherwise cascade down to every fleet icon via PROCESS_MODE_INHERIT and
+	# make them immune to pause too. Pin icons back to the normal pausable
+	# behavior explicitly.
+	process_mode = Node.PROCESS_MODE_PAUSABLE
+
 func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
 	fleet = campaign_fleet
 	global_position = fleet.position

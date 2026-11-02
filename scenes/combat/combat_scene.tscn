@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/combat/combat_scene.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/controllers/fleet_commander.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/ui/debug_console.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/ui/speed_controls.tscn" id="4"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal"]
 size = Vector2(1160, 50)
@@ -26,6 +27,8 @@ text = ""
 visible = false
 
 [node name="DebugConsole" parent="." instance=ExtResource("3")]
+
+[node name="SpeedControls" parent="." instance=ExtResource("4")]
 
 [node name="Bounds" type="Node2D" parent="."]
 

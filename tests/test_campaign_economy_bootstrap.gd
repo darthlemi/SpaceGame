@@ -10,6 +10,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(scene)
 	await tree.process_frame
+	# The player fleet spawns already docked at HomeBase, which now auto-pauses
+	# the tree on area_entered -- clear that incidental pause so the economy
+	# tick loop below actually progresses.
+	tree.paused = false
 
 	if campaign_state.home_base_economy == null:
 		failures.append("expected bootstrap to set CampaignState.home_base_economy")
@@ -59,6 +63,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		var ore_before: float = freehold.economy.stock.get(Commodity.Type.ORE, 0.0)
 		var elapsed := 0.0
 		while elapsed < CampaignState.ECONOMY_TICK_INTERVAL + 1.0:
+			# The player fleet spawned docked at HomeBase; its area_entered signal
+			# can fire a frame late and auto-pause the tree mid-loop. Clear it each
+			# iteration so the economy keeps ticking regardless of that timing.
+			tree.paused = false
 			await tree.physics_frame
 			elapsed += 1.0 / 60.0
 		var ore_after: float = freehold.economy.stock.get(Commodity.Type.ORE, 0.0)

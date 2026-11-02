@@ -10,6 +10,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(scene)
 	await tree.process_frame
+	# The player fleet spawns already docked at HomeBase, which now auto-pauses
+	# the tree on area_entered -- clear that incidental pause so the
+	# teleport-and-await-physics-frame checks below actually progress.
+	tree.paused = false
 
 	var trade_panel: TradePanel = scene.get_node("TradePanel")
 	if trade_panel.visible:
@@ -27,6 +31,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if not trade_panel.visible:
 		failures.append("expected TradePanel visible after docking at HomeBase")
+	# Docking now auto-pauses the tree; undo that so the physics-frame-driven
+	# "leave the base" teleport below can actually register the area_exited
+	# transition (mirrors how a real move command would unpause).
+	tree.paused = false
 
 	scene.player_icon.global_position = Vector2(-5000, -5000)
 	for i in 5:
@@ -58,6 +66,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			if trade_panel._docked_base_economy != expected_economy:
 				failures.append("expected TradePanel to open with the docked FactionBase's own economy")
 
+	tree.paused = false
 	campaign_state.reset()
 	scene.queue_free()
 	return failures

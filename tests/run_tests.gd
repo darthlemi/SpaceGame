@@ -83,6 +83,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [ship_type_scenes_test.resource_path, f])
 	total_failures += ship_type_scenes_failures.size()
 
+	var weapon_loadout_test = preload("res://tests/test_weapon_loadout.gd")
+	var weapon_loadout_failures: Array[String] = await weapon_loadout_test.run_async(self)
+	for f in weapon_loadout_failures:
+		print("FAIL [%s]: %s" % [weapon_loadout_test.resource_path, f])
+	total_failures += weapon_loadout_failures.size()
+
 	var speed_controls_test = preload("res://tests/test_speed_controls.gd")
 	var speed_controls_failures: Array[String] = await speed_controls_test.run_async(self)
 	for f in speed_controls_failures:

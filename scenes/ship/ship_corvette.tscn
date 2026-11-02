@@ -1,11 +1,10 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/ship/shield.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/weapons/weapon_mount.gd" id="5"]
-[ext_resource type="Resource" path="res://resources/weapons/kinetic_cannon.tres" id="6"]
 [ext_resource type="Script" path="res://scripts/ship/ship_vfx.gd" id="7"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ships/corvette.png" id="8"]
 
@@ -16,6 +15,7 @@ radius = 12.0
 script = ExtResource("1")
 ship_type = 0
 hit_radius = 12.0
+randomize_loadout = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("1")
@@ -42,7 +42,6 @@ position = Vector2(-6, 0)
 
 [node name="WeaponMount" type="Node2D" parent="."]
 script = ExtResource("5")
-weapon = ExtResource("6")
 hitbox_radius = 5.0
 position = Vector2(8, 0)
 

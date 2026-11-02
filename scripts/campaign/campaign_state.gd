@@ -7,6 +7,7 @@ signal fleet_role_changed(fleet: CampaignFleet)
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
 const ECONOMY_TICK_INTERVAL := 5.0
+const REPAIR_COST := 75.0
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
@@ -40,6 +41,31 @@ func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Ar
 			if active_enemy_fleet.cargo_total() > 0.0:
 				pending_loot_fleet = active_enemy_fleet
 	active_enemy_fleet = null
+
+static func is_damaged(comp: Dictionary) -> bool:
+	if comp["current_hp"] < comp["max_hp"] or comp["current_shield"] < comp["max_shield"]:
+		return true
+	var engine_max: float = comp.get("engine_max_hp", 0.0)
+	if engine_max > 0.0 and comp.get("engine_current_hp", engine_max) < engine_max:
+		return true
+	var mount_max: Array = comp.get("weapon_mount_max_hp", [])
+	var mount_cur: Array = comp.get("weapon_mount_current_hp", [])
+	for i in mount_max.size():
+		if i < mount_cur.size() and mount_cur[i] < mount_max[i]:
+			return true
+	return false
+
+static func repair_cost_for(comp: Dictionary) -> float:
+	return REPAIR_COST if is_damaged(comp) else 0.0
+
+func repair_ship(comp: Dictionary) -> void:
+	credits -= REPAIR_COST
+	comp["current_hp"] = comp["max_hp"]
+	comp["current_shield"] = comp["max_shield"]
+	if comp.has("engine_max_hp"):
+		comp["engine_current_hp"] = comp["engine_max_hp"]
+	if comp.has("weapon_mount_max_hp"):
+		comp["weapon_mount_current_hp"] = (comp["weapon_mount_max_hp"] as Array).duplicate()
 
 func reset() -> void:
 	player_fleet = null

@@ -25,4 +25,17 @@ static func run() -> Array[String]:
 		failures.append("absorb: expected full passthrough at 0 shield, got %s" % overflow)
 
 	shield.free()
+
+	var debuffed := Shield.new()
+	debuffed.max_shield = 50.0
+	debuffed.current_shield = 0.0
+	debuffed.regen_rate = 10.0
+	debuffed.regen_multiplier = 0.5
+	debuffed._physics_process(1.0)
+	if not is_equal_approx(debuffed.current_shield, 5.0):
+		failures.append("regen_multiplier: expected 10.0*0.5*1.0=5.0 regen, got %s" % debuffed.current_shield)
+	if not is_equal_approx(debuffed.regen_multiplier, 1.0):
+		failures.append("regen_multiplier: expected reset to 1.0 after one frame, got %s" % debuffed.regen_multiplier)
+	debuffed.free()
+
 	return failures

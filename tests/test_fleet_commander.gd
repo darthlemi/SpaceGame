@@ -21,6 +21,17 @@ static func _check_ship_at_point(failures: Array[String]) -> void:
 	var none := FleetCommander.ship_at_point([far], Vector2.ZERO, 50.0)
 	if none != null:
 		failures.append("ship_at_point: expected null when nothing is within radius, got %s" % none)
+
+	var drone := _make_ship(Vector2(5, 0))
+	drone.player_targetable = false
+	var picked_over_drone := FleetCommander.ship_at_point([drone, near], Vector2.ZERO, 50.0)
+	if picked_over_drone != near:
+		failures.append("ship_at_point: expected a non-player_targetable ship to be skipped, got %s" % picked_over_drone)
+	var only_drone := FleetCommander.ship_at_point([drone], Vector2.ZERO, 50.0)
+	if only_drone != null:
+		failures.append("ship_at_point: expected null when the only candidate is not player_targetable, got %s" % only_drone)
+	drone.free()
+
 	near.free()
 	far.free()
 

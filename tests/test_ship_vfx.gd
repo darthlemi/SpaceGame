@@ -62,8 +62,39 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	await _check_explosion_on_destroyed(tree, failures)
 	await _check_engine_and_mount_destruction(tree, failures)
+	await _check_shield_glow(tree, failures)
 
 	return failures
+
+static func _check_shield_glow(tree: SceneTree, failures: Array[String]) -> void:
+	var ship: Ship = ShipScene.instantiate()
+	tree.root.add_child(ship)
+	await tree.process_frame
+
+	var vfx: ShipVfx = ship.get_node("VFX")
+	var glow: Polygon2D = ship.get_node("ShieldGlow")
+
+	ship.shield.current_shield = ship.shield.max_shield
+	vfx._physics_process(0.016)
+	if not is_equal_approx(glow.modulate.a, ShipVfx.SHIELD_GLOW_BASE_ALPHA):
+		failures.append("ShipVfx: expected full glow alpha at full shield, got %s" % glow.modulate.a)
+
+	ship.shield.current_shield = ship.shield.max_shield * 0.5
+	vfx._physics_process(0.016)
+	if not is_equal_approx(glow.modulate.a, ShipVfx.SHIELD_GLOW_BASE_ALPHA * 0.5):
+		failures.append("ShipVfx: expected half glow alpha at half shield, got %s" % glow.modulate.a)
+
+	ship.shield.absorb(ship.shield.current_shield)
+	if not is_equal_approx(glow.modulate.a, 1.0):
+		failures.append("ShipVfx: expected the glow to flash to full alpha the instant the shield depletes, got %s" % glow.modulate.a)
+
+	ship.shield.current_shield = 0.0
+	ship.shield._physics_process(1.0)
+	if not is_equal_approx(glow.modulate.a, 0.0):
+		failures.append("ShipVfx: expected the glow to flash to 0 alpha the instant the shield is restored, got %s" % glow.modulate.a)
+
+	if is_instance_valid(ship) and not ship.is_queued_for_deletion():
+		ship.queue_free()
 
 static func _check_engine_and_mount_destruction(tree: SceneTree, failures: Array[String]) -> void:
 	var ship: Ship = ShipScene.instantiate()

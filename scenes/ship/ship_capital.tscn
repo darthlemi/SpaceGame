@@ -31,7 +31,7 @@ max_hp = 220.0
 script = ExtResource("3")
 max_shield = 80.0
 
-[node name="Engine" type="Node" parent="."]
+[node name="Engine" type="Node2D" parent="."]
 script = ExtResource("4")
 max_speed = 90.0
 turn_rate = 1.0

@@ -28,7 +28,7 @@ max_hp = 100.0
 [node name="Shield" type="Node" parent="."]
 script = ExtResource("3")
 
-[node name="Engine" type="Node" parent="."]
+[node name="Engine" type="Node2D" parent="."]
 script = ExtResource("4")
 
 [node name="WeaponMount" type="Node2D" parent="."]

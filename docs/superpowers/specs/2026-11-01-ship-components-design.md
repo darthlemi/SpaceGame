@@ -22,6 +22,20 @@ component/hull/shield damage has a persistent cost across the campaign.
   effectiveness until destroyed, then stops entirely (binary, not a
   dial, unlike the engine).
 
+## Discovered conflict: existing free auto-repair
+
+`scripts/campaign/home_base.gd`'s `_on_area_entered` already calls
+`area.fleet.repair_to_full()` the moment the player's fleet icon enters
+the home base — the same trigger that opens `TradePanel`. Left in place,
+the player's hull/shield would always already be full by the time the
+paid repair UI appears, making the fee pointless. Resolved: **remove**
+the `area.fleet.repair_to_full()` call from `HomeBase._on_area_entered`
+entirely (the `player_docked` signal emit stays). All repair, at any
+station, now goes through the new paid per-ship flow.
+`CampaignFleet.repair_to_full()` itself is left in place as a utility
+(still covered by its own existing test) — only its one call site goes
+away.
+
 ## Component base class
 
 Introduce `ShipComponent` (`extends Node`), the common shape that

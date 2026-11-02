@@ -10,9 +10,9 @@ const SCENES := {
 }
 
 const BASE_STATS := {
-	Kind.CORVETTE: {"max_hp": 60.0, "max_shield": 20.0, "cargo_capacity": 20.0},
-	Kind.FREIGHTER: {"max_hp": 80.0, "max_shield": 20.0, "cargo_capacity": 60.0},
-	Kind.CAPITAL: {"max_hp": 220.0, "max_shield": 80.0, "cargo_capacity": 20.0},
+	Kind.CORVETTE: {"max_hp": 60.0, "max_shield": 20.0, "cargo_capacity": 20.0, "engine_hp": 25.0, "weapon_mount_hp": 15.0, "weapon_mount_count": 1},
+	Kind.FREIGHTER: {"max_hp": 80.0, "max_shield": 20.0, "cargo_capacity": 60.0, "engine_hp": 35.0, "weapon_mount_hp": 0.0, "weapon_mount_count": 0},
+	Kind.CAPITAL: {"max_hp": 220.0, "max_shield": 80.0, "cargo_capacity": 20.0, "engine_hp": 70.0, "weapon_mount_hp": 30.0, "weapon_mount_count": 3},
 }
 
 static func scene_for(kind: Kind) -> PackedScene:
@@ -26,10 +26,17 @@ static func cargo_capacity_for(kind: Kind) -> float:
 
 static func new_composition(kind: Kind) -> Dictionary:
 	var stats: Dictionary = BASE_STATS[kind]
+	var mount_hp: Array[float] = []
+	for i in int(stats["weapon_mount_count"]):
+		mount_hp.append(stats["weapon_mount_hp"])
 	return {
 		"ship_type": kind,
 		"max_hp": stats["max_hp"],
 		"current_hp": stats["max_hp"],
 		"max_shield": stats["max_shield"],
 		"current_shield": stats["max_shield"],
+		"engine_max_hp": stats["engine_hp"],
+		"engine_current_hp": stats["engine_hp"],
+		"weapon_mount_max_hp": mount_hp,
+		"weapon_mount_current_hp": mount_hp.duplicate(),
 	}

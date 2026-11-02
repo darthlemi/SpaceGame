@@ -1766,6 +1766,12 @@ func refresh() -> void:
 
 func _refresh_repair_section() -> void:
 	for child in repair_container.get_children():
+		# remove_child() detaches immediately (so get_child_count() reflects
+		# 0 synchronously, which the test below relies on); queue_free() defers
+		# the actual deallocation, since this runs from inside the very
+		# Button's own `pressed` signal handler -- freeing it synchronously
+		# here crashes with "Object was freed while a signal is being emitted".
+		repair_container.remove_child(child)
 		child.queue_free()
 	var total_cost := 0.0
 	for i in _player_fleet.ship_compositions.size():

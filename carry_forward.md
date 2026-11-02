@@ -1,3 +1,84 @@
+# Carry Forward — 2026-11-02 session (weapon loadout randomization)
+
+## Done this session
+
+Picked up the "wire weapon/drone resources into ship loadouts" item queued
+at the top of the 2026-11-01 weapon-types+drones entry below. Brainstormed
+(two rounds of `AskUserQuestion`: same-vs-per-faction loadouts, capital's
+3-mount variety, then a clarifying round on per-instance vs per-type
+variety) → spec → plan → implemented directly on `master` (user explicitly
+chose this over an isolated worktree when asked). All 3 plan tasks done,
+each its own commit.
+
+- **Spec**: `docs/superpowers/specs/2026-11-02-weapon-loadout-randomization-design.md`.
+  **Plan**: `docs/superpowers/plans/2026-11-02-weapon-loadout-randomization.md`.
+- `ShipType.WEAPON_POOL` (`scripts/ship/ship_type.gd`) — 14 ship-mountable
+  weapon resource paths (all Kinetic/Missile/Beam/PD variants from the
+  2026-11-01 weapon-types spec), deliberately excluding the 3 drone-only
+  weapons.
+- `Ship.randomize_loadout: bool` (default `false`) + `_assign_random_loadout()`
+  in `scripts/ship/ship.gd` — when true, shuffles a copy of `WEAPON_POOL`
+  and assigns one distinct weapon per `WeaponMount` in order, so a ship
+  with multiple mounts (capital's 3) never repeats a weapon on itself.
+  Only `ship_corvette.tscn` and `ship_capital.tscn` set the flag true
+  (`scenes/ship/ship_corvette.tscn`, `scenes/ship/ship_capital.tscn` —
+  also stripped their hardcoded `weapon = kinetic_cannon.tres` per mount
+  and the now-unused ext_resource line). `ship.tscn` (generic, many
+  existing tests assume its fixed `kinetic_cannon.tres`) and
+  `ship_freighter.tscn` (0 mounts) are untouched, verified by a regression
+  test.
+- Applies uniformly regardless of who owns the ship (player, Dominion,
+  Freehold, pirate) since it's scene-driven, not faction/spawner-driven —
+  matches the user's answer "everyone can use the same weapons, but not
+  the exact same weapons per ship."
+- **Real regression caught and fixed, not just worked around**: adding a
+  new test case inside `test_ship.gd`'s `run_async` (to verify the flag on
+  a manually-flagged `ship.tscn` instance) shifted frame-count timing
+  enough to consistently break `test_ai_controller_targeting.gd` — a
+  pre-existing test with a *documented* "single-frame timing assumption"
+  (see the comment already in `tests/run_tests.gd` near the
+  `campaign_scene_test` registration, which had previously hit the same
+  class of issue from a different test). Confirmed via a throwaway `git
+  worktree` checkout of the pre-session commit (`71413eb`) that the
+  failure did **not** exist at baseline — so this was a real regression
+  introduced this session, not a pre-existing flake. Tried awaiting an
+  extra `physics_frame`/a second `process_frame` inside the fragile test
+  itself first — neither fixed it. Root-caused it to test *ordering*, not
+  test *content*: moved the new check out of `test_ship.gd` entirely into
+  its own new file, `tests/test_ship_randomize_loadout.gd`, registered in
+  `run_tests.gd` well after `test_ai_controller_targeting.gd` instead of
+  immediately before it. Confirmed via the baseline worktree comparison
+  before concluding it was safe to move on, then deleted the worktree
+  (`git worktree remove`).
+- Full suite green after every task; only the pre-existing, known-flaky
+  `test_campaign_long_run_sim.gd` pirate-targeting failures (5-6, varies
+  with wander RNG — same ones noted in every earlier entry below) remain.
+- New headless-run gotcha hit this session, worth remembering: running the
+  test command through `| grep ...` in a backgrounded shell call can look
+  like a 10+ minute hang (process technically still "alive" per
+  `Get-Process`, but not actually making progress) purely from pipe
+  buffering — redirecting straight to a log file with `>` instead and
+  `Read`-ing it afterward is reliable; piping through `grep` in the same
+  backgrounded command is not.
+
+## Next step
+
+Per the 2026-11-01 entry's original next-step list, still queued, not
+started: the PD/Interceptor deferred missile-vs-drone targeting bonus
+(needs new targeting infrastructure), and the Milestone 5 ship
+refit/customization feature (hull slots, swappable parts, buying/selling —
+needs its own brainstorm). Rarity-driven loot/shop rules are still
+explicitly out of scope everywhere they've come up (no shop system exists
+at all yet).
+
+Repo is clean on `master`, nothing uncommitted from this session's own
+changes (the same pre-existing untracked clutter — `.gd.uid` cache files,
+`.art_review*` stray files, an untracked
+`docs/superpowers/plans/2026-11-01-campaign-map-bounds.md` — was present
+before this session started and is unrelated to it; left untouched).
+
+---
+
 # Carry Forward — 2026-11-01 session (weapon types + drones)
 
 ## Done this session

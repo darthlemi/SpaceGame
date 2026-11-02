@@ -1,4 +1,5 @@
 class_name RefitCatalog
+extends RefCounted
 
 const HOME_CATALOG: Array[String] = [
 	"res://resources/weapons/kinetic_cannon.tres",
@@ -38,17 +39,6 @@ const FREEHOLD_CATALOG: Array[String] = [
 	"res://resources/engines/engine_freehold_scout.tres",
 	"res://resources/engines/engine_freehold_racer.tres",
 ]
-
-static func get_catalog(catalog_name: String) -> Array[String]:
-	match catalog_name:
-		"HOME_CATALOG":
-			return HOME_CATALOG
-		"DOMINION_CATALOG":
-			return DOMINION_CATALOG
-		"FREEHOLD_CATALOG":
-			return FREEHOLD_CATALOG
-		_:
-			return []
 
 static func for_faction(faction: CampaignFleet.Faction) -> Array[String]:
 	match faction:

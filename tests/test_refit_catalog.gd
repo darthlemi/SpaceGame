@@ -6,8 +6,14 @@ const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 static func run() -> Array[String]:
 	var failures: Array[String] = []
 
-	for catalog_name in ["HOME_CATALOG", "DOMINION_CATALOG", "FREEHOLD_CATALOG"]:
-		var catalog: Array = RefitCatalog.get_catalog(catalog_name)
+	var catalogs := {
+		"HOME_CATALOG": RefitCatalog.HOME_CATALOG,
+		"DOMINION_CATALOG": RefitCatalog.DOMINION_CATALOG,
+		"FREEHOLD_CATALOG": RefitCatalog.FREEHOLD_CATALOG,
+	}
+
+	for catalog_name in catalogs.keys():
+		var catalog: Array = catalogs[catalog_name]
 		if catalog.is_empty():
 			failures.append("%s: expected a non-empty catalog" % catalog_name)
 		var seen := {}

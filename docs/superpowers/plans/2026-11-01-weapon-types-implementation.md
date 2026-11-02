@@ -1,10 +1,10 @@
-# Weapon Types Implementation Plan
+﻿# Weapon Types Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extend the existing `Weapon`/`WeaponMount`/`Hull`/`Shield` architecture with the damage model (shield/hull multipliers, pierce, component damage, fire arcs, rarity) from the design spec, and populate it with the 14 Kinetic/Missile/Beam/Point-Defense weapon variants. Drone is out of scope (separate subsystem, separate future plan).
 
-**Architecture:** Additive fields on the `Weapon` resource plus a new `ComponentPool` node class for engine/weapons subsystem HP. `Ship.receive_weapon_damage(weapon)` becomes the new damage-resolution entry point (shield_mult → absorb → hull_mult, pierce bypass, optional component damage); the old `receive_damage(float)` stays untouched for any caller that doesn't have a `Weapon` reference. `WeaponMount` gains a fire-arc check and multi-submissile spawning. New weapon variants are plain `.tres` resource files reusing the existing `projectile.tscn`.
+**Architecture:** Additive fields on the `Weapon` resource. `Ship.receive_weapon_damage(weapon, impact_position)` becomes the new damage-resolution entry point (shield_mult → absorb → hull_mult, pierce bypass, optional component_damage bonus), built on top of the `ShipComponent`/`resolve_component_hit` foundation from `docs/superpowers/plans/2026-11-01-ship-components-damage-repair.md`; the old `receive_damage(amount, impact_position)` stays untouched for any caller that doesn't have a `Weapon` reference. `WeaponMount` gains a fire-arc check and multi-submissile spawning. New weapon variants are plain `.tres` resource files reusing the existing `projectile.tscn`.
 
 **Tech Stack:** Godot 4.7, GDScript. Tests use this repo's existing custom runner convention (static `run() -> Array[String]` / `run_async(tree) -> Array[String]`, registered in `tests/run_tests.gd`), not GUT.
 
@@ -13,7 +13,7 @@
 - Spec reference: `docs/superpowers/specs/2026-11-01-weapon-types-design.md`.
 - Every new `Weapon` field must default to a value that preserves current behavior for existing content (`resources/weapons/kinetic_cannon.tres`) and existing tests — no field may be required.
 - No ammo/magazine system (cooldown-only, per spec).
-- No component-specific targeting (random-weighted pick between the two pools, per spec).
+- No component-specific targeting beyond the existing geometric hitbox resolution (`Ship.resolve_component_hit`) — `Weapon.component_damage` is a bonus applied only when a hit already lands on a component by position, never a separate random pick.
 - No Drone work in this plan.
 - Follow existing code style: tabs for indentation, `class_name` + `extends` header, static pure-logic helpers where the codebase already does this (e.g. `Ship.nearest_in_range`).
 
@@ -110,141 +110,17 @@ git commit -m "Add damage-model fields to Weapon resource"
 
 ---
 
-### Task 2: Create ComponentPool
+### Task 2: Add Ship.receive_weapon_damage using the existing component-hit resolution
 
-**Files:**
-- Create: `scripts/ship/component_pool.gd`
-- Test: `tests/test_component_pool.gd` (create)
-- Modify: `tests/run_tests.gd` (register new test)
-
-**Interfaces:**
-- Consumes: nothing from Task 1.
-- Produces: `class_name ComponentPool extends Node` with `@export var max_hp: float`, `@export var disable_duration: float`, `var current_hp: float`, signals `disabled`, `restored`, methods `apply_damage(amount: float) -> void`, `is_disabled() -> bool`. Task 3 depends on exactly these names.
-
-- [ ] **Step 1: Write the failing test**
-
-```gdscript
-extends RefCounted
-
-const ComponentPool = preload("res://scripts/ship/component_pool.gd")
-
-class CallbackTracker:
-	var disabled_fired := false
-	var restored_fired := false
-	func on_disabled() -> void:
-		disabled_fired = true
-	func on_restored() -> void:
-		restored_fired = true
-
-static func run() -> Array[String]:
-	var failures: Array[String] = []
-	var pool := ComponentPool.new()
-	pool.max_hp = 30.0
-	pool.disable_duration = 5.0
-	pool.current_hp = 30.0
-
-	var tracker := CallbackTracker.new()
-	pool.disabled.connect(tracker.on_disabled)
-	pool.restored.connect(tracker.on_restored)
-
-	pool.apply_damage(10.0)
-	if not is_equal_approx(pool.current_hp, 20.0):
-		failures.append("apply_damage: expected 20.0 remaining, got %s" % pool.current_hp)
-	if pool.is_disabled():
-		failures.append("apply_damage: expected not disabled yet")
-
-	pool.apply_damage(1000.0)
-	if not is_equal_approx(pool.current_hp, 0.0):
-		failures.append("apply_damage: expected 0.0 after overkill, got %s" % pool.current_hp)
-	if not pool.is_disabled():
-		failures.append("apply_damage: expected is_disabled() true at 0 hp")
-	if not tracker.disabled_fired:
-		failures.append("apply_damage: expected disabled signal to fire at 0 hp")
-
-	# Damage while disabled is a no-op.
-	pool.apply_damage(5.0)
-	if not is_equal_approx(pool.current_hp, 0.0):
-		failures.append("apply_damage: expected no-op while disabled, got current_hp=%s" % pool.current_hp)
-
-	# Ticking past disable_duration restores the pool.
-	pool._physics_process(5.0)
-	if pool.is_disabled():
-		failures.append("_physics_process: expected is_disabled() false after disable_duration elapses")
-	if not is_equal_approx(pool.current_hp, 30.0):
-		failures.append("_physics_process: expected current_hp restored to max_hp, got %s" % pool.current_hp)
-	if not tracker.restored_fired:
-		failures.append("_physics_process: expected restored signal to fire")
-
-	pool.free()
-	return failures
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `godot --headless --script tests/run_tests.gd` (after adding `preload("res://tests/test_component_pool.gd")` to `test_scripts` in `tests/run_tests.gd`, placed after the `test_weapon.gd` entry from Task 1).
-Expected: FAIL — script `scripts/ship/component_pool.gd` doesn't exist.
-
-- [ ] **Step 3: Write minimal implementation**
-
-Create `scripts/ship/component_pool.gd`:
-
-```gdscript
-class_name ComponentPool
-extends Node
-
-signal disabled
-signal restored
-
-@export var max_hp: float = 30.0
-@export var disable_duration: float = 5.0
-var current_hp: float
-var disable_timer: float = 0.0
-
-func _ready() -> void:
-	current_hp = max_hp
-
-func _physics_process(delta: float) -> void:
-	if disable_timer > 0.0:
-		disable_timer = max(0.0, disable_timer - delta)
-		if disable_timer <= 0.0:
-			current_hp = max_hp
-			restored.emit()
-
-func apply_damage(amount: float) -> void:
-	if is_disabled():
-		return
-	current_hp = max(0.0, current_hp - amount)
-	if current_hp <= 0.0:
-		disable_timer = disable_duration
-		disabled.emit()
-
-func is_disabled() -> bool:
-	return disable_timer > 0.0
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `godot --headless --script tests/run_tests.gd`
-Expected: PASS — no `FAIL [res://tests/test_component_pool.gd]` lines.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add scripts/ship/component_pool.gd tests/test_component_pool.gd tests/run_tests.gd
-git commit -m "Add ComponentPool for engine/weapons subsystem disables"
-```
-
----
-
-### Task 3: Wire ComponentPool into Ship and add receive_weapon_damage
+**Superseded design note:** this plan originally specified a standalone `ComponentPool` class with random-weighted component selection for `component_damage`. That conflicted with `docs/superpowers/plans/2026-11-01-ship-components-damage-repair.md`, which was executed first and already gives `Hull`/`ShipEngine`/`WeaponMount` real hitboxes via `ShipComponent`, plus `Ship.resolve_component_hit(impact_pos) -> ShipComponent` and `Ship.receive_damage(amount, impact_position)`. This task builds on that foundation instead: `Weapon.component_damage` is a bonus applied only when the hit geometrically lands on a component (never a separate random pick).
 
 **Files:**
 - Modify: `scripts/ship/ship.gd`
-- Test: `tests/test_ship.gd` (modify — extend `_check_ship_logic`, add a new static check function)
+- Test: `tests/test_ship.gd` (modify — extend `_check_ship_logic`)
 
 **Interfaces:**
-- Consumes: `Weapon` fields from Task 1 (`shield_mult`, `hull_mult`, `pierce_pct`, `component_damage`), `ComponentPool` from Task 2 (`apply_damage`, `is_disabled`).
-- Produces: `Ship.engine_component: ComponentPool`, `Ship.weapons_component: ComponentPool` (created in `_ready()`), `Ship.receive_weapon_damage(weapon: Weapon) -> void`, `static Ship.pick_component(components: Array[ComponentPool], roll: float) -> ComponentPool`. Task 5 (Projectile) calls `receive_weapon_damage`.
+- Consumes: `Weapon` fields from Task 1 (`shield_mult`, `hull_mult`, `pierce_pct`, `component_damage`); `Ship.resolve_component_hit(impact_pos: Vector2) -> ShipComponent` and `ShipComponent.apply_damage`/`is_destroyed` (already present from the prerequisite ShipComponent work).
+- Produces: `Ship.receive_weapon_damage(weapon: Weapon, impact_position: Vector2 = Vector2.INF) -> void`. Task 4 (Projectile) calls this.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -252,30 +128,20 @@ Add this new static function to `tests/test_ship.gd`, and call it from `run()`:
 
 ```gdscript
 static func _check_receive_weapon_damage(failures: Array[String]) -> void:
-	# pick_component: deterministic selection by roll, independent of Ship instance.
-	var pool_a := ComponentPool.new()
-	var pool_b := ComponentPool.new()
-	var components: Array[ComponentPool] = [pool_a, pool_b]
-	if Ship.pick_component(components, 0.0) != pool_a:
-		failures.append("pick_component: expected roll 0.0 to select the first component")
-	if Ship.pick_component(components, 0.99) != pool_b:
-		failures.append("pick_component: expected roll 0.99 to select the second component")
-
-	# receive_weapon_damage: shield_mult/hull_mult/pierce_pct resolution.
+	# shield_mult 1.4, hull_mult 0.75, no pierce: damage 10 -> effective shield hit 14,
+	# fully absorbed (shield has 20), no hull damage.
 	var ship := Ship.new()
 	var hull := Hull.new()
 	hull.max_hp = 100.0
-	hull.current_hp = 100.0
+	hull._ready()
 	var shield := Shield.new()
 	shield.max_shield = 20.0
 	shield.current_shield = 20.0
 	ship.hull = hull
 	ship.shield = shield
-	ship.engine_component = ComponentPool.new()
-	ship.weapons_component = ComponentPool.new()
+	ship.engine = ShipEngine.new()
+	ship.engine._ready()
 
-	# shield_mult 1.4, hull_mult 0.75, no pierce: damage 10 -> effective shield hit 14,
-	# fully absorbed (shield has 20), no hull damage.
 	var pulse_laser := Weapon.new()
 	pulse_laser.damage = 10.0
 	pulse_laser.shield_mult = 1.4
@@ -300,14 +166,14 @@ static func _check_receive_weapon_damage(failures: Array[String]) -> void:
 	var railgun_ship := Ship.new()
 	var r_hull := Hull.new()
 	r_hull.max_hp = 100.0
-	r_hull.current_hp = 100.0
+	r_hull._ready()
 	var r_shield := Shield.new()
 	r_shield.max_shield = 1000.0
 	r_shield.current_shield = 1000.0
 	railgun_ship.hull = r_hull
 	railgun_ship.shield = r_shield
-	railgun_ship.engine_component = ComponentPool.new()
-	railgun_ship.weapons_component = ComponentPool.new()
+	railgun_ship.engine = ShipEngine.new()
+	railgun_ship.engine._ready()
 	var railgun := Weapon.new()
 	railgun.damage = 40.0
 	railgun.shield_mult = 0.5
@@ -317,99 +183,80 @@ static func _check_receive_weapon_damage(failures: Array[String]) -> void:
 	if not is_equal_approx(r_hull.current_hp, 90.0):
 		failures.append("receive_weapon_damage: expected pierce to deal 10.0 hull damage (40*0.25*1.0), got hull=%s" % r_hull.current_hp)
 
-	# component_damage: a nonzero value must reach one of the two component pools.
+	# component_damage: a hit that geometrically lands on a component's hitbox gets
+	# the bonus added on top of the hull_mult-scaled overflow; a hit that lands on
+	# bare hull (no component in range) only ever damages hull, never the component.
 	var emp_ship := Ship.new()
 	var e_hull := Hull.new()
 	e_hull.max_hp = 100.0
-	e_hull.current_hp = 100.0
+	e_hull._ready()
 	var e_shield := Shield.new()
-	e_shield.max_shield = 50.0
-	e_shield.current_shield = 50.0
+	e_shield.max_shield = 0.0
+	e_shield.current_shield = 0.0
+	var e_engine := ShipEngine.new()
+	e_engine.max_hp = 30.0
+	e_engine._ready()
+	e_engine.hitbox_radius = 8.0
+	e_engine.position = Vector2(20, 0)
 	emp_ship.hull = e_hull
 	emp_ship.shield = e_shield
-	emp_ship.engine_component = ComponentPool.new()
-	emp_ship.engine_component.max_hp = 30.0
-	emp_ship.engine_component.current_hp = 30.0
-	emp_ship.weapons_component = ComponentPool.new()
-	emp_ship.weapons_component.max_hp = 30.0
-	emp_ship.weapons_component.current_hp = 30.0
+	emp_ship.engine = e_engine
+	emp_ship.add_child(e_engine)
+
 	var emp_missile := Weapon.new()
 	emp_missile.damage = 6.0
+	emp_missile.hull_mult = 0.5
 	emp_missile.component_damage = 15.0
-	emp_ship.receive_weapon_damage(emp_missile)
-	var total_component_damage: float = (30.0 - emp_ship.engine_component.current_hp) + (30.0 - emp_ship.weapons_component.current_hp)
-	if not is_equal_approx(total_component_damage, 15.0):
-		failures.append("receive_weapon_damage: expected 15.0 component_damage applied to exactly one pool, got total=%s" % total_component_damage)
+	emp_ship.receive_weapon_damage(emp_missile, Vector2(20, 2))
+	if not is_equal_approx(e_engine.current_hp, 30.0 - (6.0 * 0.5 + 15.0)):
+		failures.append("receive_weapon_damage: expected engine to take hull_mult-scaled damage plus the component_damage bonus, got %s" % e_engine.current_hp)
+	if not is_equal_approx(e_hull.current_hp, 100.0):
+		failures.append("receive_weapon_damage: expected hull untouched when the hit lands on a component, got %s" % e_hull.current_hp)
+
+	emp_ship.receive_weapon_damage(emp_missile, Vector2(-200, -200))
+	if not is_equal_approx(e_hull.current_hp, 100.0 - 6.0 * 0.5):
+		failures.append("receive_weapon_damage: expected a hit outside every hitbox to apply hull_mult-scaled damage to hull with no component_damage bonus, got %s" % e_hull.current_hp)
 
 	hull.free()
 	shield.free()
-	ship.engine_component.free()
-	ship.weapons_component.free()
+	ship.engine.free()
 	ship.free()
-	pool_a.free()
-	pool_b.free()
 	r_hull.free()
 	r_shield.free()
-	railgun_ship.engine_component.free()
-	railgun_ship.weapons_component.free()
+	railgun_ship.engine.free()
 	railgun_ship.free()
 	e_hull.free()
 	e_shield.free()
-	emp_ship.engine_component.free()
-	emp_ship.weapons_component.free()
 	emp_ship.free()
 ```
 
 Add `_check_receive_weapon_damage(failures)` to the body of `run()` in `tests/test_ship.gd`, alongside the existing calls.
 
-Also add, near the top of `tests/test_ship.gd` (it already preloads `ShipScene`), nothing further is needed — `Ship`, `Hull`, `Shield`, `Weapon` are already global class names used elsewhere in this file; add one line:
-
-```gdscript
-const ComponentPool = preload("res://scripts/ship/component_pool.gd")
-```
-
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `godot --headless --script tests/run_tests.gd`
-Expected: FAIL — "Invalid call. Nonexistent function 'receive_weapon_damage'" (and `pick_component`, and `engine_component`/`weapons_component` assignment errors).
+Expected: FAIL — "Invalid call. Nonexistent function 'receive_weapon_damage'".
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `scripts/ship/ship.gd`, add after the existing `@onready` lines:
+Add this function to `scripts/ship/ship.gd`, near `receive_damage`:
 
 ```gdscript
-var engine_component: ComponentPool
-var weapons_component: ComponentPool
-```
-
-In `_ready()`, add before the `for child in get_children():` loop:
-
-```gdscript
-	engine_component = ComponentPool.new()
-	add_child(engine_component)
-	weapons_component = ComponentPool.new()
-	add_child(weapons_component)
-```
-
-Add these two new functions (near `receive_damage`):
-
-```gdscript
-func receive_weapon_damage(weapon: Weapon) -> void:
+func receive_weapon_damage(weapon: Weapon, impact_position: Vector2 = Vector2.INF) -> void:
 	var pierce_damage: float = weapon.damage * weapon.pierce_pct
 	var absorbable_damage: float = weapon.damage - pierce_damage
 	var effective_shield_hit: float = absorbable_damage * weapon.shield_mult
 	var overflow_effective := shield.absorb(effective_shield_hit)
 	var raw_unabsorbed: float = overflow_effective / weapon.shield_mult if weapon.shield_mult > 0.0 else overflow_effective
-	var hull_damage: float = (raw_unabsorbed + pierce_damage) * weapon.hull_mult
-	hull.apply_damage(hull_damage)
-	if weapon.component_damage > 0.0:
-		var components: Array[ComponentPool] = [engine_component, weapons_component]
-		Ship.pick_component(components, randf()).apply_damage(weapon.component_damage)
-
-static func pick_component(components: Array[ComponentPool], roll: float) -> ComponentPool:
-	var index := int(roll * components.size())
-	index = clamp(index, 0, components.size() - 1)
-	return components[index]
+	var total_raw: float = raw_unabsorbed + pierce_damage
+	if total_raw <= 0.0:
+		return
+	var pos := global_position if impact_position == Vector2.INF else impact_position
+	var hit_component := resolve_component_hit(pos)
+	if hit_component != null:
+		hit_component.apply_damage(total_raw * weapon.hull_mult + weapon.component_damage)
+	else:
+		hull.apply_damage(total_raw * weapon.hull_mult)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -421,12 +268,12 @@ Expected: PASS — no `FAIL [res://tests/test_ship.gd]` lines.
 
 ```bash
 git add scripts/ship/ship.gd tests/test_ship.gd
-git commit -m "Add Ship.receive_weapon_damage with shield/hull/pierce/component resolution"
+git commit -m "Add Ship.receive_weapon_damage with shield/hull/pierce resolution"
 ```
 
 ---
 
-### Task 4: WeaponMount fire-arc gating
+### Task 3: WeaponMount fire-arc gating
 
 **Files:**
 - Modify: `scripts/weapons/weapon_mount.gd`
@@ -521,62 +368,52 @@ git commit -m "Add fire-arc gating to WeaponMount"
 
 ---
 
-### Task 5: Projectile carries a Weapon reference and routes hits through receive_weapon_damage
+### Task 4: Projectile carries a Weapon reference and routes hits through receive_weapon_damage
 
 **Files:**
 - Modify: `scripts/weapons/projectile.gd`
 - Test: `tests/test_projectile.gd` (modify — add a new check)
 
 **Interfaces:**
-- Consumes: `Ship.receive_weapon_damage(weapon: Weapon)` from Task 3.
-- Produces: `Projectile.setup(p_target, p_damage, p_weapon_range = 0.0, p_weapon: Weapon = null)` (4th param, optional, backward compatible with all existing 2-3 arg call sites), `Projectile.weapon: Weapon`. Task 6 depends on this 4-arg `setup` signature.
+- Consumes: `Ship.receive_weapon_damage(weapon: Weapon, impact_position: Vector2)` from Task 2.
+- Produces: `Projectile.setup(p_target, p_damage, p_weapon_range = 0.0, p_weapon: Weapon = null)` (4th param, optional, backward compatible with all existing 2-3 arg call sites), `Projectile.weapon: Weapon`. Task 5 depends on this 4-arg `setup` signature.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/test_projectile.gd`'s `run()`, before `target.free()`:
+Append to `tests/test_projectile.gd`'s `run()`, before `recording_target.free()`:
 
 ```gdscript
 	# weapon-aware hit routing: when a Weapon is attached, _hit() should call
-	# receive_weapon_damage(weapon) on the target instead of the plain receive_damage(float).
+	# receive_weapon_damage(weapon, global_position) instead of plain receive_damage.
 	var tracker_target := TrackerTarget.new()
 	var weapon := Weapon.new()
 	weapon.damage = 12.0
 	var weapon_projectile := Projectile.new()
-	weapon_projectile.global_position = Vector2.ZERO
+	weapon_projectile.global_position = Vector2(3.0, 4.0)
 	weapon_projectile.setup(tracker_target, weapon.damage, 0.0, weapon)
 	weapon_projectile._hit()
-	if not tracker_target.received_weapon:
-		failures.append("_hit: expected receive_weapon_damage(weapon) to be called when a weapon is attached")
+	if tracker_target.received_weapon != weapon:
+		failures.append("_hit: expected receive_weapon_damage(weapon, ...) to be called when a weapon is attached")
+	if not tracker_target.received_weapon_position.is_equal_approx(Vector2(3.0, 4.0)):
+		failures.append("_hit: expected receive_weapon_damage's impact_position to be the projectile's global_position, got %s" % tracker_target.received_weapon_position)
 	if tracker_target.received_plain:
 		failures.append("_hit: expected plain receive_damage NOT to be called when a weapon is attached")
 
-	# Backward compatibility: no weapon attached still calls plain receive_damage(float).
-	var plain_tracker := TrackerTarget.new()
-	var plain_projectile := Projectile.new()
-	plain_projectile.global_position = Vector2.ZERO
-	plain_projectile.setup(plain_tracker, 7.0)
-	plain_projectile._hit()
-	if not plain_tracker.received_plain:
-		failures.append("_hit: expected plain receive_damage(float) to be called when no weapon is attached")
-	if not is_equal_approx(plain_tracker.last_plain_amount, 7.0):
-		failures.append("_hit: expected plain receive_damage to be called with 7.0, got %s" % plain_tracker.last_plain_amount)
-
 	tracker_target.free()
-	plain_tracker.free()
 ```
 
 Add this helper class near the top of `tests/test_projectile.gd`, after the `const Projectile = preload(...)` line:
 
 ```gdscript
 class TrackerTarget extends Node2D:
-	var received_weapon := false
+	var received_weapon: Weapon = null
+	var received_weapon_position: Vector2 = Vector2.ZERO
 	var received_plain := false
-	var last_plain_amount := 0.0
-	func receive_weapon_damage(_weapon) -> void:
-		received_weapon = true
-	func receive_damage(amount: float) -> void:
+	func receive_weapon_damage(weapon, impact_position: Vector2 = Vector2.INF) -> void:
+		received_weapon = weapon
+		received_weapon_position = impact_position
+	func receive_damage(_amount: float, _impact_position: Vector2 = Vector2.ZERO) -> void:
 		received_plain = true
-		last_plain_amount = amount
 ```
 
 Also add, after the existing `const Projectile = preload(...)` line:
@@ -610,9 +447,9 @@ func setup(p_target: Node2D, p_damage: float, p_weapon_range: float = 0.0, p_wea
 func _hit() -> void:
 	if is_instance_valid(target):
 		if weapon != null and target.has_method("receive_weapon_damage"):
-			target.receive_weapon_damage(weapon)
+			target.receive_weapon_damage(weapon, global_position)
 		elif target.has_method("receive_damage"):
-			target.receive_damage(damage)
+			target.receive_damage(damage, global_position)
 	queue_free()
 ```
 
@@ -630,7 +467,7 @@ git commit -m "Route projectile hits through Ship.receive_weapon_damage when a W
 
 ---
 
-### Task 6: WeaponMount submissile volleys and per-weapon projectile speed
+### Task 5: WeaponMount submissile volleys and per-weapon projectile speed
 
 **Files:**
 - Modify: `scripts/weapons/weapon_mount.gd`
@@ -732,7 +569,7 @@ git commit -m "Support submissile volleys and per-weapon projectile speed"
 
 ---
 
-### Task 7: Create the 14 weapon resource files
+### Task 6: Create the 14 weapon resource files
 
 **Files:**
 - Modify: `resources/weapons/kinetic_cannon.tres` (add new fields only; leave `damage`/`fire_rate`/`weapon_range` untouched)

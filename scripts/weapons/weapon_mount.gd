@@ -1,5 +1,5 @@
 class_name WeaponMount
-extends Node2D
+extends ShipComponent
 
 const MuzzleFlashScene = preload("res://scenes/vfx/muzzle_flash.tscn")
 
@@ -11,7 +11,7 @@ func _physics_process(delta: float) -> void:
 		cooldown_remaining -= delta
 
 func can_fire() -> bool:
-	return weapon != null and cooldown_remaining <= 0.0
+	return weapon != null and cooldown_remaining <= 0.0 and not is_destroyed()
 
 func try_fire(target: Node2D) -> bool:
 	if not can_fire() or target == null or not is_instance_valid(target):

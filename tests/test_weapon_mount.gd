@@ -14,6 +14,7 @@ static func run() -> Array[String]:
 
 	var mount := WeaponMount.new()
 	mount.weapon = weapon
+	mount._ready()  # seed current_hp = max_hp now that WeaponMount extends ShipComponent
 
 	if not mount.can_fire():
 		failures.append("can_fire: expected true initially, got false")
@@ -64,6 +65,19 @@ static func run() -> Array[String]:
 	if not mount.can_fire():
 		failures.append("can_fire: expected true after cooldown fully elapsed")
 
+	var dying_mount := WeaponMount.new()
+	dying_mount.weapon = weapon
+	dying_mount.max_hp = 15.0
+	dying_mount._ready()
+	if not dying_mount.can_fire():
+		failures.append("can_fire: expected true before any damage")
+	dying_mount.apply_damage(15.0)
+	if dying_mount.can_fire():
+		failures.append("can_fire: expected false once the mount is destroyed")
+	if dying_mount.try_fire(close_target):
+		failures.append("try_fire: expected false once the mount is destroyed, even with target in range")
+	dying_mount.free()
+
 	far_target.free()
 	close_target.free()
 	mount.free()
@@ -81,6 +95,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	var mount := WeaponMount.new()
 	mount.weapon = weapon
+	mount._ready()
 	tree.root.add_child(mount)
 	mount.global_position = Vector2.ZERO
 

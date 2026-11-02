@@ -14,19 +14,27 @@ const ExplosionScene = preload("res://scenes/vfx/explosion.tscn")
 	else get_parent().get_node("Polygon2D") as CanvasItem
 )
 @onready var _hull: Hull = get_parent().get_node("Hull")
+@onready var _engine: ShipEngine = get_parent().get_node("Engine")
 @onready var _hit_spark: CPUParticles2D = $HitSpark
 @onready var _smoke_trail: CPUParticles2D = $SmokeTrail
 @onready var _engine_trail: CPUParticles2D = $EngineTrail
 @onready var _body: CharacterBody2D = get_parent()
 
 var _flash_tween: Tween
+var _engine_disabled := false
 
 func _ready() -> void:
 	_hull.damaged.connect(_on_hull_damaged)
 	_hull.destroyed.connect(_on_hull_destroyed)
+	_engine.destroyed.connect(_on_engine_destroyed)
+	call_deferred("_wire_weapon_mount_signals")
+
+func _wire_weapon_mount_signals() -> void:
+	for mount in _body.weapon_mounts:
+		mount.destroyed.connect(_on_weapon_mount_destroyed.bind(mount))
 
 func _physics_process(_delta: float) -> void:
-	_engine_trail.emitting = _body.velocity.length() > ENGINE_TRAIL_SPEED_THRESHOLD
+	_engine_trail.emitting = not _engine_disabled and _body.velocity.length() > ENGINE_TRAIL_SPEED_THRESHOLD
 
 func _on_hull_damaged(_amount: float, remaining: float) -> void:
 	_flash()
@@ -42,10 +50,21 @@ func _flash() -> void:
 	_flash_tween.tween_property(_visual, "modulate", Color.WHITE, flash_duration)
 
 func _on_hull_destroyed() -> void:
+	_spawn_explosion_at(get_parent().global_position)
+
+func _on_engine_destroyed() -> void:
+	_engine_disabled = true
+	_engine_trail.emitting = false
+	_spawn_explosion_at(_engine.global_position)
+
+func _on_weapon_mount_destroyed(mount: WeaponMount) -> void:
+	_spawn_explosion_at(mount.global_position)
+
+func _spawn_explosion_at(pos: Vector2) -> void:
 	var ship_node := get_parent()
 	var explosion: Node2D = ExplosionScene.instantiate()
 	ship_node.get_parent().add_child(explosion)
-	explosion.global_position = ship_node.global_position
+	explosion.global_position = pos
 
 static func should_emit_smoke(hp_ratio: float, threshold: float) -> bool:
 	return hp_ratio <= threshold

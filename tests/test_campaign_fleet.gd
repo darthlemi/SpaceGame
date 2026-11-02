@@ -1,6 +1,7 @@
 extends RefCounted
 
 const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
+const Commodity = preload("res://scripts/campaign/commodity.gd")
 
 static func run() -> Array[String]:
 	var failures: Array[String] = []
@@ -90,5 +91,12 @@ static func run() -> Array[String]:
 	trader_role_fleet.role = CampaignFleet.Role.TRADER
 	if trader_role_fleet.role != CampaignFleet.Role.TRADER:
 		failures.append("role: expected TRADER to be settable")
+
+	var parts_fleet := CampaignFleet.new()
+	parts_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.FREIGHTER)]
+	parts_fleet.cargo = {Commodity.Type.ORE: 5.0}
+	parts_fleet.part_inventory = ["res://resources/weapons/kinetic_cannon.tres", "res://resources/weapons/mass_driver.tres"]
+	if parts_fleet.cargo_total() != 7.0:
+		failures.append("cargo_total: expected commodities (5) + part_inventory (2) == 7.0, got %s" % parts_fleet.cargo_total())
 
 	return failures

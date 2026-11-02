@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/drones/ew_drone.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ship/shield.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
+
+[node name="EwDrone" type="CharacterBody2D"]
+script = ExtResource("1")
+player_targetable = false
+hit_radius = 5.0
+aura_range = 150.0
+regen_debuff_mult = 0.5
+
+[node name="Hull" type="Node2D" parent="."]
+script = ExtResource("2")
+max_hp = 6.0
+
+[node name="Shield" type="Node" parent="."]
+script = ExtResource("3")
+max_shield = 0.0
+
+[node name="Engine" type="Node2D" parent="."]
+script = ExtResource("4")
+max_speed = 200.0
+turn_rate = 5.0
+acceleration = 200.0

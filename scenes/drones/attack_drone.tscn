@@ -1,0 +1,31 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/ship/ship.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ship/hull.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ship/shield.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/ship/ship_engine.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon_mount.gd" id="5"]
+[ext_resource type="Resource" path="res://resources/weapons/drone_attack_gun.tres" id="6"]
+
+[node name="AttackDrone" type="CharacterBody2D"]
+script = ExtResource("1")
+player_targetable = false
+hit_radius = 6.0
+
+[node name="Hull" type="Node2D" parent="."]
+script = ExtResource("2")
+max_hp = 15.0
+
+[node name="Shield" type="Node" parent="."]
+script = ExtResource("3")
+max_shield = 0.0
+
+[node name="Engine" type="Node2D" parent="."]
+script = ExtResource("4")
+max_speed = 220.0
+turn_rate = 6.0
+acceleration = 260.0
+
+[node name="WeaponMount" type="Node2D" parent="."]
+script = ExtResource("5")
+weapon = ExtResource("6")

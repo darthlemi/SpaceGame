@@ -568,6 +568,7 @@ static func run() -> Array[String]:
 	var failures: Array[String] = []
 
 	var attack: Ship = AttackDroneScene.instantiate()
+	attack._ready()  # resolve @onready hull/shield/engine before reading them
 	if attack.player_targetable:
 		failures.append("attack_drone.tscn: expected player_targetable false")
 	if attack.hull == null or not is_equal_approx(attack.hull.max_hp, 15.0):
@@ -575,6 +576,7 @@ static func run() -> Array[String]:
 	attack.free()
 
 	var interceptor: Ship = InterceptorDroneScene.instantiate()
+	interceptor._ready()
 	if interceptor.player_targetable:
 		failures.append("interceptor_drone.tscn: expected player_targetable false")
 	if interceptor.hull == null or not is_equal_approx(interceptor.hull.max_hp, 8.0):

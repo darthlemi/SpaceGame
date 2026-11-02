@@ -1,3 +1,107 @@
+# Carry Forward — 2026-11-02 session (ship refit/customization, Milestone 5) — IN PROGRESS, resume here
+
+## Status: mid subagent-driven-development, final-review fix wave applied, re-review was interrupted
+
+Picked up Milestone 5 (ship refit/customization) from the full-game roadmap.
+Brainstormed (several `AskUserQuestion` rounds: scope vs the separately-queued
+faction-ship-styles idea — deferred to its own future milestone; weapons+hull
+slots vs weapons+shield/engine swap — landed on the latter with Hull
+explicitly **never** swappable; discrete upgrade tiers vs swappable component
+items — landed on swappable items; buy-direct-install vs buy-into-inventory-
+then-equip-separately — landed on inventory+equip; HomeBase-only vs any-base
+shopping — any base; same-catalog-everywhere vs per-faction catalogs — per-
+faction, split by theme; sellable parts — yes; **and a late addition**: a
+loadout-points budget system (each ship class has a point allowance, each
+part's rarity costs points, equipping is blocked over budget) — user's own
+idea, built into this milestone rather than deferred) → spec → plan →
+subagent-driven-development, all in an isolated worktree.
+
+- **Spec**: `docs/superpowers/specs/2026-11-02-ship-refit-customization-design.md`.
+  **Plan**: `docs/superpowers/plans/2026-11-02-ship-refit-customization.md`
+  (10 tasks). **Worktree**: `.claude/worktrees/ship-refit-customization`,
+  branch `worktree-ship-refit-customization`, entered via the native
+  `EnterWorktree` tool (not manual `git worktree add`). **SDD ledger**:
+  `.superpowers/sdd/2026-11-02-ship-refit-customization/progress.md` inside
+  that worktree — full per-task history lives there (2 of 10 tasks needed
+  one fix round each: Task 3's `set_equipped_path` unsafe array write, Task
+  4's unrequested `get_catalog()` API + missing `extends RefCounted`; both
+  resolved clean).
+- **All 10 plan tasks implemented, task-reviewed, and completed** (fresh
+  implementer + fresh reviewer per task, per `subagent-driven-development`).
+  Final commit of the task sequence: `31b11fb`. Full suite green throughout
+  (only the pre-existing, known-flaky `test_campaign_long_run_sim.gd`
+  pirate-targeting RNG failures, 5-6 per run, same as every prior session).
+- **Final whole-branch review** (dispatched on `opus` per the skill's Model
+  Selection) caught real problems the per-task reviews couldn't see (each
+  only saw one task's diff in isolation):
+  - **Critical**: `RefitPanel._rebuild_slot_rows` derived weapon-mount-slot
+    count from `comp.get("weapon_mount_items", []).size()` instead of the
+    ship class — and the **real campaign's bootstrap**
+    (`campaign_scene.gd`'s `_bootstrap_default_campaign`) builds player
+    ship compositions as hand-written dict literals with **no**
+    `weapon_mount_items` key at all. Net effect: in the actual shipped
+    game, the Equip tab showed **zero weapon slots** on every ship until
+    after the player's first battle — the feature's headline action
+    (equip a bought weapon) was non-functional on a fresh campaign. Every
+    task's own tests used `ShipType.new_composition()`, which always
+    populates that key, hiding the bug from all 10 task reviews.
+  - **Important**: `_collect_survivor_data` read each weapon mount's
+    equipped item back **live** from the `Ship` node
+    (`mount.weapon.resource_path`), which captured whatever
+    `Ship._assign_random_loadout()` (the existing `randomize_loadout`
+    feature from the prior session) rolled for *any* mount, not just ones
+    the player explicitly equipped via RefitPanel — silently baking a
+    random, possibly budget-maxing weapon into the player's permanent
+    composition after one battle.
+  - **Important**: that same live-read pattern also crashed
+    `_report_to_campaign` if the `AddFriend`/`AddEnemy` debug-console
+    commands were used mid-battle (array-length mismatch between
+    `ships` and `original_compositions`).
+  - **Important**: `CampaignState.equip_part` had no defensive check that
+    the item being equipped actually matches the slot type (relied solely
+    on `RefitPanel`'s UI-side filter) — flagged as risky given the plan
+    explicitly documents downstream code as trusting this function fully.
+  - Plus 6 Minor findings (UI panel viewport overflow, missing "repair
+    first" prompt text, stale points label on empty fleet, uninformative
+    ship-selector labels, one unused test var, one stale plan-doc snippet).
+- **One consolidated fix wave dispatched** (per the skill: "ONE fix
+  subagent with the complete findings list, not one fixer per finding") —
+  all 10 findings (4 Critical/Important + 6 Minor) in a single dispatch,
+  on `sonnet`. Implementer reported **DONE**, commit `15877c2` on top of
+  `31b11fb`, full suite clean (only the same baseline RNG flake), fix
+  report at
+  `.superpowers/sdd/2026-11-02-ship-refit-customization/final-review-fix-report.md`.
+
+## Next step — resume exactly here
+
+The **scoped re-review of that fix wave was dispatched on `opus`** (per the
+skill's "exactly one scoped re-review of the fix wave, then adjudicate — no
+second fix wave") but was **killed mid-run by a user interrupt** (ran low on
+session tokens), before it returned any verdict. Nothing from the real
+feature work was lost — the fix commit `15877c2` is already committed to
+the worktree branch; only the *verification* of that fix is incomplete.
+
+To resume: re-dispatch a fresh scoped re-reviewer (the killed agent's id was
+`a0eea56e0744ee0fa` — don't try to resume it, start fresh) over the diff
+`31b11fb..15877c2`. The review-package diff file already exists at
+`.superpowers/sdd/2026-11-02-ship-refit-customization/review-31b11fb..15877c2.diff`
+(no need to regenerate it unless the worktree has changed since). The 10
+findings to verify are listed in full above and in that diff file's
+accompanying context — re-derive the same scoped-re-review prompt structure
+used in this session (verdict each of the 10 findings ADDRESSED/NOT
+ADDRESSED/PARTIALLY, check for new breakage in the fix diff, out-of-scope
+observations don't block). After that comes back: adjudicate any open
+residual findings per the loop's breaker rules (park with a ruling, or stop
+if load-bearing — there is no second fix wave), then invoke
+`superpowers:finishing-a-development-branch` to decide how this worktree
+branch gets integrated (it has never been merged to `master`; `master` is
+untouched throughout this entire session).
+
+Current worktree HEAD: `15877c2587339e6c459232852e959000b668103f`. Repo is
+clean — nothing uncommitted.
+
+---
+
 # Carry Forward — 2026-11-02 session (weapon loadout randomization)
 
 ## Done this session

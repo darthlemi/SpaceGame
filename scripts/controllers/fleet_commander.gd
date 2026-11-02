@@ -50,7 +50,10 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_dragging = false
 			if _drag_start.distance_to(world_pos) < drag_threshold:
 				var picked := FleetCommander.ship_at_point(ships, world_pos, select_radius)
-				selected_ships = [picked] if picked != null else []
+				var picked_ships: Array[Ship] = []
+				if picked != null:
+					picked_ships.append(picked)
+				selected_ships = picked_ships
 			else:
 				var rect := Rect2(_drag_start, Vector2.ZERO).expand(world_pos)
 				selected_ships = FleetCommander.ships_in_rect(ships, rect)

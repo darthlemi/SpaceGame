@@ -15,6 +15,23 @@ const BASE_STATS := {
 	Kind.CAPITAL: {"max_hp": 220.0, "max_shield": 80.0, "cargo_capacity": 20.0, "engine_hp": 70.0, "weapon_mount_hp": 30.0, "weapon_mount_count": 3},
 }
 
+const WEAPON_POOL: Array[String] = [
+	"res://resources/weapons/kinetic_cannon.tres",
+	"res://resources/weapons/mass_driver.tres",
+	"res://resources/weapons/flak_cannon.tres",
+	"res://resources/weapons/railgun.tres",
+	"res://resources/weapons/seeker_missile.tres",
+	"res://resources/weapons/swarm_missile.tres",
+	"res://resources/weapons/torpedo.tres",
+	"res://resources/weapons/emp_missile.tres",
+	"res://resources/weapons/pulse_laser.tres",
+	"res://resources/weapons/heavy_beam.tres",
+	"res://resources/weapons/disruptor_beam.tres",
+	"res://resources/weapons/lance_graser.tres",
+	"res://resources/weapons/pd_flak_turret.tres",
+	"res://resources/weapons/pd_laser_turret.tres",
+]
+
 static func scene_for(kind: Kind) -> PackedScene:
 	return load(SCENES[kind])
 

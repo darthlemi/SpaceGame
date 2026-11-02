@@ -44,4 +44,16 @@ static func run() -> Array[String]:
 	if comp["weapon_mount_current_hp"] != comp["weapon_mount_max_hp"]:
 		failures.append("new_composition: expected weapon_mount_current_hp to start equal to weapon_mount_max_hp")
 
+	if ShipType.WEAPON_POOL.size() != 14:
+		failures.append("WEAPON_POOL: expected 14 entries, got %d" % ShipType.WEAPON_POOL.size())
+	var seen_paths := {}
+	for path in ShipType.WEAPON_POOL:
+		if seen_paths.has(path):
+			failures.append("WEAPON_POOL: duplicate entry %s" % path)
+		seen_paths[path] = true
+		if not ResourceLoader.exists(path):
+			failures.append("WEAPON_POOL: path does not exist: %s" % path)
+		if path.contains("drone_"):
+			failures.append("WEAPON_POOL: drone-only weapon should not appear in the ship pool: %s" % path)
+
 	return failures

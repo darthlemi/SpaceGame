@@ -177,6 +177,18 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [trade_panel_test.resource_path, f])
 	total_failures += trade_panel_failures.size()
 
+	# Loaded (not preloaded) because refit_panel.gd bare-references the
+	# CampaignState autoload; preload() would resolve this chain at
+	# compile-time of run_tests.gd itself, before CampaignState is registered
+	# as a global identifier in --script mode. By this point several
+	# run_async calls above have already awaited frames, so the autoload is
+	# registered by the time load() runs.
+	var refit_panel_test = load("res://tests/test_refit_panel.gd")
+	var refit_panel_failures: Array[String] = await refit_panel_test.run_async(self)
+	for f in refit_panel_failures:
+		print("FAIL [%s]: %s" % [refit_panel_test.resource_path, f])
+	total_failures += refit_panel_failures.size()
+
 	var game_over_test = preload("res://tests/test_game_over.gd")
 	var game_over_failures: Array[String] = await game_over_test.run_async(self)
 	for f in game_over_failures:

@@ -2,6 +2,14 @@ extends RefCounted
 
 const Shield = preload("res://scripts/ship/shield.gd")
 
+class SignalTracker:
+	var depleted_count := 0
+	var restored_count := 0
+	func on_depleted() -> void:
+		depleted_count += 1
+	func on_restored() -> void:
+		restored_count += 1
+
 static func run() -> Array[String]:
 	var failures: Array[String] = []
 	var shield := Shield.new()
@@ -37,5 +45,28 @@ static func run() -> Array[String]:
 	if not is_equal_approx(debuffed.regen_multiplier, 1.0):
 		failures.append("regen_multiplier: expected reset to 1.0 after one frame, got %s" % debuffed.regen_multiplier)
 	debuffed.free()
+
+	var signaled := Shield.new()
+	signaled.max_shield = 20.0
+	signaled.current_shield = 20.0
+	var tracker := SignalTracker.new()
+	signaled.depleted.connect(tracker.on_depleted)
+	signaled.restored.connect(tracker.on_restored)
+
+	signaled.absorb(20.0)
+	if tracker.depleted_count != 1:
+		failures.append("depleted: expected exactly 1 emission on exact depletion, got %s" % tracker.depleted_count)
+	if not is_equal_approx(signaled.health_fraction(), 0.0):
+		failures.append("health_fraction: expected 0.0 when depleted, got %s" % signaled.health_fraction())
+
+	signaled.absorb(5.0)
+	if tracker.depleted_count != 1:
+		failures.append("depleted: expected no re-emission while already at 0, got count=%s" % tracker.depleted_count)
+
+	signaled._physics_process(1.0)  # regen_rate default 5.0 -> current_shield rises above 0
+	if tracker.restored_count != 1:
+		failures.append("restored: expected exactly 1 emission when regen crosses back above 0, got %s" % tracker.restored_count)
+
+	signaled.free()
 
 	return failures

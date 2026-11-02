@@ -653,28 +653,39 @@ git commit -m "Route damage through per-component hitboxes before falling back t
 
 - [ ] **Step 1: Write the failing test (append to existing `run()`, before `shield.free()`)**
 
+First add a tracker class near the top of the file (same pattern `tests/test_hull.gd` already uses) — GDScript lambdas capture outer `int` locals by value, so a `func(): depleted_count += 1` closure would silently increment its own copy instead of the caller's variable:
+
+```gdscript
+class SignalTracker:
+	var depleted_count := 0
+	var restored_count := 0
+	func on_depleted() -> void:
+		depleted_count += 1
+	func on_restored() -> void:
+		restored_count += 1
+```
+
 ```gdscript
 	var signaled := Shield.new()
 	signaled.max_shield = 20.0
 	signaled.current_shield = 20.0
-	var depleted_count := 0
-	var restored_count := 0
-	signaled.depleted.connect(func(): depleted_count += 1)
-	signaled.restored.connect(func(): restored_count += 1)
+	var tracker := SignalTracker.new()  # see class SignalTracker at the top of this file
+	signaled.depleted.connect(tracker.on_depleted)
+	signaled.restored.connect(tracker.on_restored)
 
 	signaled.absorb(20.0)
-	if depleted_count != 1:
-		failures.append("depleted: expected exactly 1 emission on exact depletion, got %s" % depleted_count)
+	if tracker.depleted_count != 1:
+		failures.append("depleted: expected exactly 1 emission on exact depletion, got %s" % tracker.depleted_count)
 	if not is_equal_approx(signaled.health_fraction(), 0.0):
 		failures.append("health_fraction: expected 0.0 when depleted, got %s" % signaled.health_fraction())
 
 	signaled.absorb(5.0)
-	if depleted_count != 1:
-		failures.append("depleted: expected no re-emission while already at 0, got count=%s" % depleted_count)
+	if tracker.depleted_count != 1:
+		failures.append("depleted: expected no re-emission while already at 0, got count=%s" % tracker.depleted_count)
 
 	signaled._physics_process(1.0)  # regen_rate default 5.0 -> current_shield rises above 0
-	if restored_count != 1:
-		failures.append("restored: expected exactly 1 emission when regen crosses back above 0, got %s" % restored_count)
+	if tracker.restored_count != 1:
+		failures.append("restored: expected exactly 1 emission when regen crosses back above 0, got %s" % tracker.restored_count)
 
 	signaled.free()
 ```
@@ -711,8 +722,8 @@ func _physics_process(delta: float) -> void:
 func absorb(amount: float) -> float:
 	if current_shield <= 0.0:
 		return amount
-	var remaining := max(0.0, current_shield - amount)
-	var overflow := max(0.0, amount - current_shield)
+	var remaining: float = max(0.0, current_shield - amount)
+	var overflow: float = max(0.0, amount - current_shield)
 	current_shield = remaining
 	if current_shield <= 0.0:
 		depleted.emit()
@@ -1755,6 +1766,12 @@ func refresh() -> void:
 
 func _refresh_repair_section() -> void:
 	for child in repair_container.get_children():
+		# remove_child() detaches immediately (so get_child_count() reflects
+		# 0 synchronously, which the test below relies on); queue_free() defers
+		# the actual deallocation, since this runs from inside the very
+		# Button's own `pressed` signal handler -- freeing it synchronously
+		# here crashes with "Object was freed while a signal is being emitted".
+		repair_container.remove_child(child)
 		child.queue_free()
 	var total_cost := 0.0
 	for i in _player_fleet.ship_compositions.size():

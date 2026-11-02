@@ -435,6 +435,60 @@ static func run() -> Array[String]:
 	if loot_state.pending_loot_fleet != null:
 		failures.append("reset: expected pending_loot_fleet cleared to null")
 
+	# Station repair: is_damaged/repair_cost_for/repair_ship.
+	var damaged_comp := {
+		"max_hp": 100.0, "current_hp": 50.0, "max_shield": 50.0, "current_shield": 50.0,
+		"engine_max_hp": 20.0, "engine_current_hp": 20.0,
+		"weapon_mount_max_hp": [10.0], "weapon_mount_current_hp": [10.0],
+	}
+	if not CampaignState.is_damaged(damaged_comp):
+		failures.append("is_damaged: expected true when hull is below max")
+	if CampaignState.repair_cost_for(damaged_comp) != CampaignState.REPAIR_COST:
+		failures.append("repair_cost_for: expected REPAIR_COST for a damaged ship, got %s" % CampaignState.repair_cost_for(damaged_comp))
+
+	var full_comp := {
+		"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0,
+		"engine_max_hp": 20.0, "engine_current_hp": 20.0,
+		"weapon_mount_max_hp": [10.0], "weapon_mount_current_hp": [10.0],
+	}
+	if CampaignState.is_damaged(full_comp):
+		failures.append("is_damaged: expected false for a fully healed ship")
+	if CampaignState.repair_cost_for(full_comp) != 0.0:
+		failures.append("repair_cost_for: expected 0.0 for a fully healed ship")
+
+	var engine_damaged := {
+		"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0,
+		"engine_max_hp": 20.0, "engine_current_hp": 5.0,
+		"weapon_mount_max_hp": [], "weapon_mount_current_hp": [],
+	}
+	if not CampaignState.is_damaged(engine_damaged):
+		failures.append("is_damaged: expected true when only the engine is damaged")
+
+	var mount_damaged := {
+		"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0,
+		"engine_max_hp": 20.0, "engine_current_hp": 20.0,
+		"weapon_mount_max_hp": [10.0, 10.0], "weapon_mount_current_hp": [10.0, 0.0],
+	}
+	if not CampaignState.is_damaged(mount_damaged):
+		failures.append("is_damaged: expected true when a weapon mount is damaged")
+
+	var legacy_comp := {"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}
+	if CampaignState.is_damaged(legacy_comp):
+		failures.append("is_damaged: expected false for a legacy composition dict with no engine/mount fields")
+
+	var repair_state := CampaignState.new()
+	repair_state.credits = 200.0
+	var to_repair := {
+		"max_hp": 100.0, "current_hp": 10.0, "max_shield": 50.0, "current_shield": 0.0,
+		"engine_max_hp": 20.0, "engine_current_hp": 2.0,
+		"weapon_mount_max_hp": [10.0], "weapon_mount_current_hp": [1.0],
+	}
+	repair_state.repair_ship(to_repair)
+	if not is_equal_approx(repair_state.credits, 200.0 - CampaignState.REPAIR_COST):
+		failures.append("repair_ship: expected credits reduced by REPAIR_COST, got %s" % repair_state.credits)
+	if to_repair["current_hp"] != 100.0 or to_repair["current_shield"] != 50.0 or to_repair["engine_current_hp"] != 20.0 or to_repair["weapon_mount_current_hp"][0] != 10.0:
+		failures.append("repair_ship: expected every field restored to max, got %s" % to_repair)
+
 	return failures
 
 class SkirmishResolvedTracker:

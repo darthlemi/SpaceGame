@@ -40,8 +40,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if not tracker.fired:
 		failures.append("HomeBase: expected player_docked to fire once the player icon reaches the base")
-	if fleet.ship_compositions[0]["current_hp"] != 100.0 or fleet.ship_compositions[0]["current_shield"] != 50.0:
-		failures.append("HomeBase: expected fleet repaired to full on docking, got %s" % fleet.ship_compositions[0])
+	if fleet.ship_compositions[0]["current_hp"] != 10.0 or fleet.ship_compositions[0]["current_shield"] != 0.0:
+		failures.append("HomeBase: expected docking to NOT auto-repair (repair is now a paid station action), got %s" % fleet.ship_compositions[0])
 
 	icon.queue_free()
 	base.queue_free()

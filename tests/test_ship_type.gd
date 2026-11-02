@@ -31,4 +31,17 @@ static func run() -> Array[String]:
 	if freighter_comp["max_hp"] != 80.0 or freighter_comp["max_shield"] != 20.0:
 		failures.append("new_composition: expected Freighter max_hp==80.0/max_shield==20.0, got %s" % freighter_comp)
 
+	if not is_equal_approx(corvette_comp["engine_max_hp"], 25.0):
+		failures.append("new_composition: expected corvette engine_max_hp 25.0, got %s" % corvette_comp["engine_max_hp"])
+	if corvette_comp["weapon_mount_max_hp"] != [15.0]:
+		failures.append("new_composition: expected corvette weapon_mount_max_hp [15.0], got %s" % corvette_comp["weapon_mount_max_hp"])
+
+	if freighter_comp["weapon_mount_max_hp"] != []:
+		failures.append("new_composition: expected freighter weapon_mount_max_hp [] (unarmed), got %s" % freighter_comp["weapon_mount_max_hp"])
+
+	if comp["weapon_mount_max_hp"] != [30.0, 30.0, 30.0]:
+		failures.append("new_composition: expected capital weapon_mount_max_hp [30.0, 30.0, 30.0], got %s" % comp["weapon_mount_max_hp"])
+	if comp["weapon_mount_current_hp"] != comp["weapon_mount_max_hp"]:
+		failures.append("new_composition: expected weapon_mount_current_hp to start equal to weapon_mount_max_hp")
+
 	return failures

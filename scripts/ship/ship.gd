@@ -18,6 +18,7 @@ var current_order: Order
 @export var loiter_radius: float = 40.0
 @export var loiter_interval: float = 3.0
 @export var loiter_arrival_radius: float = 5.0
+@export var randomize_loadout: bool = false
 
 var _hold_center: Vector2 = Vector2.ZERO
 var _loiter_target: Vector2 = Vector2.ZERO
@@ -30,6 +31,14 @@ func _ready() -> void:
 			weapon_mounts.append(child)
 	hull.destroyed.connect(_on_hull_destroyed)
 	execute_order(Order.hold())
+	if randomize_loadout:
+		_assign_random_loadout()
+
+func _assign_random_loadout() -> void:
+	var pool: Array = ShipType.WEAPON_POOL.duplicate()
+	pool.shuffle()
+	for i in weapon_mounts.size():
+		weapon_mounts[i].weapon = load(pool[i % pool.size()])
 
 func execute_order(order: Order) -> void:
 	current_order = order

@@ -65,6 +65,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [ship_vfx_test.resource_path, f])
 	total_failures += ship_vfx_failures.size()
 
+	var ship_randomize_loadout_test = preload("res://tests/test_ship_randomize_loadout.gd")
+	var ship_randomize_loadout_failures: Array[String] = await ship_randomize_loadout_test.run_async(self)
+	for f in ship_randomize_loadout_failures:
+		print("FAIL [%s]: %s" % [ship_randomize_loadout_test.resource_path, f])
+	total_failures += ship_randomize_loadout_failures.size()
+
 	var weapon_mount_async_test = preload("res://tests/test_weapon_mount.gd")
 	var weapon_mount_async_failures: Array[String] = await weapon_mount_async_test.run_async(self)
 	for f in weapon_mount_async_failures:

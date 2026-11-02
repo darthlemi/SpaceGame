@@ -58,6 +58,9 @@ static func set_equipped_path(comp: Dictionary, slot_type: SlotType, slot_index:
 	match slot_type:
 		SlotType.WEAPON:
 			var items: Array = comp.get("weapon_mount_items", [])
+			# Resize array to ensure it's large enough for the assignment
+			while items.size() <= slot_index:
+				items.append("")
 			items[slot_index] = path
 			comp["weapon_mount_items"] = items
 		SlotType.SHIELD:

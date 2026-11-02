@@ -81,4 +81,10 @@ static func run() -> Array[String]:
 	if ShipType.equipped_path(test_comp, ShipType.SlotType.SHIELD, 0) != "res://resources/shields/shield_dominion_aegis.tres":
 		failures.append("set_equipped_path/equipped_path: expected shield slot to round-trip the assigned path")
 
+	# Test set_equipped_path safety: setting weapon on a composition with missing/undersized weapon_mount_items
+	var unsafe_comp := {"ship_type": ShipType.Kind.CORVETTE}
+	ShipType.set_equipped_path(unsafe_comp, ShipType.SlotType.WEAPON, 0, "res://resources/weapons/kinetic_cannon.tres")
+	if ShipType.equipped_path(unsafe_comp, ShipType.SlotType.WEAPON, 0) != "res://resources/weapons/kinetic_cannon.tres":
+		failures.append("set_equipped_path: expected array resize to allow setting on missing weapon_mount_items")
+
 	return failures

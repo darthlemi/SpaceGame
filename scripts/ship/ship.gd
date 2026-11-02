@@ -59,6 +59,22 @@ func receive_damage(amount: float, impact_position: Vector2 = Vector2.INF) -> vo
 	else:
 		hull.apply_damage(overflow)
 
+func receive_weapon_damage(weapon: Weapon, impact_position: Vector2 = Vector2.INF) -> void:
+	var pierce_damage: float = weapon.damage * weapon.pierce_pct
+	var absorbable_damage: float = weapon.damage - pierce_damage
+	var effective_shield_hit: float = absorbable_damage * weapon.shield_mult
+	var overflow_effective := shield.absorb(effective_shield_hit)
+	var raw_unabsorbed: float = overflow_effective / weapon.shield_mult if weapon.shield_mult > 0.0 else overflow_effective
+	var total_raw: float = raw_unabsorbed + pierce_damage
+	if total_raw <= 0.0:
+		return
+	var pos := global_position if impact_position == Vector2.INF else impact_position
+	var hit_component := resolve_component_hit(pos)
+	if hit_component != null:
+		hit_component.apply_damage(total_raw * weapon.hull_mult + weapon.component_damage)
+	else:
+		hull.apply_damage(total_raw * weapon.hull_mult)
+
 func resolve_component_hit(impact_pos: Vector2) -> ShipComponent:
 	var best: ShipComponent = null
 	var best_dist := INF

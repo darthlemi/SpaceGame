@@ -37,6 +37,7 @@ static func run() -> Array[String]:
 	_check_ship_logic(failures)
 	_check_autofire_targeting(failures)
 	_check_disengage_rule(failures)
+	_check_receive_weapon_damage(failures)
 
 	return failures
 
@@ -187,6 +188,108 @@ static func _check_ship_logic(failures: Array[String]) -> void:
 	target_hull.free()
 	target.free()
 	ship.free()
+
+static func _check_receive_weapon_damage(failures: Array[String]) -> void:
+	# shield_mult 1.4, hull_mult 0.75, no pierce: damage 10 -> effective shield hit 14,
+	# fully absorbed (shield has 20), no hull damage.
+	var ship := Ship.new()
+	var hull := Hull.new()
+	hull.max_hp = 100.0
+	hull._ready()
+	var shield := Shield.new()
+	shield.max_shield = 20.0
+	shield.current_shield = 20.0
+	ship.hull = hull
+	ship.shield = shield
+	ship.engine = ShipEngine.new()
+	ship.engine._ready()
+
+	var pulse_laser := Weapon.new()
+	pulse_laser.damage = 10.0
+	pulse_laser.shield_mult = 1.4
+	pulse_laser.hull_mult = 0.75
+	ship.receive_weapon_damage(pulse_laser)
+	if not is_equal_approx(ship.shield.current_shield, 6.0):
+		failures.append("receive_weapon_damage: expected shield 20 - 14 = 6.0, got %s" % ship.shield.current_shield)
+	if not is_equal_approx(ship.hull.current_hp, 100.0):
+		failures.append("receive_weapon_damage: expected hull untouched, got %s" % ship.hull.current_hp)
+
+	# Second hit: effective shield hit 14, only 6 shield left -> overflow_effective 8,
+	# raw_unabsorbed = 8 / 1.4, hull_damage = raw_unabsorbed * 0.75.
+	ship.receive_weapon_damage(pulse_laser)
+	var expected_hull_damage: float = (8.0 / 1.4) * 0.75
+	if not is_equal_approx(ship.shield.current_shield, 0.0):
+		failures.append("receive_weapon_damage: expected shield depleted to 0.0, got %s" % ship.shield.current_shield)
+	if not is_equal_approx(ship.hull.current_hp, 100.0 - expected_hull_damage):
+		failures.append("receive_weapon_damage: expected hull %s, got %s" % [100.0 - expected_hull_damage, ship.hull.current_hp])
+
+	# pierce_pct: a railgun with pierce_pct 0.25 against a full shield should still
+	# land 25% of its damage * hull_mult directly on hull.
+	var railgun_ship := Ship.new()
+	var r_hull := Hull.new()
+	r_hull.max_hp = 100.0
+	r_hull._ready()
+	var r_shield := Shield.new()
+	r_shield.max_shield = 1000.0
+	r_shield.current_shield = 1000.0
+	railgun_ship.hull = r_hull
+	railgun_ship.shield = r_shield
+	railgun_ship.engine = ShipEngine.new()
+	railgun_ship.engine._ready()
+	var railgun := Weapon.new()
+	railgun.damage = 40.0
+	railgun.shield_mult = 0.5
+	railgun.hull_mult = 1.0
+	railgun.pierce_pct = 0.25
+	railgun_ship.receive_weapon_damage(railgun)
+	if not is_equal_approx(r_hull.current_hp, 90.0):
+		failures.append("receive_weapon_damage: expected pierce to deal 10.0 hull damage (40*0.25*1.0), got hull=%s" % r_hull.current_hp)
+
+	# component_damage: a hit that geometrically lands on a component's hitbox gets
+	# the bonus added on top of the hull_mult-scaled overflow; a hit that lands on
+	# bare hull (no component in range) only ever damages hull, never the component.
+	var emp_ship := Ship.new()
+	var e_hull := Hull.new()
+	e_hull.max_hp = 100.0
+	e_hull._ready()
+	var e_shield := Shield.new()
+	e_shield.max_shield = 0.0
+	e_shield.current_shield = 0.0
+	var e_engine := ShipEngine.new()
+	e_engine.max_hp = 30.0
+	e_engine._ready()
+	e_engine.hitbox_radius = 8.0
+	e_engine.position = Vector2(20, 0)
+	emp_ship.hull = e_hull
+	emp_ship.shield = e_shield
+	emp_ship.engine = e_engine
+	emp_ship.add_child(e_engine)
+
+	var emp_missile := Weapon.new()
+	emp_missile.damage = 6.0
+	emp_missile.hull_mult = 0.5
+	emp_missile.component_damage = 15.0
+	emp_ship.receive_weapon_damage(emp_missile, Vector2(20, 2))
+	if not is_equal_approx(e_engine.current_hp, 30.0 - (6.0 * 0.5 + 15.0)):
+		failures.append("receive_weapon_damage: expected engine to take hull_mult-scaled damage plus the component_damage bonus, got %s" % e_engine.current_hp)
+	if not is_equal_approx(e_hull.current_hp, 100.0):
+		failures.append("receive_weapon_damage: expected hull untouched when the hit lands on a component, got %s" % e_hull.current_hp)
+
+	emp_ship.receive_weapon_damage(emp_missile, Vector2(-200, -200))
+	if not is_equal_approx(e_hull.current_hp, 100.0 - 6.0 * 0.5):
+		failures.append("receive_weapon_damage: expected a hit outside every hitbox to apply hull_mult-scaled damage to hull with no component_damage bonus, got %s" % e_hull.current_hp)
+
+	hull.free()
+	shield.free()
+	ship.engine.free()
+	ship.free()
+	r_hull.free()
+	r_shield.free()
+	railgun_ship.engine.free()
+	railgun_ship.free()
+	e_hull.free()
+	e_shield.free()
+	emp_ship.free()
 
 # Integration test: exercises the REAL scene-tree lifecycle (real @onready resolution,
 # real _ready() auto-discovery loop, real signal connection) instead of the manually

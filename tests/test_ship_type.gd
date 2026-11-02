@@ -56,4 +56,29 @@ static func run() -> Array[String]:
 		if path.contains("drone_"):
 			failures.append("WEAPON_POOL: drone-only weapon should not appear in the ship pool: %s" % path)
 
+	if ShipType.points_budget_for(ShipType.Kind.CORVETTE) != 20:
+		failures.append("points_budget_for: expected corvette 20, got %s" % ShipType.points_budget_for(ShipType.Kind.CORVETTE))
+	if ShipType.points_budget_for(ShipType.Kind.CAPITAL) != 40:
+		failures.append("points_budget_for: expected capital 40, got %s" % ShipType.points_budget_for(ShipType.Kind.CAPITAL))
+
+	if comp["weapon_mount_items"] != ["", "", ""]:
+		failures.append("new_composition: expected capital weapon_mount_items == 3 empty strings, got %s" % comp["weapon_mount_items"])
+	if comp["shield_item"] != "" or comp["engine_item"] != "":
+		failures.append("new_composition: expected shield_item/engine_item to default to empty string")
+
+	var test_comp := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	if ShipType.equipped_path(test_comp, ShipType.SlotType.WEAPON, 0) != "":
+		failures.append("equipped_path: expected empty string for a fresh composition's weapon slot")
+	ShipType.set_equipped_path(test_comp, ShipType.SlotType.WEAPON, 0, "res://resources/weapons/railgun.tres")
+	if ShipType.equipped_path(test_comp, ShipType.SlotType.WEAPON, 0) != "res://resources/weapons/railgun.tres":
+		failures.append("set_equipped_path/equipped_path: expected weapon slot to round-trip the assigned path")
+	if ShipType.points_of_path("res://resources/weapons/railgun.tres") != PartRarity.points_for(PartRarity.Tier.RARE):
+		failures.append("points_of_path: expected railgun (RARE) to cost %s points, got %s" % [PartRarity.points_for(PartRarity.Tier.RARE), ShipType.points_of_path("res://resources/weapons/railgun.tres")])
+	if ShipType.points_used(test_comp) != PartRarity.points_for(PartRarity.Tier.RARE):
+		failures.append("points_used: expected a corvette with only a RARE weapon equipped to use exactly that many points, got %s" % ShipType.points_used(test_comp))
+
+	ShipType.set_equipped_path(test_comp, ShipType.SlotType.SHIELD, 0, "res://resources/shields/shield_dominion_aegis.tres")
+	if ShipType.equipped_path(test_comp, ShipType.SlotType.SHIELD, 0) != "res://resources/shields/shield_dominion_aegis.tres":
+		failures.append("set_equipped_path/equipped_path: expected shield slot to round-trip the assigned path")
+
 	return failures

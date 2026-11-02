@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Weapon" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectile.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Flak Cannon"
+damage = 4.0
+fire_rate = 4.0
+weapon_range = 200.0
+projectile_scene = ExtResource("2")
+shield_mult = 0.6
+hull_mult = 0.6
+mount_type = 1
+fire_arc_degrees = 140.0
+rarity = 1

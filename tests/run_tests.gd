@@ -8,6 +8,7 @@ func _run_all() -> void:
 		preload("res://tests/test_order.gd"),
 		preload("res://tests/test_ship_component.gd"),
 		preload("res://tests/test_weapon.gd"),
+		preload("res://tests/test_weapon_resources.gd"),
 		preload("res://tests/test_hull.gd"),
 		preload("res://tests/test_shield.gd"),
 		preload("res://tests/test_ship_engine.gd"),

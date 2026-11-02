@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Weapon" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectile.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Railgun"
+damage = 35.0
+fire_rate = 0.25
+weapon_range = 500.0
+projectile_scene = ExtResource("2")
+shield_mult = 0.5
+hull_mult = 1.3
+pierce_pct = 0.25
+mount_type = 0
+fire_arc_degrees = 10.0
+rarity = 2

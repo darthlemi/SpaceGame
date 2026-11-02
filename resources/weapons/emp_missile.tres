@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Weapon" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectile.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "EMP Missile"
+damage = 6.0
+fire_rate = 0.4
+weapon_range = 250.0
+projectile_scene = ExtResource("2")
+shield_mult = 0.8
+hull_mult = 0.5
+component_damage = 15.0
+mount_type = 1
+fire_arc_degrees = 360.0
+rarity = 2

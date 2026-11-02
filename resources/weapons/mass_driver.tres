@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Weapon" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectile.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Mass Driver"
+damage = 14.0
+fire_rate = 0.8
+weapon_range = 400.0
+projectile_scene = ExtResource("2")
+shield_mult = 1.0
+hull_mult = 1.0
+mount_type = 1
+fire_arc_degrees = 120.0
+rarity = 0

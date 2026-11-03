@@ -26,6 +26,7 @@ var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
 var _travel_target: Area2D = null
 var _docked_base: Area2D = null
+var _paused_before_fleet_panel: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -368,14 +369,19 @@ func _open_repair() -> void:
 	repair_panel.open_for(CampaignState.player_fleet)
 
 func _open_fleet_management() -> void:
+	# The engage prompt is modal and shares the panel's screen slot.
+	if engage_prompt.visible:
+		return
+	if not fleet_management_panel.visible:
+		_paused_before_fleet_panel = get_tree().paused
 	_close_dock_subpanels()
 	fleet_management_panel.open_for(CampaignState.player_fleet, _economy_for_base(_docked_base))
 	get_tree().paused = true
 
-# Docked play stays paused behind the overview; only an undocked open unpauses.
+# Docked play stays paused behind the overview; an undocked close restores the prior pause.
 func _on_fleet_management_closed() -> void:
 	if _docked_base == null:
-		get_tree().paused = false
+		get_tree().paused = _paused_before_fleet_panel
 
 # Reputation changes (e.g. a paid fine) can flip a faction between hostile and
 # friendly; re-derive behavior for its live icons instead of waiting for a reload.

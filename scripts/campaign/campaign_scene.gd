@@ -381,8 +381,8 @@ func _open_repair() -> void:
 	repair_panel.open_for(CampaignState.player_fleet)
 
 func _open_fleet_management() -> void:
-	# The engage prompt is modal and shares the panel's screen slot.
-	if engage_prompt.visible:
+	# The engage and respawn prompts are modal and share the panel's screen slot.
+	if engage_prompt.visible or respawn_panel.visible:
 		return
 	if not fleet_management_panel.visible:
 		_paused_before_fleet_panel = get_tree().paused
@@ -417,7 +417,7 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible:
+		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible or respawn_panel.visible:
 			return
 		if get_tree().paused:
 			get_tree().paused = false

@@ -65,4 +65,52 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.paused = false
 	campaign_state.reset()
 	scene.queue_free()
+
+	# Modal respawn: map click, speed/pause controls and Fleet cannot resume or open panels.
+	campaign_state.reset()
+	var modal_player := CampaignFleet.new()
+	modal_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.player_fleet = modal_player
+	campaign_state.begin_respawn()
+	var modal_scene: Node2D = CampaignSceneScene.instantiate()
+	tree.root.add_child(modal_scene)
+	await tree.process_frame
+	if not modal_scene.respawn_panel.visible or not tree.paused:
+		failures.append("modal respawn: setup expected the panel open and the tree paused")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	modal_scene._unhandled_input(click)
+	if not tree.paused:
+		failures.append("modal respawn: (a) a map click unpaused the game")
+	var controls = modal_scene.get_node("UILayer/SpeedControls")
+	controls.speed_3x_button.pressed.emit()
+	if not tree.paused:
+		failures.append("modal respawn: (b) a speed button unpaused the game")
+	controls.pause_button.pressed.emit()
+	if not tree.paused:
+		failures.append("modal respawn: (b) the pause button toggled the pause")
+	var space := InputEventKey.new()
+	space.keycode = KEY_SPACE
+	space.pressed = true
+	controls._unhandled_input(space)
+	if not tree.paused:
+		failures.append("modal respawn: (b) Space toggled the pause")
+	modal_scene.fleet_status_bar.fleet_button.pressed.emit()
+	if modal_scene.fleet_management_panel.visible:
+		failures.append("modal respawn: (c) Fleet opened the fleet panel")
+	modal_scene.respawn_panel.free_button.pressed.emit()
+	if tree.paused:
+		failures.append("modal respawn: (d) expected the tree unpaused after taking the free ship")
+	controls.pause_button.pressed.emit()
+	if not tree.paused:
+		failures.append("modal respawn: (d) expected the pause button to work after respawn")
+	controls.speed_1x_button.pressed.emit()
+	if tree.paused:
+		failures.append("modal respawn: (d) expected a speed button to unpause after respawn")
+	tree.paused = false
+	Engine.time_scale = 1.0
+	modal_scene.queue_free()
+	campaign_state.reset()
+
 	return failures

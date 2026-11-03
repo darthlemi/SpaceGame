@@ -9,9 +9,10 @@ const AMOUNT_MIN_WIDTH := 56.0
 
 # One Dictionary per held commodity: commodity, slider, amount_label.
 var cargo_rows: Array[Dictionary] = []
-# One CheckBox per part_inventory entry / per ship, in fleet order.
+# One CheckBox per part_inventory entry, in inventory order.
 var part_checks: Array[CheckBox] = []
-var crew_checks: Array[CheckBox] = []
+# One Dictionary per ship, in fleet order: slider, amount_label.
+var crew_rows: Array[Dictionary] = []
 
 var _fleet: CampaignFleet
 var _required_cargo := 0.0
@@ -37,7 +38,7 @@ func open_for(fleet: CampaignFleet, required_cargo: float) -> void:
 func _rebuild_rows() -> void:
 	cargo_rows.clear()
 	part_checks.clear()
-	crew_checks.clear()
+	crew_rows.clear()
 	for child in rows_container.get_children():
 		rows_container.remove_child(child)
 		child.queue_free()
@@ -61,20 +62,23 @@ func _rebuild_rows() -> void:
 		var removable := CrewRules.crew_of(comp)
 		if i == flagship:
 			removable = maxi(0, removable - floor_crew)
-		var crew_check := CheckBox.new()
-		crew_check.text = "Crew: %s %d (%d)" % [ShipType.Kind.keys()[ShipType.kind_of(comp)].capitalize(), i + 1, removable]
-		crew_check.disabled = removable <= 0
-		rows_container.add_child(crew_check)
-		crew_checks.append(crew_check)
+		var name_text := "Crew: %s %d" % [ShipType.Kind.keys()[ShipType.kind_of(comp)].capitalize(), i + 1]
+		crew_rows.append(_add_slider_row(name_text, removable))
 
 func _add_cargo_row(commodity: int, held: float) -> void:
+	var row := _add_slider_row("%s (%.1f)" % [Commodity.NAMES[commodity], held], held)
+	row["commodity"] = commodity
+	cargo_rows.append(row)
+
+func _add_slider_row(text: String, max_amount: float) -> Dictionary:
 	var row := HBoxContainer.new()
 	var label := Label.new()
-	label.text = "%s (%.1f)" % [Commodity.NAMES[commodity], held]
+	label.text = text
 	label.custom_minimum_size = Vector2(LABEL_MIN_WIDTH, 0)
 	var slider := HSlider.new()
 	slider.step = 1.0
-	slider.max_value = held
+	slider.max_value = max_amount
+	slider.editable = max_amount > 0.0
 	slider.custom_minimum_size = Vector2(SLIDER_MIN_WIDTH, 0)
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -84,7 +88,7 @@ func _add_cargo_row(commodity: int, held: float) -> void:
 	for control in [label, slider, amount_label]:
 		row.add_child(control)
 	rows_container.add_child(row)
-	cargo_rows.append({"commodity": commodity, "slider": slider, "amount_label": amount_label})
+	return {"slider": slider, "amount_label": amount_label}
 
 func _part_name(path: String) -> String:
 	var item: Resource = load(path)
@@ -110,7 +114,7 @@ func _selected_part_indices() -> Array[int]:
 
 func _refresh_state() -> void:
 	var selected := _selected_cargo()
-	for row in cargo_rows:
+	for row in cargo_rows + crew_rows:
 		var slider: HSlider = row["slider"]
 		var amount_label: Label = row["amount_label"]
 		amount_label.text = "%d" % int(slider.value)
@@ -126,9 +130,10 @@ func _on_confirm_pressed() -> void:
 		var slider: HSlider = row["slider"]
 		amounts[row["commodity"]] = slider.value
 	var crew_by_ship := {}
-	for i in crew_checks.size():
-		if crew_checks[i].button_pressed:
-			crew_by_ship[i] = CrewRules.crew_of(_fleet.ship_compositions[i])
+	for i in crew_rows.size():
+		var crew_slider: HSlider = crew_rows[i]["slider"]
+		if crew_slider.value > 0.0:
+			crew_by_ship[i] = int(crew_slider.value)
 	CampaignState.jettison(_fleet, amounts, _selected_part_indices(), crew_by_ship)
 	visible = false
 	finished.emit(true)

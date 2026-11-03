@@ -27,6 +27,7 @@ var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
 var _travel_target: Area2D = null
 var _docked_base: Area2D = null
+var _home_base: Area2D = null
 var _paused_before_fleet_panel: bool = false
 
 func _ready() -> void:
@@ -38,9 +39,9 @@ func _ready() -> void:
 	if CampaignState.pending_respawn:
 		CampaignState.player_fleet.position = HOME_BASE_POSITION
 
-	var base: Area2D = HomeBaseScene.instantiate()
-	base.global_position = HOME_BASE_POSITION
-	add_child(base)
+	_home_base = HomeBaseScene.instantiate()
+	_home_base.global_position = HOME_BASE_POSITION
+	add_child(_home_base)
 
 	for faction in CampaignState.factions:
 		var faction_base: Area2D = FactionBaseScene.instantiate()
@@ -81,8 +82,11 @@ func _ready() -> void:
 		CampaignState.pending_captured_crew = 0
 		CampaignState.pending_loot_fleet = null
 
+# The new ship appears docked at home base, exactly as on arrival (overview open, paused).
 func _on_respawn_finished() -> void:
-	get_tree().paused = false
+	_trigger_arrival(_home_base)
+	if _docked_base == null:
+		get_tree().paused = false
 
 func _bootstrap_default_campaign() -> void:
 	var player := CampaignFleet.new()

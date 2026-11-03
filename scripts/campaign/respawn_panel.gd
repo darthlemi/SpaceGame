@@ -25,7 +25,7 @@ func _rebuild_buttons() -> void:
 		child.queue_free()
 	buy_buttons = {}
 	header_label.text = "Your fleet was lost. Choose a new ship."
-	credits_label.text = "Credits: %d" % roundi(CampaignState.credits)
+	credits_label.text = "Credits: %d" % floori(CampaignState.credits)
 	for kind in ShipType.Kind.values():
 		var button := Button.new()
 		button.text = "Buy %s (%d cr)" % [ShipType.Kind.keys()[kind].capitalize(), ShipType.SHIP_PRICE[kind]]

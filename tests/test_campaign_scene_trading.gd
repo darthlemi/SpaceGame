@@ -108,6 +108,24 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if not fuel_text.begins_with("Fuel: %.1f" % campaign_state.player_fleet.fuel_amount()):
 		failures.append("expected FleetStatusBar fuel label to show the fleet's fuel, got '%s'" % fuel_text)
 
+	# A 0-crew ship crawls the fleet: the crew label says so in the empty-fuel colour.
+	var crew_label: Label = status_bar.get_node("Layout/CrewLabel")
+	var crawl_suffix := "\n(0-crew ship: %d%% speed)" % roundi(CampaignFleet.EMPTY_FUEL_SPEED_FACTOR * 100.0)
+	var crawl_comp: Dictionary = crew_fleet.ship_compositions[crew_fleet.ship_compositions.size() - 1]
+	var crawl_crew_before: int = CrewRules.crew_of(crawl_comp)
+	CrewRules.set_crew(crawl_comp, 0)
+	status_bar._update_display()
+	if not crew_label.text.ends_with(crawl_suffix):
+		failures.append("expected crew label to end with '%s' for a 0-crew ship, got '%s'" % [crawl_suffix.c_escape(), crew_label.text.c_escape()])
+	if not crew_label.has_theme_color_override("font_color") or crew_label.get_theme_color("font_color") != status_bar.EMPTY_FUEL_COLOR:
+		failures.append("expected crew label coloured EMPTY_FUEL_COLOR for a 0-crew ship")
+	await tree.process_frame
+	UiLayoutCheck.check_panel_layout(status_bar, failures)
+	CrewRules.set_crew(crawl_comp, crawl_crew_before)
+	status_bar._update_display()
+	if crew_label.text.ends_with(crawl_suffix) or crew_label.has_theme_color_override("font_color"):
+		failures.append("expected the crawl warning and colour removed once the ship is crewed, got '%s'" % crew_label.text)
+
 	# Undock closes everything and resumes the game.
 	overview.trade_goods_button.pressed.emit()
 	overview.undock_button.pressed.emit()

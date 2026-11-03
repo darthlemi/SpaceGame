@@ -30,6 +30,14 @@ func _update_display() -> void:
 	else:
 		fuel_label.text = "Fuel: EMPTY (%d%% speed)" % roundi(CampaignFleet.EMPTY_FUEL_SPEED_FACTOR * 100.0)
 		fuel_label.add_theme_color_override("font_color", EMPTY_FUEL_COLOR)
-	crew_label.text = "Crew: %d/%d (-%.1f cr/tick)" % [fleet.crew_total(), fleet.crew_capacity(), CampaignState.wage_bill(fleet)]
+	var crew_text := "Crew: %d/%d (-%.1f cr/tick)" % [fleet.crew_total(), fleet.crew_capacity(), CampaignState.wage_bill(fleet)]
+	if fleet.has_uncrewed_ship():
+		var crawl_pct := roundi(CampaignFleet.EMPTY_FUEL_SPEED_FACTOR * 100.0)
+		# Second line: one line would push the bar into SpeedControls.
+		crew_label.text = crew_text + "\n(0-crew ship: %d%% speed)" % crawl_pct
+		crew_label.add_theme_color_override("font_color", EMPTY_FUEL_COLOR)
+	else:
+		crew_label.text = crew_text
+		crew_label.remove_theme_color_override("font_color")
 	credits_label.text = "Credits: %d" % CampaignState.credits
 	cargo_label.text = "Cargo: %.1f/%d" % [fleet.cargo_total(), fleet.cargo_capacity()]

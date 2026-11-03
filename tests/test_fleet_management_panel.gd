@@ -85,6 +85,25 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(panel, failures)
 
+	# Hire strip: credits cap the count (100 cr buys 2 at 40) and the button shows the total.
+	campaign_state.credits = 100.0
+	var broke_fleet := _make_fleet(6, 40, 6)
+	panel.open_for(broke_fleet, economy)
+	await tree.process_frame
+	if panel.hire_count.max_value != 2.0:
+		failures.append("FleetManagementPanel: expected max hire 2 with 100 credits and pool 10, got %s" % panel.hire_count.max_value)
+	if panel.hire_button.text != "Hire (%d cr)" % (int(panel.hire_count.value) * campaign_state.CREW_HIRE_COST):
+		failures.append("FleetManagementPanel: expected hire button total for %d, got '%s'" % [panel.hire_count.value, panel.hire_button.text])
+	panel.hire_count.value = 1
+	if panel.hire_button.text != "Hire (40 cr)":
+		failures.append("FleetManagementPanel: expected 'Hire (40 cr)' after picking 1, got '%s'" % panel.hire_button.text)
+	panel.hire_count.value = 2
+	if panel.hire_button.text != "Hire (80 cr)":
+		failures.append("FleetManagementPanel: expected 'Hire (80 cr)' after picking 2, got '%s'" % panel.hire_button.text)
+	await tree.process_frame
+	UiLayoutCheck.check_panel_layout(panel, failures)
+	campaign_state.credits = 500.0
+
 	# Scuttle: overflow routes through the jettison dialog.
 	var scuttle_fleet := _make_fleet(6, 40, 6)
 	scuttle_fleet.cargo = {Commodity.Type.ORE: 70.0}

@@ -33,6 +33,7 @@ func _ready() -> void:
 	close_button.pressed.connect(close)
 	balance_button.pressed.connect(_on_balance_pressed)
 	hire_button.pressed.connect(_on_hire_pressed)
+	hire_count.value_changed.connect(_on_hire_count_changed)
 	jettison_button.pressed.connect(_on_jettison_pressed)
 	scuttle_confirm_button.pressed.connect(_on_scuttle_confirmed)
 	scuttle_cancel_button.pressed.connect(_hide_scuttle_confirm)
@@ -141,10 +142,12 @@ func _update_hire_row() -> void:
 		return
 	var pool := floori(_economy.crew_pool)
 	var cap := mini(pool, CrewRules.free_berths(_player_fleet.ship_compositions))
+	cap = mini(cap, floori(CampaignState.credits / CampaignState.CREW_HIRE_COST))
 	hire_label.text = "Hire (pool %d, %d cr each)" % [pool, roundi(CampaignState.CREW_HIRE_COST)]
 	hire_count.max_value = maxi(1, cap)
 	hire_count.set_value_no_signal(clampf(hire_count.value, 1.0, hire_count.max_value))
-	hire_button.disabled = cap < 1 or CampaignState.credits < CampaignState.CREW_HIRE_COST
+	hire_button.text = "Hire (%d cr)" % (int(hire_count.value) * CampaignState.CREW_HIRE_COST)
+	hire_button.disabled = cap < 1
 
 func _on_balance_pressed() -> void:
 	CrewRules.balance(_player_fleet.ship_compositions)
@@ -156,6 +159,9 @@ func _on_deploy_toggled(pressed: bool, index: int) -> void:
 func _on_flagship_pressed(index: int) -> void:
 	_player_fleet.set_flagship(index)
 	refresh()
+
+func _on_hire_count_changed(_value: float) -> void:
+	_update_hire_row()
 
 func _on_hire_pressed() -> void:
 	CampaignState.hire_crew(_economy, _player_fleet, int(hire_count.value))

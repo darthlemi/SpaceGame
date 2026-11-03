@@ -28,6 +28,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("RespawnPanel: expected visible after open_for")
 	if not is_equal_approx(campaign_state.credits, 7.5):
 		failures.append("RespawnPanel: expected 7.5 credits after the penalty, got %s" % campaign_state.credits)
+	# Credits are spendable whole units: 7.5 shows as 7, never rounded up.
+	if panel.credits_label.text != "Credits: 7":
+		failures.append("RespawnPanel: expected credits label 'Credits: 7', got '%s'" % panel.credits_label.text)
 	if panel.buy_buttons.size() != ShipType.Kind.size():
 		failures.append("RespawnPanel: expected one buy button per ship kind, got %d" % panel.buy_buttons.size())
 	for kind in panel.buy_buttons:

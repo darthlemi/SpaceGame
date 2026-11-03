@@ -479,6 +479,20 @@ static func run() -> Array[String]:
 	if lost_state.pending_loot_fleet != null or lost_state.pending_captured_crew != 0:
 		failures.append("resolve_engagement(player loss): expected no loot pending")
 
+	# resolve_engagement mutual wipe: a total loss (respawn) never offers loot, even from a destroyed enemy.
+	var wipe_state := CampaignState.new()
+	var wipe_player := CampaignFleet.new()
+	wipe_player.ship_compositions.assign([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}])
+	wipe_state.player_fleet = wipe_player
+	var wipe_enemy := CampaignFleet.new()
+	wipe_enemy.ship_compositions.assign([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}])
+	wipe_enemy.cargo = {Commodity.Type.ORE: 5.0}
+	wipe_state.enemy_fleets.assign([wipe_enemy])
+	wipe_state.start_engagement(wipe_enemy)
+	wipe_state.resolve_engagement([], [])
+	if wipe_state.pending_loot_fleet != null or wipe_state.pending_captured_crew != 0:
+		failures.append("resolve_engagement(mutual wipe): expected no loot pending after a total loss")
+
 	# Station repair: is_damaged/repair_cost_for/repair_ship.
 	var damaged_comp := {
 		"max_hp": 100.0, "current_hp": 50.0, "max_shield": 50.0, "current_shield": 50.0,

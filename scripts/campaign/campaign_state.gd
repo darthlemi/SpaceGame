@@ -50,7 +50,9 @@ func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Ar
 		if player_won or active_enemy_fleet.is_destroyed():
 			enemy_fleets.erase(active_enemy_fleet)
 			_apply_reputation_loss(active_enemy_fleet.faction)
-			if active_enemy_fleet.cargo_total() > 0.0 or captured_crew > 0:
+			# A total loss respawns at home base; there is no one left to take the loot.
+			var lootable := active_enemy_fleet.cargo_total() > 0.0 or captured_crew > 0
+			if lootable and not player_fleet.is_destroyed():
 				pending_loot_fleet = active_enemy_fleet
 				pending_captured_crew = captured_crew
 		else:

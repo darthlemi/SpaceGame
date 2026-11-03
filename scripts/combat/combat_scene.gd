@@ -18,6 +18,7 @@ var _player_spawned_indices: Array[int] = []
 var _enemy_spawned_indices: Array[int] = []
 var _player_won := false
 var _resolved := false
+var _stalemate := false
 
 func _ready() -> void:
 	result_label.visible = false
@@ -48,6 +49,8 @@ func _ready() -> void:
 
 	fleet_commander.setup(player_ships, ENEMY_GROUP)
 	debug_console.command_entered.connect(_on_debug_command)
+	# Two unarmed fleets (e.g. freighter vs trader) would otherwise never end.
+	_check_battle_end()
 
 func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
@@ -166,8 +169,11 @@ func _kill_all_enemies() -> void:
 func _wire_battle_end(ship: Ship) -> void:
 	ship.hull.destroyed.connect(_check_battle_end)
 	ship.disabled.connect(_check_battle_end)
+	for mount in ship.weapon_mounts:
+		mount.destroyed.connect(_check_battle_end)
 
 # Player side first: if both sides are out in the same check, the player loses.
+# A loss outranks a stalemate; with no working weapon left on either side, nothing can change.
 func _check_battle_end() -> void:
 	if _resolved:
 		return
@@ -176,13 +182,28 @@ func _check_battle_end() -> void:
 	elif _active_count(ENEMY_GROUP) == 0:
 		_player_won = true
 		_show_result("Victory")
+	elif not _has_armed_active_ship(PLAYER_GROUP) and not _has_armed_active_ship(ENEMY_GROUP):
+		_stalemate = true
+		_show_result("Stalemate")
 
 func _active_count(group: StringName) -> int:
 	var count := 0
 	for member in get_tree().get_nodes_in_group(group):
-		if is_instance_valid(member) and not member.is_queued_for_deletion() and not member.is_disabled():
+		if _is_active(member):
 			count += 1
 	return count
+
+func _has_armed_active_ship(group: StringName) -> bool:
+	for member in get_tree().get_nodes_in_group(group):
+		if not _is_active(member):
+			continue
+		for mount in member.weapon_mounts:
+			if mount.weapon != null and not mount.is_destroyed():
+				return true
+	return false
+
+func _is_active(member: Node) -> bool:
+	return is_instance_valid(member) and not member.is_queued_for_deletion() and not member.is_disabled()
 
 func _show_result(text: String) -> void:
 	_resolved = true
@@ -194,7 +215,8 @@ func _show_result(text: String) -> void:
 func _report_to_campaign() -> void:
 	var player_comps: Array[Dictionary] = CampaignState.player_fleet.ship_compositions
 	var enemy_comps: Array[Dictionary] = CampaignState.active_enemy_fleet.ship_compositions
-	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices, _player_won)
+	# A stalemate keeps disabled player ships, like a win; the loss path drops them.
+	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices, _player_won or _stalemate)
 	var enemy_survivors: Array[Dictionary] = []
 	var captured_crew := 0
 	if _player_won:
@@ -214,7 +236,8 @@ func _captured_crew(enemy_comps: Array[Dictionary]) -> int:
 	var pool := 0
 	for ship in enemy_ships:
 		if _is_surviving(ship) and ship.is_disabled():
-			pool += roundi(ship.crew)
+			# Floor: rounding up would capture crew the ship no longer has.
+			pool += floori(ship.crew + CrewRules.ROUND_EPSILON)
 	for i in enemy_comps.size():
 		if not _enemy_spawned_indices.has(i):
 			pool += CrewRules.crew_of(enemy_comps[i])
@@ -268,8 +291,9 @@ func _survivor_comp(ship: Ship, orig: Dictionary) -> Dictionary:
 		"flagship": CrewRules.is_flagship(orig),
 	}
 	# Untracked crew (debug-spawned extras) stays keyless, which reads as full crew.
+	# Floor so a disabled ship can't round back up past its disable threshold.
 	if ship.crew_complement > 0:
-		comp["crew"] = roundi(ship.crew)
+		comp["crew"] = floori(ship.crew + CrewRules.ROUND_EPSILON)
 	return comp
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -65,12 +65,16 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.paused = false
 	campaign_state.reset()
 	scene.queue_free()
+	# Let it free first: its teardown can fire area_exited, which unpauses the tree.
+	await tree.process_frame
 
 	# Modal respawn: map click, speed/pause controls and Fleet cannot resume or open panels.
 	campaign_state.reset()
 	var modal_player := CampaignFleet.new()
 	modal_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	campaign_state.player_fleet = modal_player
+	# Docking needs the home economy; the bootstrap is skipped when a fleet already exists.
+	campaign_state.home_base_economy = BaseEconomy.new()
 	campaign_state.begin_respawn()
 	var modal_scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(modal_scene)
@@ -100,8 +104,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if modal_scene.fleet_management_panel.visible:
 		failures.append("modal respawn: (c) Fleet opened the fleet panel")
 	modal_scene.respawn_panel.free_button.pressed.emit()
-	if tree.paused:
-		failures.append("modal respawn: (d) expected the tree unpaused after taking the free ship")
+	var respawn_overview: BaseOverviewPanel = modal_scene.base_overview_panel
+	if not respawn_overview.visible or not tree.paused or not (modal_scene._docked_base is HomeBase):
+		failures.append("modal respawn: (d) expected the new ship docked at HomeBase (overview open, tree paused), overview=%s paused=%s" % [respawn_overview.visible, tree.paused])
+	respawn_overview.undock_button.pressed.emit()
+	if respawn_overview.visible or tree.paused:
+		failures.append("modal respawn: (d) expected Undock to close the overview and unpause")
 	controls.pause_button.pressed.emit()
 	if not tree.paused:
 		failures.append("modal respawn: (d) expected the pause button to work after respawn")

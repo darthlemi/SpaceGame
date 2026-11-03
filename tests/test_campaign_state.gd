@@ -617,6 +617,72 @@ static func run() -> Array[String]:
 	if corvette_comp != mismatch_comp_before:
 		failures.append("equip_part: expected the composition unchanged after a rejected type-mismatch equip")
 
+	# Crew hiring, wages and desertion.
+	var hire_state := CampaignState.new()
+	var hire_economy := BaseEconomy.new()
+	hire_economy.crew_pool = 10.0
+	var hire_fleet := CampaignFleet.new()
+	hire_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	hire_fleet.ship_compositions[0]["crew"] = 9
+	hire_state.credits = 500.0
+	if not hire_state.hire_crew(hire_economy, hire_fleet, 3):
+		failures.append("hire_crew: expected 3 hires to succeed")
+	if not is_equal_approx(hire_state.credits, 500.0 - 3.0 * CampaignState.CREW_HIRE_COST):
+		failures.append("hire_crew: expected credits 380, got %s" % hire_state.credits)
+	if not is_equal_approx(hire_economy.crew_pool, 7.0) or hire_fleet.crew_total() != 12:
+		failures.append("hire_crew: expected pool 7 and crew 12, got %s / %s" % [hire_economy.crew_pool, hire_fleet.crew_total()])
+	hire_fleet.ship_compositions[0]["crew"] = 8
+	if hire_state.hire_crew(hire_economy, hire_fleet, 5):
+		failures.append("hire_crew: expected failure when count exceeds free berths")
+	hire_fleet.ship_compositions[0]["crew"] = 0
+	if hire_state.hire_crew(hire_economy, hire_fleet, 8):
+		failures.append("hire_crew: expected failure when count exceeds the pool")
+	hire_state.credits = 100.0
+	if hire_state.hire_crew(hire_economy, hire_fleet, 3):
+		failures.append("hire_crew: expected failure when credits are short")
+	if hire_state.hire_crew(hire_economy, hire_fleet, 0):
+		failures.append("hire_crew: expected failure for count < 1")
+
+	var wage_state := CampaignState.new()
+	var wage_fleet := CampaignFleet.new()
+	wage_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	wage_fleet.set_flagship(0)
+	wage_state.player_fleet = wage_fleet
+	if not is_equal_approx(wage_state.wage_bill(wage_fleet), 4.0):
+		failures.append("wage_bill: expected 4.0, got %s" % wage_state.wage_bill(wage_fleet))
+	if wage_state.flagship_floor(wage_fleet) != 12:
+		failures.append("flagship_floor: expected 12 for a capital, got %s" % wage_state.flagship_floor(wage_fleet))
+	wage_state.credits = 1.0
+	wage_state.pay_wages()
+	if not is_equal_approx(wage_state.credits, 0.0) or wage_state.credits < 0.0:
+		failures.append("pay_wages: expected credits 0.0, got %s" % wage_state.credits)
+	if wage_fleet.ship_compositions[1]["crew"] != 6 or wage_fleet.ship_compositions[0]["crew"] != 40:
+		failures.append("pay_wages: expected 6 deserters from the corvette, got %s" % wage_fleet.ship_compositions)
+	wage_state.credits = 100.0
+	wage_state.pay_wages()
+	if not is_equal_approx(wage_state.credits, 100.0 - 0.1 * 34.0):
+		failures.append("pay_wages: expected full bill paid, got credits %s" % wage_state.credits)
+
+	# Desertion with no credits never takes the flagship below its floor.
+	var broke_state := CampaignState.new()
+	var broke_fleet := CampaignFleet.new()
+	broke_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	broke_fleet.ship_compositions[0]["crew"] = 12
+	broke_fleet.ship_compositions[1]["crew"] = 0
+	broke_fleet.set_flagship(0)
+	broke_state.player_fleet = broke_fleet
+	broke_state.credits = 0.0
+	for i in 20:
+		broke_state.pay_wages()
+	if broke_fleet.ship_compositions[0]["crew"] != 12 or broke_state.credits != 0.0:
+		failures.append("pay_wages: flagship floor/credits violated, crew %s credits %s" % [broke_fleet.ship_compositions[0]["crew"], broke_state.credits])
+	# Unpayable bill above the floor: deserters leave but the flagship stops at its floor.
+	broke_fleet.ship_compositions[0]["crew"] = 40
+	for i in 40:
+		broke_state.pay_wages()
+	if broke_fleet.ship_compositions[0]["crew"] != 12 or broke_state.credits != 0.0:
+		failures.append("pay_wages: expected flagship to settle at floor 12, got %s" % broke_fleet.ship_compositions[0]["crew"])
+
 	campaign_state.reset()
 
 	return failures

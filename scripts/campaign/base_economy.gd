@@ -11,6 +11,9 @@ const POPULATION_DECLINE_RATE := 0.05
 # Growth restarts from this headcount, so an emptied base can repopulate.
 const POPULATION_FLOOR := 100.0
 const FOOD_SECURE_STOCK := 10.0
+# Tuning placeholders: hireable crew regenerates from population up to a population-scaled cap.
+const CREW_POOL_CAP_FRACTION := 0.05
+const CREW_POOL_REGEN_RATE := 0.005
 
 enum WealthLevel { POOR, MIDDLING, WEALTHY }
 
@@ -22,6 +25,8 @@ var surplus_streak: int = 0
 var population: float = 0.0
 # -1 declining, 0 stable, 1 growing (as of the last tick).
 var population_trend: int = 0
+# Hireable crew available at this base.
+var crew_pool: float = 0.0
 
 func tick() -> void:
 	for slot in slots:
@@ -60,6 +65,10 @@ func tick() -> void:
 	else:
 		surplus_streak += 1
 	_tick_population()
+	crew_pool = min(population * CREW_POOL_CAP_FRACTION, crew_pool + population * CREW_POOL_REGEN_RATE)
+
+func crew_pool_cap() -> float:
+	return population * CREW_POOL_CAP_FRACTION
 
 func price_for(commodity: int) -> float:
 	var target: float = Commodity.TARGET_STOCK[commodity]

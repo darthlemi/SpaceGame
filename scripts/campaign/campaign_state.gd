@@ -10,6 +10,10 @@ const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
 const ECONOMY_TICK_INTERVAL := 5.0
 const REPAIR_COST := 75.0
+# Tuning placeholders.
+const CREW_HIRE_COST := 40.0
+const WAGE_PER_CREW := 0.1
+const DESERTION_RATE := 0.2
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
@@ -92,12 +96,50 @@ func tick_economy(delta: float) -> void:
 	_economy_tick_elapsed += delta
 	while _economy_tick_elapsed >= ECONOMY_TICK_INTERVAL:
 		_economy_tick_elapsed -= ECONOMY_TICK_INTERVAL
+		pay_wages()
 		if home_base_economy != null:
 			home_base_economy.tick()
 		for faction in factions:
 			if faction.economy != null:
 				faction.economy.tick()
 				_apply_fleet_allocation(faction)
+
+# The flagship's deploy minimum is never billed or deserted, so the player can't be stranded.
+func flagship_floor(fleet: CampaignFleet) -> int:
+	var index := fleet.flagship_index()
+	if index < 0:
+		return 0
+	return CrewRules.deploy_min_for(CrewRules.complement(fleet.ship_compositions[index]))
+
+func wage_bill(fleet: CampaignFleet) -> float:
+	return WAGE_PER_CREW * _billable_crew(fleet)
+
+func pay_wages() -> void:
+	if player_fleet == null:
+		return
+	var billable := _billable_crew(player_fleet)
+	if billable <= 0:
+		return
+	if credits >= WAGE_PER_CREW * billable:
+		credits -= WAGE_PER_CREW * billable
+		return
+	# Epsilon guards float noise in credits / WAGE_PER_CREW (0.3 / 0.1 is 2.9999999999999996).
+	var paid := mini(billable, floori(credits / WAGE_PER_CREW + 0.000001))
+	credits = maxf(0.0, credits - paid * WAGE_PER_CREW)
+	var unpaid := billable - paid
+	var deserters := clampi(maxi(1, roundi(unpaid * DESERTION_RATE)), 0, unpaid)
+	CrewRules.remove_crew(player_fleet.ship_compositions, deserters, player_fleet.flagship_index(), flagship_floor(player_fleet))
+
+func hire_crew(economy: BaseEconomy, fleet: CampaignFleet, count: int) -> bool:
+	if count < 1 or count > floori(economy.crew_pool) or count > CrewRules.free_berths(fleet.ship_compositions):
+		return false
+	var cost := count * CREW_HIRE_COST
+	if credits < cost:
+		return false
+	credits -= cost
+	economy.crew_pool -= count
+	CrewRules.add_crew(fleet.ship_compositions, count)
+	return true
 
 func buy(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bool:
 	var price := base_economy.price_for(commodity)
@@ -243,6 +285,13 @@ func _resolve_skirmish(skirmish: Skirmish) -> void:
 	if is_instance_valid(skirmish.icon_winner):
 		skirmish.icon_winner.frozen = false
 	skirmish_resolved.emit(skirmish.fleet_winner, skirmish.fleet_loser)
+
+func _billable_crew(fleet: CampaignFleet) -> int:
+	var index := fleet.flagship_index()
+	var exempt := 0
+	if index >= 0:
+		exempt = mini(CrewRules.crew_of(fleet.ship_compositions[index]), flagship_floor(fleet))
+	return fleet.crew_total() - exempt
 
 func _is_power_faction(faction: CampaignFleet.Faction) -> bool:
 	return faction == CampaignFleet.Faction.DOMINION or faction == CampaignFleet.Faction.FREEHOLD

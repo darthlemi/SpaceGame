@@ -226,4 +226,19 @@ static func run() -> Array[String]:
 	if wealth_base.wealth_level() != BaseEconomy.WealthLevel.POOR:
 		failures.append("wealth_level: expected POOR with any active deficit streak, got %s" % wealth_base.wealth_level())
 
+	# Crew pool: regenerates from population toward a population-scaled cap.
+	# Food is reset each tick so population holds at 1000 (5.0 food is neither secure nor starving).
+	var pool_base := BaseEconomy.new()
+	pool_base.slots = [EconomyRole.agriculture()]
+	pool_base.population = 1000.0
+	pool_base.stock = {Commodity.Type.FOOD: 0.0}
+	pool_base.tick()
+	if not is_equal_approx(pool_base.crew_pool, 5.0):
+		failures.append("crew_pool: expected 5.0 after one tick at population 1000, got %s" % pool_base.crew_pool)
+	for i in 40:
+		pool_base.stock[Commodity.Type.FOOD] = 0.0
+		pool_base.tick()
+	if not is_equal_approx(pool_base.crew_pool, 50.0) or not is_equal_approx(pool_base.crew_pool_cap(), 50.0):
+		failures.append("crew_pool: expected cap 50.0, got pool %s cap %s" % [pool_base.crew_pool, pool_base.crew_pool_cap()])
+
 	return failures

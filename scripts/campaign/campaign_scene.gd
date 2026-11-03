@@ -167,6 +167,8 @@ func _bootstrap_default_campaign() -> void:
 	}
 	for faction in CampaignState.factions:
 		faction.economy.population = faction.economy.population_capacity() * STARTING_POPULATION_FRACTION
+		faction.economy.crew_pool = faction.economy.crew_pool_cap()
+	CampaignState.home_base_economy.crew_pool = CampaignState.home_base_economy.crew_pool_cap()
 
 func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType:
 	match fleet.faction:

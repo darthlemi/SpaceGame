@@ -1,10 +1,10 @@
 extends Control
 
-@onready var speed_1x_button: Button = $Speed1xButton
-@onready var speed_3x_button: Button = $Speed3xButton
-@onready var speed_5x_button: Button = $Speed5xButton
-@onready var pause_button: Button = $PauseButton
-@onready var paused_label: Label = $PausedLabel
+@onready var speed_1x_button: Button = $Layout/SpeedRow/Speed1xButton
+@onready var speed_3x_button: Button = $Layout/SpeedRow/Speed3xButton
+@onready var speed_5x_button: Button = $Layout/SpeedRow/Speed5xButton
+@onready var pause_button: Button = $Layout/PauseButton
+@onready var paused_label: Label = $Layout/PausedLabel
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS

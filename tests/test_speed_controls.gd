@@ -13,10 +13,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if tree.paused:
 		failures.append("expected tree to start unpaused")
 
-	var speed_3x: Button = scene.get_node("Speed3xButton")
-	var speed_5x: Button = scene.get_node("Speed5xButton")
-	var pause_button: Button = scene.get_node("PauseButton")
-	var paused_label: Label = scene.get_node("PausedLabel")
+	var speed_3x: Button = scene.get_node("Layout/SpeedRow/Speed3xButton")
+	var speed_5x: Button = scene.get_node("Layout/SpeedRow/Speed5xButton")
+	var pause_button: Button = scene.get_node("Layout/PauseButton")
+	var paused_label: Label = scene.get_node("Layout/PausedLabel")
 
 	speed_3x.pressed.emit()
 	if not is_equal_approx(Engine.time_scale, 3.0):

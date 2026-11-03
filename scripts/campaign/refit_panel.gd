@@ -5,17 +5,17 @@ var _fleet: CampaignFleet
 var _catalog: Array[String] = []
 var _selected_ship_index: int = 0
 
-@onready var credits_label: Label = $CreditsLabel
-@onready var shop_button: Button = $ShopButton
-@onready var equip_button: Button = $EquipButton
-@onready var shop_container: VBoxContainer = $ShopContainer
-@onready var equip_container: VBoxContainer = $EquipContainer
-@onready var catalog_rows_container: VBoxContainer = $ShopContainer/CatalogRowsContainer
-@onready var inventory_rows_container: VBoxContainer = $ShopContainer/InventoryRowsContainer
-@onready var ship_selector: OptionButton = $EquipContainer/ShipSelector
-@onready var points_label: Label = $EquipContainer/PointsLabel
-@onready var slots_container: VBoxContainer = $EquipContainer/SlotsContainer
-@onready var close_button: Button = $CloseButton
+@onready var credits_label: Label = $Layout/CreditsLabel
+@onready var shop_button: Button = $Layout/TabRow/ShopButton
+@onready var equip_button: Button = $Layout/TabRow/EquipButton
+@onready var shop_scroll: ScrollContainer = $Layout/ShopScroll
+@onready var equip_scroll: ScrollContainer = $Layout/EquipScroll
+@onready var catalog_rows_container: VBoxContainer = $Layout/ShopScroll/ShopContainer/CatalogRowsContainer
+@onready var inventory_rows_container: VBoxContainer = $Layout/ShopScroll/ShopContainer/InventoryRowsContainer
+@onready var ship_selector: OptionButton = $Layout/EquipScroll/EquipContainer/ShipSelector
+@onready var points_label: Label = $Layout/EquipScroll/EquipContainer/PointsLabel
+@onready var slots_container: VBoxContainer = $Layout/EquipScroll/EquipContainer/SlotsContainer
+@onready var close_button: Button = $Layout/CloseButton
 
 func _ready() -> void:
 	close_button.pressed.connect(close)
@@ -38,13 +38,15 @@ func close() -> void:
 	_fleet = null
 	_catalog = []
 
+# Toggle the scrolls, not their contents: a visible-but-empty expand-fill
+# scroll would still claim half the panel height.
 func _show_shop() -> void:
-	shop_container.visible = true
-	equip_container.visible = false
+	shop_scroll.visible = true
+	equip_scroll.visible = false
 
 func _show_equip() -> void:
-	shop_container.visible = false
-	equip_container.visible = true
+	shop_scroll.visible = false
+	equip_scroll.visible = true
 
 func refresh() -> void:
 	if _fleet == null:

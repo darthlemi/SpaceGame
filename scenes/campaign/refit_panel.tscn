@@ -4,63 +4,60 @@
 
 [node name="RefitPanel" type="Control"]
 offset_left = 652.0
-offset_top = 100.0
+offset_top = 140.0
 offset_right = 1152.0
-offset_bottom = 460.0
+offset_bottom = 640.0
 mouse_filter = 2
 script = ExtResource("1")
 
 [node name="Background" type="Panel" parent="."]
 offset_right = 500.0
-offset_bottom = 360.0
+offset_bottom = 500.0
 mouse_filter = 2
 
-[node name="CreditsLabel" type="Label" parent="."]
+[node name="Layout" type="VBoxContainer" parent="."]
 offset_left = 14.0
 offset_top = 14.0
-offset_right = 314.0
-offset_bottom = 44.0
+offset_right = 486.0
+offset_bottom = 486.0
+mouse_filter = 2
 
-[node name="ShopButton" type="Button" parent="."]
-offset_left = 14.0
-offset_top = 40.0
-offset_right = 94.0
-offset_bottom = 70.0
+[node name="CreditsLabel" type="Label" parent="Layout"]
+
+[node name="TabRow" type="HBoxContainer" parent="Layout"]
+
+[node name="ShopButton" type="Button" parent="Layout/TabRow"]
+custom_minimum_size = Vector2(80, 0)
 text = "Shop"
 
-[node name="EquipButton" type="Button" parent="."]
-offset_left = 100.0
-offset_top = 40.0
-offset_right = 180.0
-offset_bottom = 70.0
+[node name="EquipButton" type="Button" parent="Layout/TabRow"]
+custom_minimum_size = Vector2(80, 0)
 text = "Equip"
 
-[node name="ShopContainer" type="VBoxContainer" parent="."]
-offset_left = 14.0
-offset_top = 76.0
-offset_right = 486.0
-offset_bottom = 300.0
+[node name="ShopScroll" type="ScrollContainer" parent="Layout"]
+size_flags_vertical = 3
 
-[node name="CatalogRowsContainer" type="VBoxContainer" parent="ShopContainer"]
+[node name="ShopContainer" type="VBoxContainer" parent="Layout/ShopScroll"]
+size_flags_horizontal = 3
 
-[node name="InventoryRowsContainer" type="VBoxContainer" parent="ShopContainer"]
+[node name="CatalogRowsContainer" type="VBoxContainer" parent="Layout/ShopScroll/ShopContainer"]
 
-[node name="EquipContainer" type="VBoxContainer" parent="."]
+[node name="InventoryRowsContainer" type="VBoxContainer" parent="Layout/ShopScroll/ShopContainer"]
+
+[node name="EquipScroll" type="ScrollContainer" parent="Layout"]
 visible = false
-offset_left = 14.0
-offset_top = 76.0
-offset_right = 486.0
-offset_bottom = 300.0
+size_flags_vertical = 3
 
-[node name="ShipSelector" type="OptionButton" parent="EquipContainer"]
+[node name="EquipContainer" type="VBoxContainer" parent="Layout/EquipScroll"]
+size_flags_horizontal = 3
 
-[node name="PointsLabel" type="Label" parent="EquipContainer"]
+[node name="ShipSelector" type="OptionButton" parent="Layout/EquipScroll/EquipContainer"]
 
-[node name="SlotsContainer" type="VBoxContainer" parent="EquipContainer"]
+[node name="PointsLabel" type="Label" parent="Layout/EquipScroll/EquipContainer"]
 
-[node name="CloseButton" type="Button" parent="."]
-offset_left = 14.0
-offset_top = 306.0
-offset_right = 114.0
-offset_bottom = 336.0
+[node name="SlotsContainer" type="VBoxContainer" parent="Layout/EquipScroll/EquipContainer"]
+
+[node name="CloseButton" type="Button" parent="Layout"]
+custom_minimum_size = Vector2(100, 0)
+size_flags_horizontal = 0
 text = "Close"

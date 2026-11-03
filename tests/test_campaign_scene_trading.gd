@@ -43,6 +43,27 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var refit_panel: RefitPanel = scene.get_node("UILayer/RefitPanel")
 	if not refit_panel.visible:
 		failures.append("expected RefitPanel visible after docking at HomeBase")
+	# Both open together on dock, so their drawn backgrounds must not overlap.
+	var trade_rect: Rect2 = trade_panel.get_node("Background").get_global_rect()
+	var refit_rect: Rect2 = refit_panel.get_node("Background").get_global_rect()
+	if trade_rect.intersects(refit_rect):
+		failures.append("expected TradePanel %s and RefitPanel %s not to overlap" % [trade_rect, refit_rect])
+	var speed_rect: Rect2 = scene.get_node("UILayer/SpeedControls/Background").get_global_rect()
+	# Headless runs use a 64x64 window, so check against the configured size.
+	var viewport_rect := Rect2(0, 0, ProjectSettings.get_setting("display/window/size/viewport_width"), ProjectSettings.get_setting("display/window/size/viewport_height"))
+	for panel in [trade_panel, refit_panel]:
+		var bg_rect: Rect2 = panel.get_node("Background").get_global_rect()
+		if bg_rect.intersects(speed_rect):
+			failures.append("expected %s %s not to overlap SpeedControls %s" % [panel.name, bg_rect, speed_rect])
+		if not viewport_rect.encloses(bg_rect):
+			failures.append("expected %s %s inside the viewport %s" % [panel.name, bg_rect, viewport_rect])
+		_check_panel_layout(panel, failures)
+	# Docking auto-pauses, so the PAUSED label is shown and checked too.
+	_check_panel_layout(scene.get_node("UILayer/SpeedControls"), failures)
+	refit_panel.equip_button.pressed.emit()
+	await tree.process_frame
+	_check_panel_layout(refit_panel, failures)
+	refit_panel.shop_button.pressed.emit()
 	# Docking now auto-pauses the tree; undo that so the physics-frame-driven
 	# "leave the base" teleport below can actually register the area_exited
 	# transition (mirrors how a real move command would unpause).
@@ -153,3 +174,34 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	campaign_state.reset()
 	scene.queue_free()
 	return failures
+
+# Theme-driven control sizes (e.g. the 8px button margins) must never push
+# content outside the panel chrome or on top of other content.
+static func _check_panel_layout(panel: Control, failures: Array[String]) -> void:
+	var bg_rect: Rect2 = panel.get_node("Background").get_global_rect()
+	var controls: Array[Control] = []
+	_collect_visible_widgets(panel, controls)
+	for c in controls:
+		# ScrollContainer clips its content, so off-screen rows are fine.
+		if not _has_scroll_ancestor(c, panel) and not bg_rect.encloses(c.get_global_rect()):
+			failures.append("%s: %s %s spills outside Background %s" % [panel.name, c.name, c.get_global_rect(), bg_rect])
+	for i in controls.size():
+		for j in range(i + 1, controls.size()):
+			if controls[i].get_global_rect().intersects(controls[j].get_global_rect()):
+				failures.append("%s: %s overlaps %s" % [panel.name, controls[i].name, controls[j].name])
+
+static func _collect_visible_widgets(node: Node, out: Array[Control]) -> void:
+	for child in node.get_children():
+		if not (child is Control) or not child.visible:
+			continue
+		if child is Button or child is Label:
+			out.append(child)
+		_collect_visible_widgets(child, out)
+
+static func _has_scroll_ancestor(node: Node, stop_at: Node) -> bool:
+	var parent := node.get_parent()
+	while parent != null and parent != stop_at:
+		if parent is ScrollContainer:
+			return true
+		parent = parent.get_parent()
+	return false

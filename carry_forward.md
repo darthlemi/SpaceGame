@@ -3,9 +3,22 @@
 - Scoped re-review of fix wave `31b11fb..15877c2` done inline: all 4
   Critical/Important findings ADDRESSED (each with a regression test); 5 of
   6 Minor ADDRESSED.
-- **Parked residual (Minor)**: RefitPanel moved to x 652-1152 to fit the
-  default 1152px viewport, but now overlaps TradePanel (x 200-700) by 48px
-  when both open on dock. Fix by shifting TradePanel left or narrowing one.
+- **Parked residual (Minor) - FIXED (uncommitted, awaiting in-game check)**:
+  TradePanel moved to x 136-636 (16px gap to RefitPanel at 652); both
+  panels moved to y 140-640 to clear SpeedControls (now ends y 131).
+- **Root cause of the dock-panel overflow** (user screenshot): the UI theme
+  (`assets/ui/theme.tres`, 8px button texture margins) makes every Button
+  39px tall, but the panels were hand-positioned assuming 30px rows, with
+  unbounded lists. Both panels now use a `Layout` VBoxContainer, with the
+  variable lists in ScrollContainers (RefitPanel toggles `ShopScroll` and
+  `EquipScroll`, not their contents). Regression check
+  `_check_panel_layout` in `tests/test_campaign_scene_trading.gd`: widgets
+  inside Background, no widget overlaps, no SpeedControls overlap, inside
+  the configured viewport (headless window is 64x64).
+- SpeedControls had the same 4px row overlaps; now a `Layout` VBox (2px
+  separation, 8px inset, background 165x121). Covered by the same check.
+- **Same root cause, flagged, not fixed**: LootPanel's RowsContainer is
+  unbounded (fits ~6 rows before reaching Close).
 - Suite on the branch: only the known `test_campaign_long_run_sim.gd`
   pirate-targeting flake (6 failures on the branch, 5 on the merged tree).
 - Merged `feature/ship-refit-customization` into `main` (--no-ff). The 31

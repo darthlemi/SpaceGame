@@ -5,11 +5,11 @@ var _docked_base_economy: BaseEconomy
 var _player_fleet: CampaignFleet
 var _rows: Dictionary = {}
 
-@onready var rows_container: VBoxContainer = $RowsContainer
-@onready var repair_container: VBoxContainer = $RepairContainer
-@onready var repair_all_button: Button = $RepairAllButton
-@onready var credits_label: Label = $CreditsLabel
-@onready var close_button: Button = $CloseButton
+@onready var rows_container: VBoxContainer = $Layout/RowsContainer
+@onready var repair_container: VBoxContainer = $Layout/RepairScroll/RepairContainer
+@onready var repair_all_button: Button = $Layout/ButtonRow/RepairAllButton
+@onready var credits_label: Label = $Layout/CreditsLabel
+@onready var close_button: Button = $Layout/ButtonRow/CloseButton
 
 func _ready() -> void:
 	close_button.pressed.connect(close)

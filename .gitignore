@@ -2,3 +2,4 @@
 test_output.txt
 test_error.txt
 art/src/out/
+.art_review*

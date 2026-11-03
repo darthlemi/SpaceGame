@@ -1,6 +1,10 @@
 class_name Ship
 extends CharacterBody2D
 
+signal disabled
+
+const DISABLED_DRIFT_DECEL := 20.0
+
 @onready var hull: Hull = $Hull
 @onready var shield: Shield = $Shield
 @onready var engine: ShipEngine = $Engine
@@ -25,14 +29,43 @@ var _loiter_target: Vector2 = Vector2.ZERO
 var _loiter_timer: float = 0.0
 var _chase_target: Node2D
 
+# complement 0 means crew isn't tracked (drones, non-campaign battles): never disabled.
+var crew: float = 0.0
+var crew_complement: int = 0
+var crew_floor: int = 0
+var _disabled: bool = false
+var _last_hull_hp: float = 0.0
+
 func _ready() -> void:
 	for child in get_children():
 		if child is WeaponMount:
 			weapon_mounts.append(child)
 	hull.destroyed.connect(_on_hull_destroyed)
+	hull.damaged.connect(_on_hull_damaged)
 	execute_order(Order.hold())
 	if randomize_loadout:
 		_assign_random_loadout()
+
+# Must run after hull hp is applied: snapshots hull.current_hp as the crew-loss baseline.
+func setup_crew(crew_count: int, complement: int, floor_count: int) -> void:
+	crew = float(crew_count)
+	crew_complement = complement
+	crew_floor = floor_count
+	_last_hull_hp = hull.current_hp
+	_disabled = false
+
+func is_disabled() -> bool:
+	return _disabled
+
+func _on_hull_damaged(_amount: float, remaining: float) -> void:
+	if crew_complement <= 0:
+		return
+	if _last_hull_hp > 0.0:
+		crew = max(float(crew_floor), crew * remaining / _last_hull_hp)
+	_last_hull_hp = remaining
+	if not _disabled and crew < CrewRules.disable_threshold_for(crew_complement):
+		_disabled = true
+		disabled.emit()
 
 func _assign_random_loadout() -> void:
 	var pool: Array = ShipType.WEAPON_POOL.duplicate()
@@ -102,6 +135,10 @@ func resolve_component_hit(impact_pos: Vector2) -> ShipComponent:
 	return best
 
 func _physics_process(delta: float) -> void:
+	if _disabled:
+		velocity = velocity.move_toward(Vector2.ZERO, DISABLED_DRIFT_DECEL * delta)
+		move_and_slide()
+		return
 	_process_order_movement(delta)
 	move_and_slide()
 	_process_weapons()

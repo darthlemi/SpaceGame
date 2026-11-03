@@ -215,6 +215,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [campaign_state_test.resource_path, f])
 	total_failures += campaign_state_async_failures.size()
 
+	var ship_crew_test = load("res://tests/test_ship_crew.gd")
+	var ship_crew_failures: Array[String] = await ship_crew_test.run_async(self)
+	for f in ship_crew_failures:
+		print("FAIL [%s]: %s" % [ship_crew_test.resource_path, f])
+	total_failures += ship_crew_failures.size()
+
 	if total_failures == 0:
 		print("All tests passed.")
 	else:

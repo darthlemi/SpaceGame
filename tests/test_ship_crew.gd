@@ -1,6 +1,9 @@
 extends RefCounted
 
 const CORVETTE_SCENE := "res://scenes/ship/ship_corvette.tscn"
+# Fixed weapon: randomize_loadout can pick weapons that do not fire at 50px in two frames.
+const TEST_WEAPON := "res://resources/weapons/kinetic_cannon.tres"
+# free() not queue_free(): a lingering group member would be fired at by the next case.
 const TARGET_SCENE := "res://scenes/ship/ship.tscn"
 
 static func run_async(tree: SceneTree) -> Array[String]:
@@ -22,7 +25,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	ship.hull.apply_damage(original_hp * 0.05)
 	if disabled_count[0] != 1:
 		failures.append("expected disabled emitted exactly once, got %d" % disabled_count[0])
-	ship.queue_free()
+	ship.free()
 
 	# Disabled ship fires nothing; control ship fires.
 	var control: Ship = await _spawn(tree, 12, 12, 0)
@@ -48,7 +51,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	for mount in dis.weapon_mounts:
 		if mount.cooldown_remaining != 0.0:
 			failures.append("disabled ship fired a weapon (cooldown %f)" % mount.cooldown_remaining)
-	dis.queue_free()
+	dis.free()
 	dis_target.free()
 
 	# Crew floor holds under heavy damage.
@@ -58,7 +61,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("crew_floor 1 violated: crew %f" % floored.crew)
 	if floored.crew_floor != 1:
 		failures.append("crew_floor expected 1, got %d" % floored.crew_floor)
-	floored.queue_free()
+	floored.free()
 
 	# Untracked crew (complement 0) never disables.
 	var untracked: Ship = preload(CORVETTE_SCENE).instantiate()
@@ -67,7 +70,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	untracked.hull.apply_damage(untracked.hull.current_hp * 0.95)
 	if untracked.is_disabled():
 		failures.append("complement 0 ship was disabled")
-	untracked.queue_free()
+	untracked.free()
 
 	return failures
 
@@ -76,6 +79,8 @@ static func _spawn(tree: SceneTree, crew_count: int, complement: int, floor_coun
 	ship.enemy_group = &"test_crew_enemy"
 	tree.root.add_child(ship)
 	await tree.process_frame
+	for mount in ship.weapon_mounts:
+		mount.weapon = load(TEST_WEAPON)
 	ship.setup_crew(crew_count, complement, floor_count)
 	return ship
 

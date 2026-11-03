@@ -440,6 +440,35 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(held_scene) and not held_scene.is_queued_for_deletion():
 		held_scene.queue_free()
 
+	# Total loss (nothing held back): respawn instead of game over.
+	campaign_state.reset()
+	var loss_player := CampaignFleet.new()
+	loss_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var loss_enemy := CampaignFleet.new()
+	loss_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL)])
+	campaign_state.enemy_fleets.assign([loss_enemy])
+	campaign_state.player_fleet = loss_player
+	campaign_state.credits = 400.0
+	campaign_state.start_engagement(loss_enemy)
+
+	var loss_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(loss_scene)
+	await tree.process_frame
+	await tree.process_frame
+	for ship in loss_scene.player_ships.duplicate():
+		ship.hull.apply_damage(ship.hull.max_hp)
+	var loss_next_scene: String = await _take_leaked_scene(tree, loss_scene)
+	if not campaign_state.pending_respawn:
+		failures.append("total loss: expected pending_respawn set")
+	if not is_equal_approx(campaign_state.credits, 300.0):
+		failures.append("total loss: expected the 25 percent credit penalty, got %s" % campaign_state.credits)
+	if loss_next_scene != "res://scenes/campaign/campaign_scene.tscn":
+		failures.append("total loss: expected the campaign scene (not game over), got '%s'" % loss_next_scene)
+	tree.paused = false
+	campaign_state.reset()
+	if is_instance_valid(loss_scene) and not loss_scene.is_queued_for_deletion():
+		loss_scene.queue_free()
+
 	return failures
 
 # change_scene_to_file applies a few frames later; poll for it, then free the

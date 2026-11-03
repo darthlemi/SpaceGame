@@ -204,10 +204,10 @@ func _report_to_campaign() -> void:
 	CampaignState.resolve_engagement(player_survivors, enemy_survivors, _player_won, captured_crew)
 	if CampaignState.player_fleet == null:
 		return
+	# A total loss respawns at home base instead of ending the game.
 	if CampaignState.player_fleet.is_destroyed():
-		get_tree().change_scene_to_file("res://scenes/ui/game_over.tscn")
-	else:
-		get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
+		CampaignState.begin_respawn()
+	get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
 
 # Disabled enemy ships and held-back enemy comps are both captured with the fleet.
 func _captured_crew(enemy_comps: Array[Dictionary]) -> int:

@@ -978,6 +978,59 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("jettison: expected flagship floored at 12 and freighter at 4, got %d / %d" % [CrewRules.crew_of(jet_fleet.ship_compositions[0]), CrewRules.crew_of(jet_fleet.ship_compositions[1])])
 	scuttle_state.free()
 
+	# Respawn: credit penalty, loss of cargo/parts/ships; reputation and fines kept.
+	var respawn_state = CampaignState.new()
+	var respawn_faction := PowerFaction.new()
+	respawn_faction.fine = 150.0
+	respawn_faction.reputation = 30.0
+	respawn_state.factions.assign([respawn_faction])
+	var respawn_fleet := CampaignFleet.new()
+	respawn_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL)])
+	respawn_fleet.cargo = {Commodity.Type.ORE: 5.0}
+	respawn_fleet.part_inventory.assign(["res://resources/weapons/kinetic_cannon.tres"])
+	respawn_state.player_fleet = respawn_fleet
+	respawn_state.credits = 400.0
+	respawn_state.begin_respawn()
+	if not respawn_state.pending_respawn:
+		failures.append("begin_respawn: expected pending_respawn set")
+	if not is_equal_approx(respawn_state.credits, 300.0):
+		failures.append("begin_respawn: expected 300 credits, got %s" % respawn_state.credits)
+	if not respawn_fleet.cargo.is_empty() or not respawn_fleet.part_inventory.is_empty() or not respawn_fleet.ship_compositions.is_empty():
+		failures.append("begin_respawn: expected cargo, parts and ships cleared")
+	if respawn_faction.fine != 150.0 or respawn_faction.reputation != 30.0:
+		failures.append("begin_respawn: expected fine and reputation untouched")
+	if respawn_state.complete_respawn(ShipType.Kind.CAPITAL, true):
+		failures.append("complete_respawn: expected buying a capital at 300 credits to fail")
+	if not respawn_state.pending_respawn or not respawn_fleet.ship_compositions.is_empty():
+		failures.append("complete_respawn: expected a failed buy to change nothing")
+	if not respawn_state.complete_respawn(ShipType.Kind.CAPITAL, false):
+		failures.append("complete_respawn: expected the free respawn to succeed")
+	var free_comps: Array[Dictionary] = respawn_fleet.ship_compositions
+	if free_comps.size() != 1 or ShipType.kind_of(free_comps[0]) != ShipType.Kind.CORVETTE:
+		failures.append("complete_respawn: expected one free corvette regardless of kind")
+	elif CrewRules.crew_of(free_comps[0]) != 4 or not CrewRules.is_flagship(free_comps[0]):
+		failures.append("complete_respawn: expected corvette crew 4 and flagship, got %s" % free_comps[0])
+	if not is_equal_approx(respawn_state.credits, 300.0):
+		failures.append("complete_respawn: expected the free ship to cost nothing, got %s" % respawn_state.credits)
+	if respawn_state.pending_respawn:
+		failures.append("complete_respawn: expected pending_respawn cleared")
+	respawn_fleet.ship_compositions.clear()
+	if respawn_state.complete_respawn(ShipType.Kind.FREIGHTER, true):
+		failures.append("complete_respawn: expected buying a freighter at 300 credits to fail")
+	respawn_state.credits = 600.0
+	if not respawn_state.complete_respawn(ShipType.Kind.FREIGHTER, true):
+		failures.append("complete_respawn: expected buying a freighter at 600 credits to succeed")
+	elif not is_equal_approx(respawn_state.credits, 100.0) or CrewRules.crew_of(respawn_fleet.ship_compositions[0]) != 2:
+		failures.append("complete_respawn: expected 100 credits left and freighter crew 2")
+	respawn_state.credits = 10.0
+	respawn_state.begin_respawn()
+	if not is_equal_approx(respawn_state.credits, 7.5):
+		failures.append("begin_respawn: expected 7.5 credits, got %s" % respawn_state.credits)
+	respawn_state.reset()
+	if respawn_state.pending_respawn:
+		failures.append("reset: expected pending_respawn cleared")
+	respawn_state.free()
+
 	return failures
 
 static func _scuttle_fleet() -> CampaignFleet:

@@ -14,12 +14,14 @@ const REPAIR_COST := 75.0
 const CREW_HIRE_COST := 40.0
 const WAGE_PER_CREW := 0.1
 const DESERTION_RATE := 0.2
+const RESPAWN_CREDIT_PENALTY := 0.25
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
 var active_enemy_fleet: CampaignFleet
 var pending_loot_fleet: CampaignFleet = null
 var pending_captured_crew: int = 0
+var pending_respawn: bool = false
 var factions: Array[PowerFaction] = []
 var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
@@ -79,12 +81,38 @@ func repair_ship(comp: Dictionary) -> void:
 	if comp.has("weapon_mount_max_hp"):
 		comp["weapon_mount_current_hp"] = (comp["weapon_mount_max_hp"] as Array).duplicate()
 
+# Total loss: keeps reputation and fines, loses cargo, parts, ships and a share of credits.
+func begin_respawn() -> void:
+	credits = maxf(0.0, credits * (1.0 - RESPAWN_CREDIT_PENALTY))
+	if player_fleet != null:
+		player_fleet.cargo = {}
+		player_fleet.part_inventory.clear()
+		player_fleet.ship_compositions.clear()
+	pending_respawn = true
+
+# buy false forces a free corvette; buy true pays SHIP_PRICE[kind] or fails.
+func complete_respawn(kind: ShipType.Kind, buy: bool) -> bool:
+	if player_fleet == null:
+		return false
+	var chosen := kind if buy else ShipType.Kind.CORVETTE
+	if buy:
+		if credits < ShipType.SHIP_PRICE[chosen]:
+			return false
+		credits -= ShipType.SHIP_PRICE[chosen]
+	var comp := ShipType.new_composition(chosen)
+	CrewRules.set_crew(comp, CrewRules.deploy_min_for(CrewRules.complement(comp)))
+	player_fleet.ship_compositions.assign([comp])
+	player_fleet.set_flagship(0)
+	pending_respawn = false
+	return true
+
 func reset() -> void:
 	player_fleet = null
 	enemy_fleets = []
 	active_enemy_fleet = null
 	pending_loot_fleet = null
 	pending_captured_crew = 0
+	pending_respawn = false
 	factions = []
 	factions_at_war = true
 	active_skirmishes = []

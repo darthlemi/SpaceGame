@@ -1,0 +1,38 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/campaign/respawn_panel.gd" id="1"]
+
+[node name="RespawnPanel" type="Control"]
+offset_left = 316.0
+offset_top = 140.0
+offset_right = 636.0
+offset_bottom = 640.0
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="Background" type="Panel" parent="."]
+offset_right = 320.0
+offset_bottom = 500.0
+mouse_filter = 2
+
+[node name="Layout" type="VBoxContainer" parent="."]
+offset_left = 14.0
+offset_top = 14.0
+offset_right = 306.0
+offset_bottom = 486.0
+mouse_filter = 2
+
+[node name="HeaderLabel" type="Label" parent="Layout"]
+autowrap_mode = 3
+
+[node name="CreditsLabel" type="Label" parent="Layout"]
+
+[node name="BuyScroll" type="ScrollContainer" parent="Layout"]
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="BuyContainer" type="VBoxContainer" parent="Layout/BuyScroll"]
+size_flags_horizontal = 3
+
+[node name="FreeButton" type="Button" parent="Layout"]
+text = "Take a free corvette (minimum crew)"

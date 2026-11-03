@@ -21,6 +21,7 @@ var enemy_icons: Array[CampaignFleetIcon] = []
 @onready var fleet_status_bar: Control = $UILayer/FleetStatusBar
 @onready var base_overview_panel: BaseOverviewPanel = $UILayer/BaseOverviewPanel
 @onready var loot_panel: LootPanel = $UILayer/LootPanel
+@onready var respawn_panel: RespawnPanel = $UILayer/RespawnPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
@@ -33,6 +34,9 @@ func _ready() -> void:
 
 	if CampaignState.player_fleet == null:
 		_bootstrap_default_campaign()
+
+	if CampaignState.pending_respawn:
+		CampaignState.player_fleet.position = HOME_BASE_POSITION
 
 	var base: Area2D = HomeBaseScene.instantiate()
 	base.global_position = HOME_BASE_POSITION
@@ -67,10 +71,18 @@ func _ready() -> void:
 	CampaignState.fleet_role_changed.connect(_on_fleet_role_changed)
 	CampaignState.faction_reputation_changed.connect(_on_faction_reputation_changed)
 
+	respawn_panel.finished.connect(_on_respawn_finished)
+	if CampaignState.pending_respawn:
+		respawn_panel.open_for()
+		get_tree().paused = true
+
 	if CampaignState.pending_loot_fleet != null:
 		loot_panel.open_for(CampaignState.pending_loot_fleet, CampaignState.player_fleet, CampaignState.pending_captured_crew)
 		CampaignState.pending_captured_crew = 0
 		CampaignState.pending_loot_fleet = null
+
+func _on_respawn_finished() -> void:
+	get_tree().paused = false
 
 func _bootstrap_default_campaign() -> void:
 	var player := CampaignFleet.new()

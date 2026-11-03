@@ -27,7 +27,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.root.add_child(controller)
 	controller.setup(ai_ship, &"test_targets")
 
-	await tree.process_frame
+	# A headless frame can hold 0 physics ticks, so poll physics ticks (bounded) for
+	# AIController._physics_process instead of assuming one process frame ran it.
+	for i in 5:
+		await tree.physics_frame
+		if ai_ship.current_order.type == Order.Type.ATTACK_TARGET:
+			break
 
 	if ai_ship.current_order.type != Order.Type.ATTACK_TARGET:
 		failures.append("AIController: expected ATTACK_TARGET order once a group member is in range, got %s" % ai_ship.current_order.type)

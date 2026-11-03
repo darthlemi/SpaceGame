@@ -13,6 +13,7 @@ enum Role { COMBAT, TRADER }
 @export var speed: float = 80.0
 
 @export var cargo: Dictionary = {}
+@export var part_inventory: Array[String] = []
 
 func total_strength() -> float:
 	var sum := 0.0
@@ -46,4 +47,5 @@ func cargo_total() -> float:
 	var sum := 0.0
 	for amount in cargo.values():
 		sum += amount
+	sum += part_inventory.size()
 	return sum

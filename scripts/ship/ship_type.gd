@@ -3,6 +3,8 @@ extends RefCounted
 
 enum Kind { CORVETTE, FREIGHTER, CAPITAL }
 
+enum SlotType { WEAPON, SHIELD, ENGINE }
+
 const SCENES := {
 	Kind.CORVETTE: "res://scenes/ship/ship_corvette.tscn",
 	Kind.FREIGHTER: "res://scenes/ship/ship_freighter.tscn",
@@ -32,6 +34,54 @@ const WEAPON_POOL: Array[String] = [
 	"res://resources/weapons/pd_laser_turret.tres",
 ]
 
+const LOADOUT_POINTS := {
+	Kind.CORVETTE: 20,
+	Kind.FREIGHTER: 15,
+	Kind.CAPITAL: 40,
+}
+
+static func points_budget_for(kind: Kind) -> int:
+	return LOADOUT_POINTS[kind]
+
+static func equipped_path(comp: Dictionary, slot_type: SlotType, slot_index: int) -> String:
+	match slot_type:
+		SlotType.WEAPON:
+			var items: Array = comp.get("weapon_mount_items", [])
+			return items[slot_index] if slot_index < items.size() else ""
+		SlotType.SHIELD:
+			return comp.get("shield_item", "")
+		SlotType.ENGINE:
+			return comp.get("engine_item", "")
+	return ""
+
+static func set_equipped_path(comp: Dictionary, slot_type: SlotType, slot_index: int, path: String) -> void:
+	match slot_type:
+		SlotType.WEAPON:
+			var items: Array = comp.get("weapon_mount_items", [])
+			# Resize array to ensure it's large enough for the assignment
+			while items.size() <= slot_index:
+				items.append("")
+			items[slot_index] = path
+			comp["weapon_mount_items"] = items
+		SlotType.SHIELD:
+			comp["shield_item"] = path
+		SlotType.ENGINE:
+			comp["engine_item"] = path
+
+static func points_of_path(path: String) -> int:
+	if path == "":
+		return 0
+	var item: Resource = load(path)
+	return PartRarity.points_for(item.rarity)
+
+static func points_used(comp: Dictionary) -> int:
+	var total := 0
+	for path in comp.get("weapon_mount_items", []):
+		total += points_of_path(path)
+	total += points_of_path(comp.get("shield_item", ""))
+	total += points_of_path(comp.get("engine_item", ""))
+	return total
+
 static func scene_for(kind: Kind) -> PackedScene:
 	return load(SCENES[kind])
 
@@ -44,8 +94,10 @@ static func cargo_capacity_for(kind: Kind) -> float:
 static func new_composition(kind: Kind) -> Dictionary:
 	var stats: Dictionary = BASE_STATS[kind]
 	var mount_hp: Array[float] = []
+	var mount_items: Array[String] = []
 	for i in int(stats["weapon_mount_count"]):
 		mount_hp.append(stats["weapon_mount_hp"])
+		mount_items.append("")
 	return {
 		"ship_type": kind,
 		"max_hp": stats["max_hp"],
@@ -56,4 +108,7 @@ static func new_composition(kind: Kind) -> Dictionary:
 		"engine_current_hp": stats["engine_hp"],
 		"weapon_mount_max_hp": mount_hp,
 		"weapon_mount_current_hp": mount_hp.duplicate(),
+		"weapon_mount_items": mount_items,
+		"shield_item": "",
+		"engine_item": "",
 	}

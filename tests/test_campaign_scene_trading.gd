@@ -40,6 +40,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if not trade_panel.visible:
 		failures.append("expected TradePanel visible after docking at HomeBase")
+	var refit_panel: RefitPanel = scene.get_node("UILayer/RefitPanel")
+	if not refit_panel.visible:
+		failures.append("expected RefitPanel visible after docking at HomeBase")
 	# Docking now auto-pauses the tree; undo that so the physics-frame-driven
 	# "leave the base" teleport below can actually register the area_exited
 	# transition (mirrors how a real move command would unpause).
@@ -51,6 +54,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if trade_panel.visible:
 		failures.append("expected TradePanel hidden after leaving HomeBase")
+	if refit_panel.visible:
+		failures.append("expected RefitPanel hidden after leaving HomeBase")
 
 	# Dock at a faction base and confirm the panel opens with that
 	# faction's own economy (not HomeBase's).

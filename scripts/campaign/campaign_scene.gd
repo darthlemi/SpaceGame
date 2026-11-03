@@ -12,6 +12,7 @@ var enemy_icons: Array[CampaignFleetIcon] = []
 
 @onready var engage_prompt: Control = $UILayer/EngagePrompt
 @onready var trade_panel: TradePanel = $UILayer/TradePanel
+@onready var refit_panel: RefitPanel = $UILayer/RefitPanel
 @onready var loot_panel: LootPanel = $UILayer/LootPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
@@ -44,7 +45,8 @@ func _ready() -> void:
 	engage_prompt.visible = false
 	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
 	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
-	trade_panel.close_button.pressed.connect(_on_trade_panel_closed)
+	trade_panel.close_button.pressed.connect(_on_docking_panel_closed)
+	refit_panel.close_button.pressed.connect(_on_docking_panel_closed)
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
@@ -169,6 +171,11 @@ func _is_faction_hostile(faction: CampaignFleet.Faction) -> bool:
 			return power_faction.reputation < CampaignState.HOSTILE_REPUTATION_THRESHOLD
 	return false
 
+func _catalog_for_base(area: Area2D) -> Array[String]:
+	if area is FactionBase:
+		return RefitCatalog.for_faction(area.faction_enum)
+	return RefitCatalog.HOME_CATALOG
+
 func _economy_for_base(area: Area2D) -> BaseEconomy:
 	if area is HomeBase:
 		return CampaignState.home_base_economy
@@ -246,6 +253,7 @@ func _trigger_arrival(area: Area2D) -> void:
 		var economy := _economy_for_base(area)
 		if economy != null:
 			trade_panel.open_for(economy, CampaignState.player_fleet)
+			refit_panel.open_for(CampaignState.player_fleet, _catalog_for_base(area))
 			get_tree().paused = true
 			_travel_target = null
 
@@ -255,6 +263,7 @@ func _on_player_area_exited(area: Area2D) -> void:
 		engage_prompt.visible = false
 	elif area is HomeBase or area is FactionBase:
 		trade_panel.close()
+		refit_panel.close()
 		get_tree().paused = false
 
 func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
@@ -299,7 +308,9 @@ func _on_disengage_pressed() -> void:
 	_pending_enemy_icon = null
 	get_tree().paused = false
 
-func _on_trade_panel_closed() -> void:
+func _on_docking_panel_closed() -> void:
+	trade_panel.close()
+	refit_panel.close()
 	get_tree().paused = false
 	_travel_target = null
 

@@ -489,6 +489,92 @@ static func run() -> Array[String]:
 	if to_repair["current_hp"] != 100.0 or to_repair["current_shield"] != 50.0 or to_repair["engine_current_hp"] != 20.0 or to_repair["weapon_mount_current_hp"][0] != 10.0:
 		failures.append("repair_ship: expected every field restored to max, got %s" % to_repair)
 
+	# buy_part/sell_part/equip_part.
+	var campaign_state := CampaignState.new()
+	campaign_state.reset()
+	campaign_state.credits = 1000.0
+	var part_fleet := CampaignFleet.new()
+	part_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CORVETTE)]
+
+	if not campaign_state.buy_part("res://resources/weapons/railgun.tres", part_fleet):
+		failures.append("buy_part: expected buying an affordable, in-capacity part to succeed")
+	if part_fleet.part_inventory != ["res://resources/weapons/railgun.tres"]:
+		failures.append("buy_part: expected the bought part added to part_inventory, got %s" % part_fleet.part_inventory)
+	if not is_equal_approx(campaign_state.credits, 1000.0 - PartRarity.price_for(PartRarity.Tier.RARE)):
+		failures.append("buy_part: expected credits debited by the railgun's RARE price, got %s" % campaign_state.credits)
+
+	campaign_state.credits = 0.0
+	if campaign_state.buy_part("res://resources/weapons/mass_driver.tres", part_fleet):
+		failures.append("buy_part: expected buying to fail with insufficient credits")
+	campaign_state.credits = 1000.0
+
+	var credits_before_sell := campaign_state.credits
+	if not campaign_state.sell_part(part_fleet, 0):
+		failures.append("sell_part: expected selling an owned inventory part to succeed")
+	if not part_fleet.part_inventory.is_empty():
+		failures.append("sell_part: expected part_inventory emptied after selling its only item")
+	if campaign_state.credits <= credits_before_sell:
+		failures.append("sell_part: expected credits to increase after selling")
+	if campaign_state.sell_part(part_fleet, 0):
+		failures.append("sell_part: expected selling an out-of-range index to fail")
+
+	# equip_part: budget enforcement. Corvette budget is 20 points; a RARE
+	# weapon (15 points) plus a RARE shield (15 points) would be 30, over budget.
+	var corvette_comp: Dictionary = part_fleet.ship_compositions[0]
+	part_fleet.part_inventory = ["res://resources/weapons/railgun.tres", "res://resources/shields/shield_dominion_bulwark.tres"]
+	if not campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.WEAPON, 0, 0):
+		failures.append("equip_part: expected equipping the RARE railgun (15/20 points) to succeed")
+	if ShipType.equipped_path(corvette_comp, ShipType.SlotType.WEAPON, 0) != "res://resources/weapons/railgun.tres":
+		failures.append("equip_part: expected the corvette's weapon slot to now hold the railgun")
+	if part_fleet.part_inventory.has("res://resources/weapons/railgun.tres"):
+		failures.append("equip_part: expected the equipped railgun removed from part_inventory")
+	if campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.SHIELD, 0, 0):
+		failures.append("equip_part: expected equipping the RARE shield (would push 15+15=30 > 20 budget) to fail")
+
+	# Swapping a different weapon back into the same slot returns the old one to inventory.
+	part_fleet.part_inventory.append("res://resources/weapons/mass_driver.tres")
+	if not campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.WEAPON, 0, part_fleet.part_inventory.find("res://resources/weapons/mass_driver.tres")):
+		failures.append("equip_part: expected swapping in the COMMON mass_driver (5 points) to succeed")
+	if not part_fleet.part_inventory.has("res://resources/weapons/railgun.tres"):
+		failures.append("equip_part: expected the swapped-out railgun returned to part_inventory")
+
+	# equip_part is blocked on a damaged ship.
+	corvette_comp["current_hp"] = 1.0
+	if campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.WEAPON, 0, part_fleet.part_inventory.find("res://resources/weapons/railgun.tres")):
+		failures.append("equip_part: expected equip to be blocked on a damaged ship")
+	corvette_comp["current_hp"] = corvette_comp["max_hp"]
+
+	# equip_part on SHIELD updates max_shield/current_shield proportionally.
+	part_fleet.part_inventory.append("res://resources/shields/shield_dominion_aegis.tres")
+	var old_max_shield: float = corvette_comp["max_shield"]
+	if not campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.SHIELD, 0, part_fleet.part_inventory.find("res://resources/shields/shield_dominion_aegis.tres")):
+		failures.append("equip_part: expected equipping the UNCOMMON aegis shield (10 points, within budget) to succeed")
+	if not is_equal_approx(corvette_comp["max_shield"], 35.0):
+		failures.append("equip_part: expected max_shield updated to the aegis shield's 35.0, got %s" % corvette_comp["max_shield"])
+	if is_equal_approx(corvette_comp["max_shield"], old_max_shield):
+		failures.append("equip_part: expected max_shield to actually change from the pre-equip value %s" % old_max_shield)
+	if not is_equal_approx(corvette_comp["current_shield"], corvette_comp["max_shield"]):
+		failures.append("equip_part: expected current_shield scaled up to the new max (was full before swap)")
+
+	# equip_part: defensively rejects a type mismatch between the inventory
+	# item and the slot (e.g. a shield resource into a WEAPON slot), even if
+	# RefitPanel's UI-level filtering is bypassed or has a bug.
+	var mismatch_inventory_before: Array[String] = part_fleet.part_inventory.duplicate()
+	var mismatch_comp_before: Dictionary = corvette_comp.duplicate(true)
+	var mismatch_shield_index: int = part_fleet.part_inventory.find("res://resources/shields/shield_dominion_bulwark.tres")
+	if mismatch_shield_index == -1:
+		part_fleet.part_inventory.append("res://resources/shields/shield_dominion_bulwark.tres")
+		mismatch_shield_index = part_fleet.part_inventory.size() - 1
+		mismatch_inventory_before = part_fleet.part_inventory.duplicate()
+	if campaign_state.equip_part(corvette_comp, part_fleet, ShipType.SlotType.WEAPON, 0, mismatch_shield_index):
+		failures.append("equip_part: expected equipping a shield into a WEAPON slot to fail")
+	if part_fleet.part_inventory != mismatch_inventory_before:
+		failures.append("equip_part: expected part_inventory unchanged after a rejected type-mismatch equip, got %s" % part_fleet.part_inventory)
+	if corvette_comp != mismatch_comp_before:
+		failures.append("equip_part: expected the composition unchanged after a rejected type-mismatch equip")
+
+	campaign_state.reset()
+
 	return failures
 
 class SkirmishResolvedTracker:

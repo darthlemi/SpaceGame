@@ -77,9 +77,18 @@ func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
 		ships[i].hull.current_hp = comp["current_hp"]
 		ships[i].shield.max_shield = comp["max_shield"]
 		ships[i].shield.current_shield = comp["current_shield"]
+		if comp.get("shield_item", "") != "":
+			var shield_item: ShieldGenerator = load(comp["shield_item"])
+			ships[i].shield.max_shield = shield_item.max_shield
+			ships[i].shield.regen_rate = shield_item.regen_rate
 		if comp.has("engine_max_hp"):
 			ships[i].engine.max_hp = comp["engine_max_hp"]
 			ships[i].engine.current_hp = comp["engine_current_hp"]
+		if comp.get("engine_item", "") != "":
+			var engine_item: EngineCore = load(comp["engine_item"])
+			ships[i].engine.max_speed = engine_item.max_speed
+			ships[i].engine.turn_rate = engine_item.turn_rate
+			ships[i].engine.acceleration = engine_item.acceleration
 		if comp.has("weapon_mount_max_hp"):
 			var mount_max: Array = comp["weapon_mount_max_hp"]
 			var mount_cur: Array = comp["weapon_mount_current_hp"]
@@ -87,6 +96,10 @@ func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
 				if j < mount_max.size():
 					ships[i].weapon_mounts[j].max_hp = mount_max[j]
 					ships[i].weapon_mounts[j].current_hp = mount_cur[j]
+		var mount_items: Array = comp.get("weapon_mount_items", [])
+		for j in ships[i].weapon_mounts.size():
+			if j < mount_items.size() and mount_items[j] != "":
+				ships[i].weapon_mounts[j].weapon = load(mount_items[j])
 
 func _wire_ai(ship: Ship) -> void:
 	var ai := AIController.new()
@@ -158,7 +171,10 @@ func _show_result(text: String) -> void:
 		call_deferred("_report_to_campaign")
 
 func _report_to_campaign() -> void:
-	CampaignState.resolve_engagement(_collect_survivor_data(player_ships), _collect_survivor_data(enemy_ships))
+	CampaignState.resolve_engagement(
+		_collect_survivor_data(player_ships, CampaignState.player_fleet.ship_compositions),
+		_collect_survivor_data(enemy_ships, CampaignState.active_enemy_fleet.ship_compositions)
+	)
 	if CampaignState.player_fleet == null:
 		return
 	if CampaignState.player_fleet.is_destroyed():
@@ -166,15 +182,21 @@ func _report_to_campaign() -> void:
 	else:
 		get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
 
-func _collect_survivor_data(ships: Array[Ship]) -> Array[Dictionary]:
+func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary]) -> Array[Dictionary]:
 	var survivors: Array[Dictionary] = []
-	for ship in ships:
+	for i in ships.size():
+		var ship := ships[i]
 		if is_instance_valid(ship) and not ship.hull.is_destroyed():
+			var orig: Dictionary = original_compositions[i] if i < original_compositions.size() else {}
+			var orig_items: Array = orig.get("weapon_mount_items", [])
 			var mount_max: Array[float] = []
 			var mount_cur: Array[float] = []
-			for mount in ship.weapon_mounts:
+			var mount_items: Array[String] = []
+			for j in ship.weapon_mounts.size():
+				var mount := ship.weapon_mounts[j]
 				mount_max.append(mount.max_hp)
 				mount_cur.append(mount.current_hp)
+				mount_items.append(orig_items[j] if j < orig_items.size() else "")
 			survivors.append({
 				"ship_type": ship.ship_type,
 				"max_hp": ship.hull.max_hp,
@@ -185,6 +207,9 @@ func _collect_survivor_data(ships: Array[Ship]) -> Array[Dictionary]:
 				"engine_current_hp": ship.engine.current_hp,
 				"weapon_mount_max_hp": mount_max,
 				"weapon_mount_current_hp": mount_cur,
+				"weapon_mount_items": mount_items,
+				"shield_item": orig.get("shield_item", ""),
+				"engine_item": orig.get("engine_item", ""),
 			})
 	return survivors
 

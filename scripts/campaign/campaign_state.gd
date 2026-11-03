@@ -110,6 +110,56 @@ func sell(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bo
 	base_economy.stock[commodity] = base_economy.stock.get(commodity, 0.0) + 1.0
 	return true
 
+func buy_part(path: String, fleet: CampaignFleet) -> bool:
+	var item: Resource = load(path)
+	var price: float = PartRarity.price_for(item.rarity)
+	if credits < price or fleet.cargo_total() + 1.0 > fleet.cargo_capacity():
+		return false
+	credits -= price
+	fleet.part_inventory.append(path)
+	return true
+
+func sell_part(fleet: CampaignFleet, inventory_index: int) -> bool:
+	if inventory_index < 0 or inventory_index >= fleet.part_inventory.size():
+		return false
+	var path: String = fleet.part_inventory[inventory_index]
+	var item: Resource = load(path)
+	credits += PartRarity.sell_price_for(item.rarity)
+	fleet.part_inventory.remove_at(inventory_index)
+	return true
+
+func equip_part(comp: Dictionary, fleet: CampaignFleet, slot_type: ShipType.SlotType, slot_index: int, inventory_index: int) -> bool:
+	if is_damaged(comp):
+		return false
+	if inventory_index < 0 or inventory_index >= fleet.part_inventory.size():
+		return false
+	var new_path: String = fleet.part_inventory[inventory_index]
+	var new_item: Resource = load(new_path)
+	match slot_type:
+		ShipType.SlotType.WEAPON:
+			if not new_item is Weapon:
+				return false
+		ShipType.SlotType.SHIELD:
+			if not new_item is ShieldGenerator:
+				return false
+		ShipType.SlotType.ENGINE:
+			if not new_item is EngineCore:
+				return false
+	var old_path := ShipType.equipped_path(comp, slot_type, slot_index)
+	var budget := ShipType.points_budget_for(ShipType.kind_of(comp))
+	var projected := ShipType.points_used(comp) - ShipType.points_of_path(old_path) + PartRarity.points_for(new_item.rarity)
+	if projected > budget:
+		return false
+	fleet.part_inventory.remove_at(inventory_index)
+	if old_path != "":
+		fleet.part_inventory.append(old_path)
+	ShipType.set_equipped_path(comp, slot_type, slot_index, new_path)
+	if slot_type == ShipType.SlotType.SHIELD:
+		var old_max: float = comp["max_shield"]
+		comp["max_shield"] = new_item.max_shield
+		comp["current_shield"] = new_item.max_shield if old_max <= 0.0 else comp["current_shield"] * (new_item.max_shield / old_max)
+	return true
+
 func are_hostile(fleet_a: CampaignFleet, fleet_b: CampaignFleet) -> bool:
 	var a := fleet_a.faction
 	var b := fleet_b.faction

@@ -683,6 +683,28 @@ static func run() -> Array[String]:
 	if broke_fleet.ship_compositions[0]["crew"] != 12 or broke_state.credits != 0.0:
 		failures.append("pay_wages: expected flagship to settle at floor 12, got %s" % broke_fleet.ship_compositions[0]["crew"])
 
+	# NPC crew: power-faction fleets refill from the faction pool, pirates regen a fixed amount.
+	var npc_state := CampaignState.new()
+	var npc_faction := PowerFaction.new()
+	npc_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	npc_faction.economy = BaseEconomy.new()
+	npc_faction.economy.crew_pool = 5.0
+	npc_state.factions.assign([npc_faction])
+	var npc_dominion := CampaignFleet.new()
+	npc_dominion.faction = CampaignFleet.Faction.DOMINION
+	npc_dominion.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	npc_dominion.ship_compositions[0]["crew"] = 2
+	var npc_pirate := CampaignFleet.new()
+	npc_pirate.faction = CampaignFleet.Faction.PIRATE
+	npc_pirate.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	npc_pirate.ship_compositions[0]["crew"] = 2
+	npc_state.enemy_fleets.assign([npc_dominion, npc_pirate])
+	npc_state._refill_npc_crew()
+	if CrewRules.crew_of(npc_dominion.ship_compositions[0]) != 7 or not is_equal_approx(npc_faction.economy.crew_pool, 0.0):
+		failures.append("_refill_npc_crew: expected Dominion crew 7 and pool 0.0, got %s / %s" % [CrewRules.crew_of(npc_dominion.ship_compositions[0]), npc_faction.economy.crew_pool])
+	if CrewRules.crew_of(npc_pirate.ship_compositions[0]) != 3:
+		failures.append("_refill_npc_crew: expected pirate crew 3, got %s" % CrewRules.crew_of(npc_pirate.ship_compositions[0]))
+
 	campaign_state.reset()
 
 	return failures
@@ -825,6 +847,33 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("tick_skirmishes (stale icons): expected skirmish_resolved NOT to fire for a dropped stale skirmish")
 
 	state.skirmish_resolved.disconnect(stale_tracker.on_skirmish_resolved)
+
+	# Skirmish winner crew shrinks with the damage fraction, never below NPC_CREW_FLOOR.
+	for crew_case in [[0.5, 6], [1.0, 1]]:
+		var crew_winner := CampaignFleet.new()
+		crew_winner.faction = CampaignFleet.Faction.DOMINION
+		crew_winner.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+		crew_winner.ship_compositions[0]["crew"] = 12
+		var crew_loser := CampaignFleet.new()
+		crew_loser.faction = CampaignFleet.Faction.FREEHOLD
+		crew_loser.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+		var crew_winner_icon: Area2D = CampaignFleetIconScene.instantiate()
+		tree.root.add_child(crew_winner_icon)
+		crew_winner_icon.setup(crew_winner, Vector2.ZERO)
+		var crew_loser_icon: Area2D = CampaignFleetIconScene.instantiate()
+		tree.root.add_child(crew_loser_icon)
+		crew_loser_icon.setup(crew_loser, Vector2.ZERO)
+		var crew_skirmish := Skirmish.new()
+		crew_skirmish.fleet_winner = crew_winner
+		crew_skirmish.fleet_loser = crew_loser
+		crew_skirmish.icon_winner = crew_winner_icon
+		crew_skirmish.icon_loser = crew_loser_icon
+		crew_skirmish.winner_damage_fraction = crew_case[0]
+		state.active_skirmishes.append(crew_skirmish)
+		state._resolve_skirmish(crew_skirmish)
+		if CrewRules.crew_of(crew_winner.ship_compositions[0]) != crew_case[1]:
+			failures.append("_resolve_skirmish: expected winner crew %d at damage %s, got %s" % [crew_case[1], crew_case[0], CrewRules.crew_of(crew_winner.ship_compositions[0])])
+		crew_winner_icon.queue_free()
 
 	# cancel_skirmish_for: starting a fresh skirmish and cancelling it
 	# should unfreeze the untouched participant without resolving a winner.

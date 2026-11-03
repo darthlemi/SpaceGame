@@ -15,6 +15,7 @@ const CREW_HIRE_COST := 40.0
 const WAGE_PER_CREW := 0.1
 const DESERTION_RATE := 0.2
 const RESPAWN_CREDIT_PENALTY := 0.25
+const PIRATE_CREW_REGEN := 1
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
@@ -131,6 +132,7 @@ func tick_economy(delta: float) -> void:
 			if faction.economy != null:
 				faction.economy.tick()
 				_apply_fleet_allocation(faction)
+		_refill_npc_crew()
 
 # The flagship's deploy minimum is never billed or deserted, so the player can't be stranded.
 func flagship_floor(fleet: CampaignFleet) -> int:
@@ -366,12 +368,34 @@ func _resolve_skirmish(skirmish: Skirmish) -> void:
 		return
 	active_skirmishes.erase(skirmish)
 	skirmish.fleet_winner.apply_fractional_damage(skirmish.winner_damage_fraction)
+	_apply_winner_crew_loss(skirmish.fleet_winner, skirmish.winner_damage_fraction)
 	enemy_fleets.erase(skirmish.fleet_loser)
 	if is_instance_valid(skirmish.icon_loser):
 		skirmish.icon_loser.queue_free()
 	if is_instance_valid(skirmish.icon_winner):
 		skirmish.icon_winner.frozen = false
 	skirmish_resolved.emit(skirmish.fleet_winner, skirmish.fleet_loser)
+
+# Crew falls with the same fraction as hull, but a surviving NPC ship is never emptied.
+func _apply_winner_crew_loss(fleet: CampaignFleet, damage_fraction: float) -> void:
+	for comp in fleet.ship_compositions:
+		CrewRules.set_crew(comp, maxi(CrewRules.NPC_CREW_FLOOR, roundi(CrewRules.crew_of(comp) * (1.0 - damage_fraction))))
+	CrewRules.balance(fleet.ship_compositions)
+
+# Power-faction fleets draw from their faction's pool; pirates regenerate for free. Others get none.
+func _refill_npc_crew() -> void:
+	for fleet in enemy_fleets:
+		if fleet.faction == CampaignFleet.Faction.PIRATE:
+			CrewRules.add_crew(fleet.ship_compositions, PIRATE_CREW_REGEN)
+		elif _is_power_faction(fleet.faction):
+			var faction := _power_faction_for(fleet.faction)
+			if faction == null or faction.economy == null:
+				continue
+			var added := CrewRules.add_crew(fleet.ship_compositions, floori(faction.economy.crew_pool))
+			faction.economy.crew_pool -= added
+		else:
+			continue
+		CrewRules.balance(fleet.ship_compositions)
 
 func _billable_crew(fleet: CampaignFleet) -> int:
 	var index := fleet.flagship_index()

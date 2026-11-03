@@ -935,4 +935,57 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("pay_fine: expected refusal for a faction not in play")
 	defeat_state.free()
 
+	# scuttle_check / scuttle_ship / jettison.
+	var scuttle_state := CampaignState.new()
+	var scuttle_fleet := _scuttle_fleet()
+	scuttle_fleet.cargo = {Commodity.Type.ORE: 70.0}
+	var overflow_check: Dictionary = scuttle_state.scuttle_check(scuttle_fleet, 1)
+	if not overflow_check["allowed"] or not is_equal_approx(overflow_check["cargo_overflow"], 50.0) or overflow_check["crew_lost"] != 6:
+		failures.append("scuttle_check: expected allowed, overflow 50 and crew_lost 6, got %s" % [overflow_check])
+	if scuttle_state.scuttle_ship(scuttle_fleet, 1):
+		failures.append("scuttle_ship: expected refusal while cargo overflows the remaining capacity")
+	if scuttle_fleet.ship_compositions.size() != 2:
+		failures.append("scuttle_ship: expected a refused scuttle to leave the fleet intact")
+	var flagship_check: Dictionary = scuttle_state.scuttle_check(scuttle_fleet, 0)
+	if flagship_check["allowed"] or flagship_check["reason"] != "Flagship":
+		failures.append("scuttle_check: expected the flagship refused with reason 'Flagship', got %s" % [flagship_check])
+	scuttle_state.jettison(scuttle_fleet, {Commodity.Type.ORE: 50.0}, [], {})
+	if not scuttle_state.scuttle_ship(scuttle_fleet, 1):
+		failures.append("scuttle_ship: expected success after jettisoning the overflow")
+	if scuttle_fleet.ship_compositions.size() != 1 or scuttle_fleet.crew_total() != 40:
+		failures.append("scuttle_ship: expected 1 ship and crew 40, got %d ships crew %d" % [scuttle_fleet.ship_compositions.size(), scuttle_fleet.crew_total()])
+	var last_check: Dictionary = scuttle_state.scuttle_check(scuttle_fleet, 0)
+	if last_check["allowed"]:
+		failures.append("scuttle_check: expected the last ship refused")
+	var moved_fleet := _scuttle_fleet()
+	moved_fleet.ship_compositions[0]["crew"] = 30
+	var moved_check: Dictionary = scuttle_state.scuttle_check(moved_fleet, 1)
+	if moved_check["crew_lost"] != 0:
+		failures.append("scuttle_check: expected crew to fit on the other ships, got crew_lost %d" % moved_check["crew_lost"])
+	scuttle_state.scuttle_ship(moved_fleet, 1)
+	if CrewRules.crew_of(moved_fleet.ship_compositions[0]) != 36:
+		failures.append("scuttle_ship: expected the freighter crew moved aboard (36), got %d" % CrewRules.crew_of(moved_fleet.ship_compositions[0]))
+	var jet_fleet := _scuttle_fleet()
+	jet_fleet.cargo = {Commodity.Type.ORE: 5.0, Commodity.Type.FOOD: 3.0}
+	jet_fleet.part_inventory.assign(["a", "b", "c"])
+	var jet_indices: Array[int] = [0, 2]
+	scuttle_state.jettison(jet_fleet, {Commodity.Type.ORE: 99.0, Commodity.Type.FOOD: 1.0}, jet_indices, {0: 40, 1: 2})
+	if not is_equal_approx(jet_fleet.cargo.get(Commodity.Type.ORE, 0.0), 0.0) or not is_equal_approx(jet_fleet.cargo.get(Commodity.Type.FOOD, 0.0), 2.0):
+		failures.append("jettison: expected amounts clamped to held, got %s" % [jet_fleet.cargo])
+	if jet_fleet.part_inventory != ["b"]:
+		failures.append("jettison: expected parts 0 and 2 removed, got %s" % [jet_fleet.part_inventory])
+	if CrewRules.crew_of(jet_fleet.ship_compositions[0]) != 12 or CrewRules.crew_of(jet_fleet.ship_compositions[1]) != 4:
+		failures.append("jettison: expected flagship floored at 12 and freighter at 4, got %d / %d" % [CrewRules.crew_of(jet_fleet.ship_compositions[0]), CrewRules.crew_of(jet_fleet.ship_compositions[1])])
+	scuttle_state.free()
+
 	return failures
+
+static func _scuttle_fleet() -> CampaignFleet:
+	var fleet := CampaignFleet.new()
+	var capital := ShipType.new_composition(ShipType.Kind.CAPITAL)
+	var freighter := ShipType.new_composition(ShipType.Kind.FREIGHTER)
+	capital["crew"] = 40
+	freighter["crew"] = 6
+	fleet.ship_compositions.assign([capital, freighter])
+	fleet.set_flagship(0)
+	return fleet

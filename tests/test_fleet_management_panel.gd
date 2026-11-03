@@ -85,6 +85,36 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(panel, failures)
 
+	# Scuttle: overflow routes through the jettison dialog.
+	var scuttle_fleet := _make_fleet(6, 40, 6)
+	scuttle_fleet.cargo = {Commodity.Type.ORE: 70.0}
+	panel.open_for(scuttle_fleet, null)
+	await tree.process_frame
+	if panel.rows[0]["scuttle_button"] == null or panel.rows[1]["scuttle_button"].disabled == false:
+		failures.append("FleetManagementPanel: expected the flagship's scuttle button disabled")
+	panel.rows[2]["scuttle_button"].pressed.emit()
+	if not panel.scuttle_confirm_row.visible or not panel.scuttle_confirm_label.text.begins_with("Scuttle Freighter 3?"):
+		failures.append("FleetManagementPanel: expected inline scuttle confirm, got '%s'" % panel.scuttle_confirm_label.text)
+	panel.scuttle_confirm_button.pressed.emit()
+	if not panel.jettison_panel.visible or scuttle_fleet.ship_compositions.size() != 3:
+		failures.append("FleetManagementPanel: expected jettison dialog and no scuttle yet")
+	panel.jettison_panel.cancel_button.pressed.emit()
+	if scuttle_fleet.ship_compositions.size() != 3 or scuttle_fleet.cargo_total() != 70.0:
+		failures.append("FleetManagementPanel: expected cancel to change nothing")
+	panel.rows[2]["scuttle_button"].pressed.emit()
+	panel.scuttle_confirm_button.pressed.emit()
+	var ore_slider: HSlider = panel.jettison_panel.cargo_rows[0]["slider"]
+	ore_slider.value = ore_slider.max_value
+	panel.jettison_panel.confirm_button.pressed.emit()
+	if scuttle_fleet.ship_compositions.size() != 2:
+		failures.append("FleetManagementPanel: expected scuttle after confirmed jettison, got %d ships" % scuttle_fleet.ship_compositions.size())
+	if panel.rows.size() != 2:
+		failures.append("FleetManagementPanel: expected rows rebuilt after scuttle, got %d" % panel.rows.size())
+	panel.jettison_button.pressed.emit()
+	if not panel.jettison_panel.visible:
+		failures.append("FleetManagementPanel: expected Jettison button to open the dialog")
+	panel.jettison_panel.cancel_button.pressed.emit()
+
 	panel.close_button.pressed.emit()
 	if panel.visible:
 		failures.append("FleetManagementPanel: expected hidden after Close")

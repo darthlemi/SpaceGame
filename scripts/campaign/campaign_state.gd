@@ -111,6 +111,65 @@ func flagship_floor(fleet: CampaignFleet) -> int:
 		return 0
 	return CrewRules.deploy_min_for(CrewRules.complement(fleet.ship_compositions[index]))
 
+# Crew moves to free berths on the other ships; only the excess is lost.
+func scuttle_check(fleet: CampaignFleet, index: int) -> Dictionary:
+	var result := {"allowed": false, "crew_lost": 0, "cargo_overflow": 0.0, "reason": ""}
+	if index < 0 or index >= fleet.ship_compositions.size():
+		result["reason"] = "No such ship"
+		return result
+	if CrewRules.is_flagship(fleet.ship_compositions[index]):
+		result["reason"] = "Flagship"
+		return result
+	if fleet.ship_compositions.size() <= 1:
+		result["reason"] = "Last ship"
+		return result
+	var comp: Dictionary = fleet.ship_compositions[index]
+	result["allowed"] = true
+	result["crew_lost"] = maxi(0, CrewRules.crew_of(comp) - CrewRules.free_berths(_others(fleet, index)))
+	var capacity_without := fleet.cargo_capacity() - ShipType.cargo_capacity_for(ShipType.kind_of(comp))
+	result["cargo_overflow"] = maxf(0.0, fleet.cargo_total() - capacity_without)
+	return result
+
+func scuttle_ship(fleet: CampaignFleet, index: int) -> bool:
+	var check := scuttle_check(fleet, index)
+	if not check["allowed"] or check["cargo_overflow"] > 0.0:
+		return false
+	var others := _others(fleet, index)
+	CrewRules.add_crew(others, CrewRules.crew_of(fleet.ship_compositions[index]))
+	fleet.ship_compositions.remove_at(index)
+	fleet.ensure_flagship()
+	return true
+
+# crew_by_ship maps ship index -> crew to throw overboard.
+func jettison(fleet: CampaignFleet, cargo_amounts: Dictionary, part_indices: Array[int], crew_by_ship: Dictionary) -> void:
+	for commodity in cargo_amounts:
+		var held: float = fleet.cargo.get(commodity, 0.0)
+		fleet.cargo[commodity] = held - clampf(cargo_amounts[commodity], 0.0, held)
+	var sorted_indices := part_indices.duplicate()
+	sorted_indices.sort()
+	sorted_indices.reverse()
+	var last := -1
+	for part_index in sorted_indices:
+		if part_index == last or part_index < 0 or part_index >= fleet.part_inventory.size():
+			continue
+		fleet.part_inventory.remove_at(part_index)
+		last = part_index
+	var floor_crew := flagship_floor(fleet)
+	var flagship := fleet.flagship_index()
+	for ship_index in crew_by_ship:
+		if ship_index < 0 or ship_index >= fleet.ship_compositions.size():
+			continue
+		var comp: Dictionary = fleet.ship_compositions[ship_index]
+		var lowest := floor_crew if ship_index == flagship else 0
+		CrewRules.set_crew(comp, maxi(lowest, CrewRules.crew_of(comp) - maxi(0, int(crew_by_ship[ship_index]))))
+
+func _others(fleet: CampaignFleet, index: int) -> Array[Dictionary]:
+	var others: Array[Dictionary] = []
+	for i in fleet.ship_compositions.size():
+		if i != index:
+			others.append(fleet.ship_compositions[i])
+	return others
+
 func wage_bill(fleet: CampaignFleet) -> float:
 	return WAGE_PER_CREW * _billable_crew(fleet)
 

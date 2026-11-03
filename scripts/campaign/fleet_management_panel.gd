@@ -7,11 +7,12 @@ const LABEL_MIN_WIDTH := 80.0
 const SLIDER_MIN_WIDTH := 60.0
 const COUNT_MIN_WIDTH := 96.0
 
-# One Dictionary per ship: flagship_button, label, slider, count_label, deploy_check.
+# One Dictionary per ship: flagship_button, label, slider, count_label, deploy_check, scuttle_button.
 var rows: Array[Dictionary] = []
 
 var _economy: BaseEconomy
 var _player_fleet: CampaignFleet
+var _scuttle_index := -1
 
 @onready var header_label: Label = $Layout/HeaderLabel
 @onready var rows_container: VBoxContainer = $Layout/RowsScroll/RowsContainer
@@ -21,11 +22,21 @@ var _player_fleet: CampaignFleet
 @onready var hire_button: Button = $Layout/HireRow/HireButton
 @onready var balance_button: Button = $Layout/ButtonRow/BalanceButton
 @onready var close_button: Button = $Layout/ButtonRow/CloseButton
+@onready var jettison_button: Button = $Layout/ButtonRow/JettisonButton
+@onready var scuttle_confirm_row: Control = $Layout/ScuttleConfirmRow
+@onready var scuttle_confirm_label: Label = $Layout/ScuttleConfirmRow/ScuttleConfirmLabel
+@onready var scuttle_confirm_button: Button = $Layout/ScuttleConfirmRow/ScuttleConfirmButton
+@onready var scuttle_cancel_button: Button = $Layout/ScuttleConfirmRow/ScuttleCancelButton
+@onready var jettison_panel: JettisonPanel = $JettisonPanel
 
 func _ready() -> void:
 	close_button.pressed.connect(close)
 	balance_button.pressed.connect(_on_balance_pressed)
 	hire_button.pressed.connect(_on_hire_pressed)
+	jettison_button.pressed.connect(_on_jettison_pressed)
+	scuttle_confirm_button.pressed.connect(_on_scuttle_confirmed)
+	scuttle_cancel_button.pressed.connect(_hide_scuttle_confirm)
+	jettison_panel.finished.connect(_on_jettison_finished)
 	visible = false
 
 # docked_economy is null when the fleet is not docked (no hiring).
@@ -33,11 +44,14 @@ func open_for(fleet: CampaignFleet, docked_economy: BaseEconomy) -> void:
 	_player_fleet = fleet
 	_economy = docked_economy
 	_clear_rows()
+	_hide_scuttle_confirm()
 	visible = true
 	refresh()
 
 func close() -> void:
 	visible = false
+	jettison_panel.visible = false
+	_hide_scuttle_confirm()
 	_player_fleet = null
 	_economy = null
 
@@ -72,7 +86,10 @@ func _build_row(index: int) -> void:
 	count_label.custom_minimum_size = Vector2(COUNT_MIN_WIDTH, 0)
 	var deploy_check := CheckBox.new()
 	deploy_check.toggled.connect(_on_deploy_toggled.bind(index))
-	for control in [flagship_button, label, slider, count_label, deploy_check]:
+	var scuttle_button := Button.new()
+	scuttle_button.text = "Scuttle"
+	scuttle_button.pressed.connect(_on_scuttle_pressed.bind(index))
+	for control in [flagship_button, label, slider, count_label, deploy_check, scuttle_button]:
 		row.add_child(control)
 	rows_container.add_child(row)
 	rows.append({
@@ -81,6 +98,7 @@ func _build_row(index: int) -> void:
 		"slider": slider,
 		"count_label": count_label,
 		"deploy_check": deploy_check,
+		"scuttle_button": scuttle_button,
 	})
 
 func _clear_rows() -> void:
@@ -112,6 +130,10 @@ func _update_row(index: int) -> void:
 	deploy_check.disabled = too_few
 	deploy_check.text = "Too few" if too_few else "Deploy"
 	deploy_check.set_pressed_no_signal(CrewRules.wants_deploy(comp) and not too_few)
+	var scuttle_button: Button = row["scuttle_button"]
+	var scuttle := CampaignState.scuttle_check(_player_fleet, index)
+	scuttle_button.disabled = not scuttle["allowed"]
+	scuttle_button.tooltip_text = scuttle["reason"]
 
 func _update_hire_row() -> void:
 	hire_row.visible = _economy != null
@@ -142,3 +164,38 @@ func _on_hire_pressed() -> void:
 func _on_slider_changed(value: float, index: int) -> void:
 	CrewRules.set_ship_crew(_player_fleet.ship_compositions, index, int(value))
 	refresh()
+
+func _hide_scuttle_confirm() -> void:
+	_scuttle_index = -1
+	scuttle_confirm_row.visible = false
+
+func _on_jettison_finished(confirmed: bool) -> void:
+	if confirmed and _scuttle_index >= 0:
+		CampaignState.scuttle_ship(_player_fleet, _scuttle_index)
+	_hide_scuttle_confirm()
+	refresh()
+
+func _on_jettison_pressed() -> void:
+	_hide_scuttle_confirm()
+	jettison_panel.open_for(_player_fleet, 0.0)
+
+func _on_scuttle_confirmed() -> void:
+	var check := CampaignState.scuttle_check(_player_fleet, _scuttle_index)
+	if not check["allowed"]:
+		_hide_scuttle_confirm()
+		return
+	if check["cargo_overflow"] > 0.0:
+		scuttle_confirm_row.visible = false
+		jettison_panel.open_for(_player_fleet, check["cargo_overflow"])
+		return
+	CampaignState.scuttle_ship(_player_fleet, _scuttle_index)
+	_hide_scuttle_confirm()
+	refresh()
+
+func _on_scuttle_pressed(index: int) -> void:
+	var check := CampaignState.scuttle_check(_player_fleet, index)
+	if not check["allowed"]:
+		return
+	_scuttle_index = index
+	scuttle_confirm_label.text = "Scuttle %s? Lost: %d crew, %.1f cargo" % [rows[index]["label"].text, check["crew_lost"], check["cargo_overflow"]]
+	scuttle_confirm_row.visible = true

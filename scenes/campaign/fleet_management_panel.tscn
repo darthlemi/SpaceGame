@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/campaign/fleet_management_panel.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/campaign/jettison_panel.tscn" id="2"]
 
 [node name="FleetManagementPanel" type="Control"]
 offset_left = 652.0
@@ -31,6 +32,18 @@ horizontal_scroll_mode = 0
 [node name="RowsContainer" type="VBoxContainer" parent="Layout/RowsScroll"]
 size_flags_horizontal = 3
 
+[node name="ScuttleConfirmRow" type="HBoxContainer" parent="Layout"]
+visible = false
+
+[node name="ScuttleConfirmLabel" type="Label" parent="Layout/ScuttleConfirmRow"]
+size_flags_horizontal = 3
+
+[node name="ScuttleConfirmButton" type="Button" parent="Layout/ScuttleConfirmRow"]
+text = "Scuttle"
+
+[node name="ScuttleCancelButton" type="Button" parent="Layout/ScuttleConfirmRow"]
+text = "Keep"
+
 [node name="HireRow" type="HBoxContainer" parent="Layout"]
 
 [node name="HireLabel" type="Label" parent="Layout/HireRow"]
@@ -52,3 +65,11 @@ text = "Balance"
 [node name="CloseButton" type="Button" parent="Layout/ButtonRow"]
 custom_minimum_size = Vector2(100, 0)
 text = "Close"
+
+[node name="JettisonButton" type="Button" parent="Layout/ButtonRow"]
+custom_minimum_size = Vector2(100, 0)
+text = "Jettison"
+
+[node name="JettisonPanel" parent="." instance=ExtResource("2")]
+layout_mode = 3
+anchors_preset = 15

@@ -1,3 +1,82 @@
+# Carry Forward - 2026-11-03 session (fleet status bar + fuel/crew, base overview) - COMMITTED to main
+
+## Completed this session
+
+### Base overview panel - `067e6a7`
+- Docking now opens `BaseOverviewPanel` (`scenes\campaign\base_overview_panel.tscn`,
+  x 316-636, y 140-640) instead of Trade+Refit together. Shows name,
+  population + trend, economy level, produces/consumes, reputation (faction
+  bases), outstanding fine. Buttons: Trade Goods, Shipyard (= existing
+  RefitPanel, renamed per user), Repair, Missions (disabled placeholder,
+  `# TODO` in script), Pay Fine (only while owed), Undock.
+- Trade/Refit/Repair share one slot (x 652-1152, y 140-640), one open at a
+  time; sub-panel Close returns to the overview; Undock or moving away closes
+  all. Map clicks are blocked while the overview is visible.
+- User decisions: population is a SIMULATED stat (not derived); fines are
+  per kill; Repair gets its own button/panel; button named "Shipyard".
+- Population (`BaseEconomy._tick_population`, end of `tick()`): +2%/tick when
+  Food >= 10, -5%/tick when Food < 1, steady in between; capped by summed
+  `EconomyRole.HOUSING`; over-capacity (slot lost) shrinks to the cap; regrows
+  from `POPULATION_FLOOR` 100. Does NOT consume Food itself (POPULATION role
+  already does). Bootstrap seeds bases at 75% capacity.
+- `BaseEconomy.wealth_level()` (Poor/Middling/Wealthy) now backs
+  `CampaignState._economic_health`, so UI and fleet AI agree.
+- Fines: `CampaignState.FINE_PER_KILL` 150 + the actual (clamped) rep loss
+  recorded on `PowerFaction.fine` / `fine_reputation`. `pay_fine()` restores
+  it and emits `faction_reputation_changed`; `campaign_scene` re-derives live
+  icon behavior via `_on_fleet_role_changed`.
+- `RepairPanel` extracted from `TradePanel` (adds an "All ships are fully
+  repaired." label when empty); repair tests moved to `test_repair_panel.gd`.
+- Tests: `test_base_overview_panel.gd`, `test_repair_panel.gd` (new), plus
+  population/wealth, fines, docking flow. Mutation-checked (disconnecting the
+  reputation signal -> caught). Suite: only the long_run_sim flake (6).
+- Gotchas hit: assigning a bare literal to a typed array through an untyped
+  autoload ref (`campaign_state.factions = [...]`) is a SCRIPT ERROR that
+  aborts the test silently with no FAIL lines - use `.assign()`. Layout checks
+  on a freshly opened panel need `await tree.process_frame` first. New
+  `class_name`s need a `--headless --editor --quit` pass before `--script`.
+
+### Fleet status bar + fuel/crew - `59e9594`, `5636e77`
+- Top-of-map `FleetStatusBar` (`scenes\ui\fleet_status_bar.tscn`,
+  `scripts\ui\fleet_status_bar.gd`): ships, fuel + burn rate, crew, credits,
+  cargo. x 10-930, y 10-49; `PROCESS_MODE_ALWAYS` so it refreshes while docked.
+- User decisions: fuel is consumed (not display-only); empty fuel = crawl at
+  25% speed (`CampaignFleet.EMPTY_FUEL_SPEED_FACTOR`), not stranded; crew is a
+  fixed per-class complement with no gameplay effect yet.
+- `ShipType.BASE_STATS` gains `crew` (12/6/40) and `fuel_burn` (1.0/1.5/3.0
+  per 1000 map units) for corvette/freighter/capital.
+- Fuel lives in `cargo[Commodity.Type.FUEL]`; only the PLAYER icon burns it /
+  gets the crawl penalty (NPC fleets carry no fuel). Burn is by distance moved,
+  so time scale does not matter. New campaigns start with
+  `PLAYER_STARTING_FUEL = 30` (~5450 map units for the 3-ship start fleet).
+- Tests added in `test_campaign_fleet.gd`, `test_ship_type.gd`,
+  `test_campaign_fleet_icon.gd`, `test_campaign_scene_trading.gd` (bar layout
+  / overlap / viewport / label values). Mutation-checked (disabled crawl ->
+  2 targeted failures). Suite: only the known long_run_sim flake (6).
+- Committed `59e9594` on main (user asked for main directly). Not pushed.
+
+- DONE: `.uid` files for `fleet_status_bar.gd` and `ui_layout_check.gd`
+  (the latter was missing since last session) committed as `5636e77`.
+  `.import`/`project.godot` churn reverted; tree clean.
+- Line-ending churn recipe: `git diff --name-only` lists NOTHING for the
+  `.import` files (content matches HEAD) and `git checkout --`/`git add` do not
+  clear them. Delete each file, then `git checkout -- <files>`, taking the list
+  from `git status --porcelain`.
+- `CARRY_FORWARD.md` is tracked in git as lowercase `carry_forward.md`.
+
+## Next steps
+1. Push main (5 commits ahead of origin) when ready.
+2. Tune by playing - all guesses: fuel (`ShipType.BASE_STATS`,
+   `PLAYER_STARTING_FUEL`), population (`EconomyRole.HOUSING`, `BaseEconomy`
+   growth/decline/`FOOD_SECURE_STOCK`), `FINE_PER_KILL`.
+3. Visual check: Produces/Consumes wrapping in the 320px overview.
+4. Missions: design TBD; button is a disabled placeholder.
+5. Possible follow-ups (not requested): crew as a real mechanic (hire, wages,
+   combat losses); low-fuel warning; fractional fuel remainders (<1) cannot be
+   sold via TradePanel; population feeding back into production/prices.
+
+---
+
 # Carry Forward — 2026-11-03 session (ship refit/customization wrap-up) — MERGED to main
 
 - Scoped re-review of fix wave `31b11fb..15877c2` done inline: all 4

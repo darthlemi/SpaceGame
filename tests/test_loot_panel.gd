@@ -70,6 +70,27 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(panel, failures)
 
+	# Captured crew: take is capped by free berths, the remainder stays available.
+	var crew_player := CampaignFleet.new()
+	var crew_comp: Dictionary = {"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}
+	crew_comp["crew"] = CrewRules.complement(crew_comp) - 3
+	crew_player.ship_compositions.assign([crew_comp])
+	var crew_loot := CampaignFleet.new()
+	panel.open_for(crew_loot, crew_player, 5)
+	if panel.crew_take_button == null:
+		failures.append("LootPanel: expected a crew row when captured_crew > 0")
+	else:
+		panel.crew_take_button.pressed.emit()
+		if CrewRules.crew_of(crew_player.ship_compositions[0]) != CrewRules.complement(crew_comp):
+			failures.append("LootPanel: expected Take to fill the 3 free berths")
+		if panel._captured_crew != 2:
+			failures.append("LootPanel: expected 2 captured crew left, got %d" % panel._captured_crew)
+		if not panel.crew_take_button.disabled:
+			failures.append("LootPanel: expected crew Take disabled at 0 free berths")
+	panel.open_for(crew_loot, crew_player)
+	if panel.crew_take_button != null:
+		failures.append("LootPanel: expected no crew row when captured_crew == 0")
+
 	panel.close()
 	if panel.visible:
 		failures.append("LootPanel: expected hidden after close")

@@ -63,7 +63,8 @@ func _ready() -> void:
 	CampaignState.faction_reputation_changed.connect(_on_faction_reputation_changed)
 
 	if CampaignState.pending_loot_fleet != null:
-		loot_panel.open_for(CampaignState.pending_loot_fleet, CampaignState.player_fleet)
+		loot_panel.open_for(CampaignState.pending_loot_fleet, CampaignState.player_fleet, CampaignState.pending_captured_crew)
+		CampaignState.pending_captured_crew = 0
 		CampaignState.pending_loot_fleet = null
 
 func _bootstrap_default_campaign() -> void:

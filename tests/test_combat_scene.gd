@@ -337,12 +337,23 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("disabled ending: expected the test setup to yield 2 captured crew (0.2 * (4 + 4 + 3)), got %d" % expected_captured)
 	if disable_scene.result_label.text != "Victory":
 		failures.append("disabled ending: expected 'Victory' once every enemy ship is disabled, got '%s'" % disable_scene.result_label.text)
-	await _take_leaked_scene(tree, disable_scene)
+	# The returned campaign scene's _ready hands pending_captured_crew to its loot panel and
+	# resets it, so read the captured count from the panel instead.
+	var pending_captured_crew := -1
+	for i in 10:
+		await tree.process_frame
+		var returned_scene: Node = tree.current_scene
+		if returned_scene != null and returned_scene != disable_scene:
+			pending_captured_crew = returned_scene.loot_panel._captured_crew
+			tree.current_scene = null
+			if is_instance_valid(returned_scene) and not returned_scene.is_queued_for_deletion():
+				returned_scene.queue_free()
+			break
 
 	if campaign_state.enemy_fleets.has(disable_enemy):
 		failures.append("disabled ending: expected the disabled enemy fleet removed from enemy_fleets")
-	if campaign_state.pending_captured_crew != expected_captured:
-		failures.append("disabled ending: expected pending_captured_crew %d, got %d" % [expected_captured, campaign_state.pending_captured_crew])
+	if pending_captured_crew != expected_captured:
+		failures.append("disabled ending: expected pending_captured_crew %d, got %d" % [expected_captured, pending_captured_crew])
 	campaign_state.reset()
 	if is_instance_valid(disable_scene) and not disable_scene.is_queued_for_deletion():
 		disable_scene.queue_free()

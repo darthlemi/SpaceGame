@@ -15,6 +15,7 @@ var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
 var active_enemy_fleet: CampaignFleet
 var pending_loot_fleet: CampaignFleet = null
+var pending_captured_crew: int = 0
 var factions: Array[PowerFaction] = []
 var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
@@ -31,17 +32,22 @@ func start_engagement(enemy_fleet: CampaignFleet) -> void:
 				other.frozen = false
 	active_enemy_fleet = enemy_fleet
 
-func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary]) -> void:
+# player_won defeats the enemy even when it keeps disabled or held-back ships.
+func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary], player_won: bool = false, captured_crew: int = 0) -> void:
 	if player_fleet == null:
 		return
 	player_fleet.ship_compositions = player_survivors.duplicate(true)
+	player_fleet.ensure_flagship()
 	if active_enemy_fleet != null:
 		active_enemy_fleet.ship_compositions = enemy_survivors.duplicate(true)
-		if active_enemy_fleet.is_destroyed():
+		if player_won or active_enemy_fleet.is_destroyed():
 			enemy_fleets.erase(active_enemy_fleet)
 			_apply_reputation_loss(active_enemy_fleet.faction)
-			if active_enemy_fleet.cargo_total() > 0.0:
+			if active_enemy_fleet.cargo_total() > 0.0 or captured_crew > 0:
 				pending_loot_fleet = active_enemy_fleet
+				pending_captured_crew = captured_crew
+		else:
+			CrewRules.balance(active_enemy_fleet.ship_compositions)
 	active_enemy_fleet = null
 
 static func is_damaged(comp: Dictionary) -> bool:
@@ -74,6 +80,7 @@ func reset() -> void:
 	enemy_fleets = []
 	active_enemy_fleet = null
 	pending_loot_fleet = null
+	pending_captured_crew = 0
 	factions = []
 	factions_at_war = true
 	active_skirmishes = []

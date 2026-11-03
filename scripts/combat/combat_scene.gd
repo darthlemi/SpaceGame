@@ -13,13 +13,19 @@ const ENEMY_GROUP := &"enemy_fleet"
 
 var player_ships: Array[Ship] = []
 var enemy_ships: Array[Ship] = []
+# Comp index for each spawned ship, in spawn order; un-listed comps were held back.
+var _player_spawned_indices: Array[int] = []
+var _enemy_spawned_indices: Array[int] = []
+var _player_won := false
 var _resolved := false
 
 func _ready() -> void:
 	result_label.visible = false
 	if CampaignState.active_enemy_fleet != null:
-		player_ships = _spawn_fleet_from_data(CampaignState.player_fleet, player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
-		enemy_ships = _spawn_fleet_from_data(CampaignState.active_enemy_fleet, enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
+		_player_spawned_indices = CrewRules.deploy_indices(CampaignState.player_fleet.ship_compositions)
+		_enemy_spawned_indices = CrewRules.deploy_indices(CampaignState.active_enemy_fleet.ship_compositions)
+		player_ships = _spawn_fleet_from_data(CampaignState.player_fleet, _player_spawned_indices, player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
+		enemy_ships = _spawn_fleet_from_data(CampaignState.active_enemy_fleet, _enemy_spawned_indices, enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
 	else:
 		player_ships = _spawn_fleet(player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
 		enemy_ships = _spawn_fleet(enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
@@ -31,13 +37,13 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	if CampaignState.active_enemy_fleet != null:
-		_apply_fleet_data(player_ships, CampaignState.player_fleet)
-		_apply_fleet_data(enemy_ships, CampaignState.active_enemy_fleet)
+		_apply_fleet_data(player_ships, CampaignState.player_fleet, _player_spawned_indices, 0)
+		_apply_fleet_data(enemy_ships, CampaignState.active_enemy_fleet, _enemy_spawned_indices, CrewRules.NPC_CREW_FLOOR)
 
 	for ship in player_ships:
-		ship.hull.destroyed.connect(_on_ship_destroyed.bind(PLAYER_GROUP))
+		_wire_battle_end(ship)
 	for ship in enemy_ships:
-		ship.hull.destroyed.connect(_on_ship_destroyed.bind(ENEMY_GROUP))
+		_wire_battle_end(ship)
 		_wire_ai(ship)
 
 	fleet_commander.setup(player_ships, ENEMY_GROUP)
@@ -55,11 +61,11 @@ func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group:
 		spawned.append(ship)
 	return spawned
 
-func _spawn_fleet_from_data(fleet_data: CampaignFleet, points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
+func _spawn_fleet_from_data(fleet_data: CampaignFleet, indices: Array[int], points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
-	for i in fleet_data.ship_compositions.size():
-		var point: Vector2 = points[i % points.size()]
-		var comp: Dictionary = fleet_data.ship_compositions[i]
+	for k in indices.size():
+		var point: Vector2 = points[k % points.size()]
+		var comp: Dictionary = fleet_data.ship_compositions[indices[k]]
 		var ship_scene: PackedScene = ShipType.scene_for(ShipType.kind_of(comp))
 		var ship: Ship = ship_scene.instantiate()
 		add_child(ship)
@@ -70,9 +76,9 @@ func _spawn_fleet_from_data(fleet_data: CampaignFleet, points: Array[Vector2], o
 		spawned.append(ship)
 	return spawned
 
-func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
+func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet, indices: Array[int], crew_floor: int) -> void:
 	for i in ships.size():
-		var comp: Dictionary = fleet_data.ship_compositions[i]
+		var comp: Dictionary = fleet_data.ship_compositions[indices[i]]
 		ships[i].hull.max_hp = comp["max_hp"]
 		ships[i].hull.current_hp = comp["current_hp"]
 		ships[i].shield.max_shield = comp["max_shield"]
@@ -100,6 +106,8 @@ func _apply_fleet_data(ships: Array[Ship], fleet_data: CampaignFleet) -> void:
 		for j in ships[i].weapon_mounts.size():
 			if j < mount_items.size() and mount_items[j] != "":
 				ships[i].weapon_mounts[j].weapon = load(mount_items[j])
+		# After the hull hp above: setup_crew snapshots it as the crew-loss baseline.
+		ships[i].setup_crew(CrewRules.crew_of(comp), CrewRules.complement(comp), crew_floor)
 
 func _wire_ai(ship: Ship) -> void:
 	var ai := AIController.new()
@@ -128,7 +136,7 @@ func _spawn_extra_ship(own_group: StringName, opposing_group: StringName, facing
 
 	await get_tree().process_frame
 
-	ship.hull.destroyed.connect(_on_ship_destroyed.bind(own_group))
+	_wire_battle_end(ship)
 	fleet.append(ship)
 	if own_group == ENEMY_GROUP:
 		_wire_ai(ship)
@@ -153,15 +161,28 @@ func _kill_all_enemies() -> void:
 			ship.hull.invulnerable = false
 			ship.hull.apply_damage(ship.hull.max_hp)
 
-func _on_ship_destroyed(dying_group: StringName) -> void:
+# Must connect after Ship._ready's hull.destroyed -> queue_free, so a destroyed ship
+# already reads as queued for deletion when the check runs.
+func _wire_battle_end(ship: Ship) -> void:
+	ship.hull.destroyed.connect(_check_battle_end)
+	ship.disabled.connect(_check_battle_end)
+
+# Player side first: if both sides are out in the same check, the player loses.
+func _check_battle_end() -> void:
 	if _resolved:
 		return
-	var remaining := 0
-	for member in get_tree().get_nodes_in_group(dying_group):
-		if is_instance_valid(member) and not member.is_queued_for_deletion():
-			remaining += 1
-	if remaining == 0:
-		_show_result("Defeat" if dying_group == PLAYER_GROUP else "Victory")
+	if _active_count(PLAYER_GROUP) == 0:
+		_show_result("Defeat")
+	elif _active_count(ENEMY_GROUP) == 0:
+		_player_won = true
+		_show_result("Victory")
+
+func _active_count(group: StringName) -> int:
+	var count := 0
+	for member in get_tree().get_nodes_in_group(group):
+		if is_instance_valid(member) and not member.is_queued_for_deletion() and not member.is_disabled():
+			count += 1
+	return count
 
 func _show_result(text: String) -> void:
 	_resolved = true
@@ -171,10 +192,16 @@ func _show_result(text: String) -> void:
 		call_deferred("_report_to_campaign")
 
 func _report_to_campaign() -> void:
-	CampaignState.resolve_engagement(
-		_collect_survivor_data(player_ships, CampaignState.player_fleet.ship_compositions),
-		_collect_survivor_data(enemy_ships, CampaignState.active_enemy_fleet.ship_compositions)
-	)
+	var player_comps: Array[Dictionary] = CampaignState.player_fleet.ship_compositions
+	var enemy_comps: Array[Dictionary] = CampaignState.active_enemy_fleet.ship_compositions
+	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices, _player_won)
+	var enemy_survivors: Array[Dictionary] = []
+	var captured_crew := 0
+	if _player_won:
+		captured_crew = _captured_crew(enemy_comps)
+	else:
+		enemy_survivors = _collect_survivor_data(enemy_ships, enemy_comps, _enemy_spawned_indices, true)
+	CampaignState.resolve_engagement(player_survivors, enemy_survivors, _player_won, captured_crew)
 	if CampaignState.player_fleet == null:
 		return
 	if CampaignState.player_fleet.is_destroyed():
@@ -182,36 +209,68 @@ func _report_to_campaign() -> void:
 	else:
 		get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
 
-func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary]) -> Array[Dictionary]:
+# Disabled enemy ships and held-back enemy comps are both captured with the fleet.
+func _captured_crew(enemy_comps: Array[Dictionary]) -> int:
+	var pool := 0
+	for ship in enemy_ships:
+		if _is_surviving(ship) and ship.is_disabled():
+			pool += roundi(ship.crew)
+	for i in enemy_comps.size():
+		if not _enemy_spawned_indices.has(i):
+			pool += CrewRules.crew_of(enemy_comps[i])
+	return floori(CrewRules.CAPTURED_CREW_FRACTION * pool)
+
+# Keeps comp order: each spawned comp becomes its ship's state (or is dropped if lost)
+# and held-back comps pass through. Debug-spawned extras go last with no orig comp.
+func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary], spawned_indices: Array[int], keep_disabled: bool) -> Array[Dictionary]:
 	var survivors: Array[Dictionary] = []
-	for i in ships.size():
-		var ship := ships[i]
-		if is_instance_valid(ship) and not ship.hull.is_destroyed():
-			var orig: Dictionary = original_compositions[i] if i < original_compositions.size() else {}
-			var orig_items: Array = orig.get("weapon_mount_items", [])
-			var mount_max: Array[float] = []
-			var mount_cur: Array[float] = []
-			var mount_items: Array[String] = []
-			for j in ship.weapon_mounts.size():
-				var mount := ship.weapon_mounts[j]
-				mount_max.append(mount.max_hp)
-				mount_cur.append(mount.current_hp)
-				mount_items.append(orig_items[j] if j < orig_items.size() else "")
-			survivors.append({
-				"ship_type": ship.ship_type,
-				"max_hp": ship.hull.max_hp,
-				"current_hp": ship.hull.current_hp,
-				"max_shield": ship.shield.max_shield,
-				"current_shield": ship.shield.current_shield,
-				"engine_max_hp": ship.engine.max_hp,
-				"engine_current_hp": ship.engine.current_hp,
-				"weapon_mount_max_hp": mount_max,
-				"weapon_mount_current_hp": mount_cur,
-				"weapon_mount_items": mount_items,
-				"shield_item": orig.get("shield_item", ""),
-				"engine_item": orig.get("engine_item", ""),
-			})
+	for i in original_compositions.size():
+		var k := spawned_indices.find(i)
+		if k == -1:
+			survivors.append(original_compositions[i].duplicate(true))
+		elif _is_survivor(ships[k], keep_disabled):
+			survivors.append(_survivor_comp(ships[k], original_compositions[i]))
+	for k in range(spawned_indices.size(), ships.size()):
+		if _is_survivor(ships[k], keep_disabled):
+			survivors.append(_survivor_comp(ships[k], {}))
 	return survivors
+
+func _is_surviving(ship: Ship) -> bool:
+	return is_instance_valid(ship) and not ship.hull.is_destroyed()
+
+func _is_survivor(ship: Ship, keep_disabled: bool) -> bool:
+	return _is_surviving(ship) and (keep_disabled or not ship.is_disabled())
+
+func _survivor_comp(ship: Ship, orig: Dictionary) -> Dictionary:
+	var orig_items: Array = orig.get("weapon_mount_items", [])
+	var mount_max: Array[float] = []
+	var mount_cur: Array[float] = []
+	var mount_items: Array[String] = []
+	for j in ship.weapon_mounts.size():
+		var mount := ship.weapon_mounts[j]
+		mount_max.append(mount.max_hp)
+		mount_cur.append(mount.current_hp)
+		mount_items.append(orig_items[j] if j < orig_items.size() else "")
+	var comp := {
+		"ship_type": ship.ship_type,
+		"max_hp": ship.hull.max_hp,
+		"current_hp": ship.hull.current_hp,
+		"max_shield": ship.shield.max_shield,
+		"current_shield": ship.shield.current_shield,
+		"engine_max_hp": ship.engine.max_hp,
+		"engine_current_hp": ship.engine.current_hp,
+		"weapon_mount_max_hp": mount_max,
+		"weapon_mount_current_hp": mount_cur,
+		"weapon_mount_items": mount_items,
+		"shield_item": orig.get("shield_item", ""),
+		"engine_item": orig.get("engine_item", ""),
+		"deploy": CrewRules.wants_deploy(orig),
+		"flagship": CrewRules.is_flagship(orig),
+	}
+	# Untracked crew (debug-spawned extras) stays keyless, which reads as full crew.
+	if ship.crew_complement > 0:
+		comp["crew"] = roundi(ship.crew)
+	return comp
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):

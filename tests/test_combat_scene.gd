@@ -246,4 +246,202 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if is_instance_valid(leaked_scene) and not leaked_scene.is_queued_for_deletion():
 			leaked_scene.queue_free()
 
+	# Crew deployment: only crewed, deploy-flagged ships spawn; the held-back
+	# comps come back unchanged after the battle.
+	campaign_state.reset()
+	var deploy_flagship := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	deploy_flagship["crew"] = 12
+	deploy_flagship["flagship"] = true
+	var deploy_short := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	deploy_short["crew"] = 2
+	deploy_short["deploy"] = true
+	var deploy_held := ShipType.new_composition(ShipType.Kind.FREIGHTER)
+	deploy_held["crew"] = 6
+	deploy_held["deploy"] = false
+	var deploy_player := CampaignFleet.new()
+	deploy_player.ship_compositions.assign([deploy_flagship, deploy_short, deploy_held])
+	var deploy_short_before: Dictionary = deploy_short.duplicate(true)
+	var deploy_held_before: Dictionary = deploy_held.duplicate(true)
+	var deploy_enemy := CampaignFleet.new()
+	deploy_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
+	campaign_state.player_fleet = deploy_player
+	campaign_state.start_engagement(deploy_enemy)
+
+	var deploy_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(deploy_scene)
+	await tree.process_frame
+	await tree.process_frame
+
+	if deploy_scene.player_ships.size() != 1:
+		failures.append("crew deploy: expected only the crewed, deploy-flagged ship spawned, got %d" % deploy_scene.player_ships.size())
+	else:
+		var deployed: Ship = deploy_scene.player_ships[0]
+		if deployed.crew_floor != 0:
+			failures.append("crew deploy: expected player ship crew_floor 0, got %d" % deployed.crew_floor)
+		if not is_equal_approx(deployed.crew, 12.0) or deployed.crew_complement != 12:
+			failures.append("crew deploy: expected player ship crew 12/12 from its comp, got %s/%d" % [deployed.crew, deployed.crew_complement])
+	if deploy_scene.enemy_ships.size() != 1:
+		failures.append("crew deploy: expected 1 enemy ship spawned, got %d" % deploy_scene.enemy_ships.size())
+	elif deploy_scene.enemy_ships[0].crew_floor != CrewRules.NPC_CREW_FLOOR:
+		failures.append("crew deploy: expected enemy ship crew_floor %d, got %d" % [CrewRules.NPC_CREW_FLOOR, deploy_scene.enemy_ships[0].crew_floor])
+
+	for ship in deploy_scene.enemy_ships.duplicate():
+		ship.hull.apply_damage(ship.hull.max_hp)
+	var deploy_next_scene: String = await _take_leaked_scene(tree, deploy_scene)
+
+	var deploy_comps: Array[Dictionary] = campaign_state.player_fleet.ship_compositions
+	if deploy_comps.size() != 3:
+		failures.append("crew deploy: expected the fought ship plus 2 held-back comps after the battle, got %d comps" % deploy_comps.size())
+	else:
+		if deploy_comps[0].get("crew", -1) != 12 or deploy_comps[0].get("flagship") != true or deploy_comps[0].get("deploy") != true:
+			failures.append("crew deploy: expected the fought ship back with crew 12, flagship true, deploy true, got %s" % deploy_comps[0])
+		if deploy_comps[1] != deploy_short_before:
+			failures.append("crew deploy: expected the under-crewed held-back comp unchanged, got %s" % deploy_comps[1])
+		if deploy_comps[2] != deploy_held_before:
+			failures.append("crew deploy: expected the deploy:false held-back comp unchanged, got %s" % deploy_comps[2])
+	if deploy_next_scene != "res://scenes/campaign/campaign_scene.tscn":
+		failures.append("crew deploy: expected the victory to return to the campaign scene, got '%s'" % deploy_next_scene)
+	campaign_state.reset()
+	if is_instance_valid(deploy_scene) and not deploy_scene.is_queued_for_deletion():
+		deploy_scene.queue_free()
+
+	# Disabled ending: disabling (not destroying) every enemy ship is a Victory;
+	# the enemy fleet is defeated and a share of its crew is captured.
+	campaign_state.reset()
+	var disable_player := CampaignFleet.new()
+	disable_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var disable_reserve := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	disable_reserve["crew"] = 3  # Under the corvette deploy minimum (4): held back.
+	var disable_enemy := CampaignFleet.new()
+	disable_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL), ShipType.new_composition(ShipType.Kind.CAPITAL), disable_reserve])
+	campaign_state.enemy_fleets.assign([disable_enemy])
+	campaign_state.player_fleet = disable_player
+	campaign_state.start_engagement(disable_enemy)
+
+	var disable_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(disable_scene)
+	await tree.process_frame
+	await tree.process_frame
+
+	if disable_scene.enemy_ships.size() != 2:
+		failures.append("disabled ending: expected the 2 crewed capitals deployed and the reserve held back, got %d enemy ships" % disable_scene.enemy_ships.size())
+	var captured_pool := 3
+	for ship in disable_scene.enemy_ships.duplicate():
+		# 21/220 hull left -> crew 40 * 21 / 220 = 3.8, under the capital disable threshold (4).
+		ship.hull.apply_damage(ship.hull.current_hp - 21.0)
+		if not ship.is_disabled() or ship.hull.is_destroyed():
+			failures.append("disabled ending: expected each enemy capital disabled but alive, got disabled=%s hp=%s" % [ship.is_disabled(), ship.hull.current_hp])
+		captured_pool += roundi(ship.crew)
+	var expected_captured := floori(CrewRules.CAPTURED_CREW_FRACTION * captured_pool)
+	if expected_captured != 2:
+		failures.append("disabled ending: expected the test setup to yield 2 captured crew (0.2 * (4 + 4 + 3)), got %d" % expected_captured)
+	if disable_scene.result_label.text != "Victory":
+		failures.append("disabled ending: expected 'Victory' once every enemy ship is disabled, got '%s'" % disable_scene.result_label.text)
+	await _take_leaked_scene(tree, disable_scene)
+
+	if campaign_state.enemy_fleets.has(disable_enemy):
+		failures.append("disabled ending: expected the disabled enemy fleet removed from enemy_fleets")
+	if campaign_state.pending_captured_crew != expected_captured:
+		failures.append("disabled ending: expected pending_captured_crew %d, got %d" % [expected_captured, campaign_state.pending_captured_crew])
+	campaign_state.reset()
+	if is_instance_valid(disable_scene) and not disable_scene.is_queued_for_deletion():
+		disable_scene.queue_free()
+
+	# Mutual knockout (Review Focus 2): both sides out in the same check -> Defeat.
+	campaign_state.reset()
+	var mutual_player := CampaignFleet.new()
+	mutual_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var mutual_enemy := CampaignFleet.new()
+	mutual_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([mutual_enemy])
+	campaign_state.player_fleet = mutual_player
+	campaign_state.start_engagement(mutual_enemy)
+
+	var mutual_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(mutual_scene)
+	await tree.process_frame
+	await tree.process_frame
+
+	var mutual_ships: Array = mutual_scene.player_ships + mutual_scene.enemy_ships
+	for ship in mutual_ships:
+		# Blocking the Ship's signals keeps its disabled handler from running the end check early.
+		ship.set_block_signals(true)
+		ship.hull.apply_damage(ship.hull.current_hp - 1.0)
+		ship.set_block_signals(false)
+		if not ship.is_disabled():
+			failures.append("mutual knockout: expected every ship disabled by the setup damage")
+	if mutual_scene.result_label.visible:
+		failures.append("mutual knockout: expected no result before the end check runs")
+	mutual_scene._check_battle_end()
+	if mutual_scene.result_label.text != "Defeat":
+		failures.append("mutual knockout: expected 'Defeat' when both sides are out in the same check, got '%s'" % mutual_scene.result_label.text)
+	await _take_leaked_scene(tree, mutual_scene)
+	if not campaign_state.enemy_fleets.has(mutual_enemy):
+		failures.append("mutual knockout: expected the enemy fleet kept after a player defeat")
+	campaign_state.reset()
+	if is_instance_valid(mutual_scene) and not mutual_scene.is_queued_for_deletion():
+		mutual_scene.queue_free()
+
+	# Defeat with a held-back ship: the fleet continues with it instead of game over.
+	campaign_state.reset()
+	var held_flagship := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	held_flagship["flagship"] = true
+	var held_reserve := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	held_reserve["crew"] = 3  # Under the corvette deploy minimum (4): held back.
+	var held_player := CampaignFleet.new()
+	held_player.ship_compositions.assign([held_flagship, held_reserve])
+	var held_reserve_before: Dictionary = held_reserve.duplicate(true)
+	var held_enemy := CampaignFleet.new()
+	held_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
+	campaign_state.enemy_fleets.assign([held_enemy])
+	campaign_state.player_fleet = held_player
+	campaign_state.start_engagement(held_enemy)
+
+	var held_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(held_scene)
+	await tree.process_frame
+	await tree.process_frame
+
+	if held_scene.player_ships.size() != 1:
+		failures.append("held-back defeat: expected 1 player ship deployed, got %d" % held_scene.player_ships.size())
+	for ship in held_scene.player_ships.duplicate():
+		ship.hull.apply_damage(ship.hull.max_hp)
+	if held_scene.result_label.text != "Defeat":
+		failures.append("held-back defeat: expected 'Defeat' once every deployed player ship is destroyed, got '%s'" % held_scene.result_label.text)
+	var held_next_scene: String = await _take_leaked_scene(tree, held_scene)
+
+	var held_comps: Array[Dictionary] = campaign_state.player_fleet.ship_compositions
+	if held_comps.size() != 1:
+		failures.append("held-back defeat: expected only the held-back comp left, got %d comps" % held_comps.size())
+	else:
+		var held_after: Dictionary = held_comps[0].duplicate(true)
+		# ensure_flagship reassigns the lost flagship role to the survivor.
+		if held_after.get("flagship") != true:
+			failures.append("held-back defeat: expected the surviving comp promoted to flagship")
+		held_after.erase("flagship")
+		var held_expected: Dictionary = held_reserve_before.duplicate(true)
+		held_expected.erase("flagship")
+		if held_after != held_expected:
+			failures.append("held-back defeat: expected the held-back comp unchanged, got %s" % held_comps[0])
+	if held_next_scene != "res://scenes/campaign/campaign_scene.tscn":
+		failures.append("held-back defeat: expected the campaign scene (not game over), got '%s'" % held_next_scene)
+	campaign_state.reset()
+	if is_instance_valid(held_scene) and not held_scene.is_queued_for_deletion():
+		held_scene.queue_free()
+
 	return failures
+
+# change_scene_to_file applies a few frames later; poll for it, then free the
+# swapped-in scene so it doesn't keep running for the rest of the test run.
+# Returns the swapped-in scene's path, or "" if no change happened.
+static func _take_leaked_scene(tree: SceneTree, own_scene: Node) -> String:
+	for i in 10:
+		await tree.process_frame
+		var current: Node = tree.current_scene
+		if current != null and current != own_scene:
+			var path := current.scene_file_path
+			tree.current_scene = null
+			if is_instance_valid(current) and not current.is_queued_for_deletion():
+				current.queue_free()
+			return path
+	return ""

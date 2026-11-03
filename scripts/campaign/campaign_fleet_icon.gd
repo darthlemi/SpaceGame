@@ -111,10 +111,15 @@ func _physics_process(delta: float) -> void:
 		BehaviorType.PLAYER:
 			pass
 	_move_target = _move_target.clamp(MAP_MIN, MAP_MAX)
+	# Only the player runs on fuel; NPC fleets carry none and would crawl forever.
+	var is_player := behavior_type == BehaviorType.PLAYER
+	var step_speed := fleet.travel_speed() if is_player else fleet.speed
 	var previous_position := global_position
-	global_position = global_position.move_toward(_move_target, fleet.speed * delta)
+	global_position = global_position.move_toward(_move_target, step_speed * delta)
 	fleet.position = global_position
 	var movement := global_position - previous_position
+	if is_player:
+		fleet.consume_fuel(movement.length())
 	if movement.length() > HEADING_EPSILON:
 		_heading_angle = movement.angle()
 	var is_moving := movement.length() > HEADING_EPSILON

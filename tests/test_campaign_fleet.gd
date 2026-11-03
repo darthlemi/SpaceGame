@@ -99,4 +99,38 @@ static func run() -> Array[String]:
 	if parts_fleet.cargo_total() != 7.0:
 		failures.append("cargo_total: expected commodities (5) + part_inventory (2) == 7.0, got %s" % parts_fleet.cargo_total())
 
+	var fuel_fleet := CampaignFleet.new()
+	fuel_fleet.speed = 100.0
+	fuel_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CAPITAL)]
+	var expected_crew := ShipType.crew_for(ShipType.Kind.CORVETTE) + ShipType.crew_for(ShipType.Kind.CAPITAL)
+	if fuel_fleet.crew_total() != expected_crew:
+		failures.append("crew_total: expected %d, got %d" % [expected_crew, fuel_fleet.crew_total()])
+	var expected_burn := (ShipType.fuel_burn_for(ShipType.Kind.CORVETTE) + ShipType.fuel_burn_for(ShipType.Kind.CAPITAL)) / CampaignFleet.FUEL_BURN_DISTANCE
+	if not is_equal_approx(fuel_fleet.fuel_burn_per_distance(), expected_burn):
+		failures.append("fuel_burn_per_distance: expected %s, got %s" % [expected_burn, fuel_fleet.fuel_burn_per_distance()])
+	if not is_equal_approx(fuel_fleet.fuel_burn_rate(), expected_burn * 100.0):
+		failures.append("fuel_burn_rate: expected burn/distance * speed, got %s" % fuel_fleet.fuel_burn_rate())
+
+	if fuel_fleet.fuel_amount() != 0.0:
+		failures.append("fuel_amount: expected 0.0 with no Fuel cargo, got %s" % fuel_fleet.fuel_amount())
+	if not is_equal_approx(fuel_fleet.travel_speed(), 100.0 * CampaignFleet.EMPTY_FUEL_SPEED_FACTOR):
+		failures.append("travel_speed: expected crawl speed with no fuel, got %s" % fuel_fleet.travel_speed())
+	fuel_fleet.consume_fuel(500.0)
+	if fuel_fleet.cargo.has(Commodity.Type.FUEL):
+		failures.append("consume_fuel: expected no Fuel key created when there is no fuel to burn")
+
+	fuel_fleet.cargo = {Commodity.Type.FUEL: 10.0}
+	if fuel_fleet.travel_speed() != 100.0:
+		failures.append("travel_speed: expected full speed with fuel, got %s" % fuel_fleet.travel_speed())
+	fuel_fleet.consume_fuel(1000.0)
+	if not is_equal_approx(fuel_fleet.fuel_amount(), 10.0 - expected_burn * 1000.0):
+		failures.append("consume_fuel: expected %s left after 1000 units, got %s" % [10.0 - expected_burn * 1000.0, fuel_fleet.fuel_amount()])
+	var fuel_before_negative := fuel_fleet.fuel_amount()
+	fuel_fleet.consume_fuel(-50.0)
+	if fuel_fleet.fuel_amount() != fuel_before_negative:
+		failures.append("consume_fuel: expected negative distance to be ignored, got %s" % fuel_fleet.fuel_amount())
+	fuel_fleet.consume_fuel(100000.0)
+	if fuel_fleet.fuel_amount() != 0.0:
+		failures.append("consume_fuel: expected fuel clamped at 0.0, got %s" % fuel_fleet.fuel_amount())
+
 	return failures

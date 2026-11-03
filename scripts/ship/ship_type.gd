@@ -11,10 +11,11 @@ const SCENES := {
 	Kind.CAPITAL: "res://scenes/ship/ship_capital.tscn",
 }
 
+# fuel_burn: Fuel units consumed per CampaignFleet.FUEL_BURN_DISTANCE map units travelled.
 const BASE_STATS := {
-	Kind.CORVETTE: {"max_hp": 60.0, "max_shield": 20.0, "cargo_capacity": 20.0, "engine_hp": 25.0, "weapon_mount_hp": 15.0, "weapon_mount_count": 1},
-	Kind.FREIGHTER: {"max_hp": 80.0, "max_shield": 20.0, "cargo_capacity": 60.0, "engine_hp": 35.0, "weapon_mount_hp": 0.0, "weapon_mount_count": 0},
-	Kind.CAPITAL: {"max_hp": 220.0, "max_shield": 80.0, "cargo_capacity": 20.0, "engine_hp": 70.0, "weapon_mount_hp": 30.0, "weapon_mount_count": 3},
+	Kind.CORVETTE: {"max_hp": 60.0, "max_shield": 20.0, "cargo_capacity": 20.0, "engine_hp": 25.0, "weapon_mount_hp": 15.0, "weapon_mount_count": 1, "crew": 12, "fuel_burn": 1.0},
+	Kind.FREIGHTER: {"max_hp": 80.0, "max_shield": 20.0, "cargo_capacity": 60.0, "engine_hp": 35.0, "weapon_mount_hp": 0.0, "weapon_mount_count": 0, "crew": 6, "fuel_burn": 1.5},
+	Kind.CAPITAL: {"max_hp": 220.0, "max_shield": 80.0, "cargo_capacity": 20.0, "engine_hp": 70.0, "weapon_mount_hp": 30.0, "weapon_mount_count": 3, "crew": 40, "fuel_burn": 3.0},
 }
 
 const WEAPON_POOL: Array[String] = [
@@ -90,6 +91,12 @@ static func kind_of(comp: Dictionary) -> Kind:
 
 static func cargo_capacity_for(kind: Kind) -> float:
 	return BASE_STATS[kind]["cargo_capacity"]
+
+static func crew_for(kind: Kind) -> int:
+	return BASE_STATS[kind]["crew"]
+
+static func fuel_burn_for(kind: Kind) -> float:
+	return BASE_STATS[kind]["fuel_burn"]
 
 static func new_composition(kind: Kind) -> Dictionary:
 	var stats: Dictionary = BASE_STATS[kind]

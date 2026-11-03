@@ -6,6 +6,7 @@ const FactionBaseScene = preload("res://scenes/campaign/faction_base.tscn")
 const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 
 const HOME_BASE_POSITION := Vector2(600, 400)
+const PLAYER_STARTING_FUEL := 30.0
 
 var player_icon: CampaignFleetIcon
 var enemy_icons: Array[CampaignFleetIcon] = []
@@ -66,6 +67,7 @@ func _bootstrap_default_campaign() -> void:
 		{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
 		{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
 	]
+	player.cargo = {Commodity.Type.FUEL: PLAYER_STARTING_FUEL}
 	CampaignState.player_fleet = player
 
 	var pirate := CampaignFleet.new()

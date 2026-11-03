@@ -1,10 +1,11 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/campaign/campaign_scene.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/campaign/trade_panel.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/campaign/loot_panel.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/speed_controls.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/campaign/refit_panel.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/fleet_status_bar.tscn" id="6"]
 
 [node name="CampaignScene" type="Node2D"]
 script = ExtResource("1")
@@ -44,3 +45,5 @@ text = "Disengage"
 [node name="LootPanel" type="Control" parent="UILayer" instance=ExtResource("3")]
 
 [node name="SpeedControls" parent="UILayer" instance=ExtResource("4")]
+
+[node name="FleetStatusBar" parent="UILayer" instance=ExtResource("6")]

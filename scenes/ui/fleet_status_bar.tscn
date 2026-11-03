@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/fleet_status_bar.gd" id="1"]
+
+[node name="FleetStatusBar" type="Control"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 930.0
+offset_bottom = 49.0
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="Background" type="Panel" parent="."]
+offset_right = 920.0
+offset_bottom = 39.0
+mouse_filter = 2
+
+[node name="Layout" type="HBoxContainer" parent="."]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 912.0
+offset_bottom = 31.0
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="ShipsLabel" type="Label" parent="Layout"]
+text = "Ships: 0"
+
+[node name="FuelLabel" type="Label" parent="Layout"]
+text = "Fuel: 0.0"
+
+[node name="CrewLabel" type="Label" parent="Layout"]
+text = "Crew: 0"
+
+[node name="CreditsLabel" type="Label" parent="Layout"]
+text = "Credits: 0"
+
+[node name="CargoLabel" type="Label" parent="Layout"]
+text = "Cargo: 0.0/0"

@@ -15,6 +15,14 @@ static func run() -> Array[String]:
 	if ShipType.cargo_capacity_for(ShipType.Kind.CAPITAL) != 20.0:
 		failures.append("cargo_capacity_for: expected Capital == 20.0, got %s" % ShipType.cargo_capacity_for(ShipType.Kind.CAPITAL))
 
+	for kind in ShipType.Kind.values():
+		if ShipType.crew_for(kind) <= 0:
+			failures.append("crew_for: expected a positive crew complement for kind %s" % kind)
+		if ShipType.fuel_burn_for(kind) <= 0.0:
+			failures.append("fuel_burn_for: expected a positive fuel burn for kind %s" % kind)
+	if ShipType.crew_for(ShipType.Kind.CAPITAL) <= ShipType.crew_for(ShipType.Kind.CORVETTE):
+		failures.append("crew_for: expected Capital to need more crew than Corvette")
+
 	var comp := ShipType.new_composition(ShipType.Kind.CAPITAL)
 	if comp["ship_type"] != ShipType.Kind.CAPITAL:
 		failures.append("new_composition: expected ship_type == CAPITAL, got %s" % comp["ship_type"])

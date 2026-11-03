@@ -61,6 +61,21 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		UiLayoutCheck.check_panel_layout(panel, failures)
 	# Docking auto-pauses, so the PAUSED label is shown and checked too.
 	UiLayoutCheck.check_panel_layout(scene.get_node("UILayer/SpeedControls"), failures)
+	# The status bar is always on screen, so it must clear every docking panel.
+	var status_bar: Control = scene.get_node("UILayer/FleetStatusBar")
+	var status_rect: Rect2 = status_bar.get_node("Background").get_global_rect()
+	for other_rect in [speed_rect, trade_rect, refit_rect]:
+		if status_rect.intersects(other_rect):
+			failures.append("expected FleetStatusBar %s not to overlap %s" % [status_rect, other_rect])
+	if not viewport_rect.encloses(status_rect):
+		failures.append("expected FleetStatusBar %s inside the viewport %s" % [status_rect, viewport_rect])
+	UiLayoutCheck.check_panel_layout(status_bar, failures)
+	var crew_text: String = status_bar.get_node("Layout/CrewLabel").text
+	if crew_text != "Crew: %d" % campaign_state.player_fleet.crew_total():
+		failures.append("expected FleetStatusBar crew label to show the fleet crew total, got '%s'" % crew_text)
+	var fuel_text: String = status_bar.get_node("Layout/FuelLabel").text
+	if not fuel_text.begins_with("Fuel: %.1f" % campaign_state.player_fleet.fuel_amount()):
+		failures.append("expected FleetStatusBar fuel label to show the fleet's fuel, got '%s'" % fuel_text)
 	refit_panel.equip_button.pressed.emit()
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(refit_panel, failures)

@@ -363,4 +363,49 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	small_icon.queue_free()
 	large_icon.queue_free()
 
+	# Fuel: the player burns fuel while moving and crawls once empty; NPC
+	# fleets carry no fuel and must keep full speed.
+	var fueled_fleet := CampaignFleet.new()
+	fueled_fleet.speed = 100.0
+	fueled_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CAPITAL)]
+	fueled_fleet.cargo = {Commodity.Type.FUEL: 50.0}
+	var empty_fleet := CampaignFleet.new()
+	empty_fleet.speed = 100.0
+	empty_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CAPITAL)]
+	var npc_fleet := CampaignFleet.new()
+	npc_fleet.speed = 100.0
+	npc_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CAPITAL)]
+
+	var fuel_icons: Array[CampaignFleetIcon] = []
+	for fuel_case in [[fueled_fleet, CampaignFleetIcon.BehaviorType.PLAYER], [empty_fleet, CampaignFleetIcon.BehaviorType.PLAYER], [npc_fleet, CampaignFleetIcon.BehaviorType.TRADER]]:
+		var fuel_icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
+		fuel_icon.behavior_type = fuel_case[1]
+		tree.root.add_child(fuel_icon)
+		fuel_icon.setup(fuel_case[0], Vector2.ZERO)
+		# Far-off target so no icon arrives (and stops) during the window.
+		fuel_icon.set_route_endpoints(Vector2(3000, 0), Vector2(3000, 0))
+		fuel_icon.set_move_target(Vector2(3000, 0))
+		fuel_icons.append(fuel_icon)
+	for i in 10:
+		await tree.physics_frame
+
+	var fueled_moved: float = fuel_icons[0].global_position.length()
+	var empty_moved: float = fuel_icons[1].global_position.length()
+	var npc_moved: float = fuel_icons[2].global_position.length()
+	if fueled_fleet.fuel_amount() >= 50.0:
+		failures.append("fuel: expected the moving player fleet to burn fuel, still at %s" % fueled_fleet.fuel_amount())
+	if not is_equal_approx(50.0 - fueled_fleet.fuel_amount(), fueled_moved * fueled_fleet.fuel_burn_per_distance()):
+		failures.append("fuel: expected burn proportional to distance %s, burned %s" % [fueled_moved, 50.0 - fueled_fleet.fuel_amount()])
+	if fueled_moved <= 0.0 or empty_moved <= 0.0:
+		failures.append("fuel: expected both player fleets to move (fueled %s, empty %s)" % [fueled_moved, empty_moved])
+	elif not is_equal_approx(empty_moved / fueled_moved, CampaignFleet.EMPTY_FUEL_SPEED_FACTOR):
+		failures.append("fuel: expected empty fleet at %s of full speed, got %s" % [CampaignFleet.EMPTY_FUEL_SPEED_FACTOR, empty_moved / fueled_moved])
+	if not is_equal_approx(npc_moved, fueled_moved):
+		failures.append("fuel: expected fuel-less NPC fleet at full speed (%s), moved %s" % [fueled_moved, npc_moved])
+	if npc_fleet.cargo.has(Commodity.Type.FUEL):
+		failures.append("fuel: expected NPC fleet cargo untouched by fuel burn")
+
+	for fuel_icon in fuel_icons:
+		fuel_icon.queue_free()
+
 	return failures

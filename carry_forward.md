@@ -17,8 +17,18 @@
   the configured viewport (headless window is 64x64).
 - SpeedControls had the same 4px row overlaps; now a `Layout` VBox (2px
   separation, 8px inset, background 165x121). Covered by the same check.
-- **Same root cause, flagged, not fixed**: LootPanel's RowsContainer is
-  unbounded (fits ~6 rows before reaching Close).
+- Committed as `cbe7491` on main. LootPanel then got the same treatment
+  (`Layout` VBox with `RowsScroll`; geometry unchanged), plus
+  `_rebuild_rows` now calls `remove_child` before `queue_free` (a same-frame
+  rebuild stacked rows: 13 instead of 6). Committed separately on main.
+- Layout check moved to `tests/ui_layout_check.gd` (new shared-helper file,
+  no `test_` prefix) so panel tests can preload it. It compares the clipped
+  rect for widgets inside a ScrollContainer.
+- `test_ai_controller_targeting.gd` failed once (one run of five), then
+  passed again - the documented frame-timing fragility, not this change.
+- Launching the game rewrites 19 `.import` files + `project.godot` with
+  LF/CRLF-only diffs; auto mode blocked `git checkout --` on them, so the
+  user reverts them.
 - Suite on the branch: only the known `test_campaign_long_run_sim.gd`
   pirate-targeting flake (6 failures on the branch, 5 on the merged tree).
 - Merged `feature/ship-refit-customization` into `main` (--no-ff). The 31

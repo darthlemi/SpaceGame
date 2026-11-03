@@ -1,6 +1,7 @@
 extends RefCounted
 
 const CampaignSceneScene = preload("res://scenes/campaign/campaign_scene.tscn")
+const UiLayoutCheck = preload("res://tests/ui_layout_check.gd")
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
@@ -57,12 +58,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("expected %s %s not to overlap SpeedControls %s" % [panel.name, bg_rect, speed_rect])
 		if not viewport_rect.encloses(bg_rect):
 			failures.append("expected %s %s inside the viewport %s" % [panel.name, bg_rect, viewport_rect])
-		_check_panel_layout(panel, failures)
+		UiLayoutCheck.check_panel_layout(panel, failures)
 	# Docking auto-pauses, so the PAUSED label is shown and checked too.
-	_check_panel_layout(scene.get_node("UILayer/SpeedControls"), failures)
+	UiLayoutCheck.check_panel_layout(scene.get_node("UILayer/SpeedControls"), failures)
 	refit_panel.equip_button.pressed.emit()
 	await tree.process_frame
-	_check_panel_layout(refit_panel, failures)
+	UiLayoutCheck.check_panel_layout(refit_panel, failures)
 	refit_panel.shop_button.pressed.emit()
 	# Docking now auto-pauses the tree; undo that so the physics-frame-driven
 	# "leave the base" teleport below can actually register the area_exited
@@ -174,34 +175,3 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	campaign_state.reset()
 	scene.queue_free()
 	return failures
-
-# Theme-driven control sizes (e.g. the 8px button margins) must never push
-# content outside the panel chrome or on top of other content.
-static func _check_panel_layout(panel: Control, failures: Array[String]) -> void:
-	var bg_rect: Rect2 = panel.get_node("Background").get_global_rect()
-	var controls: Array[Control] = []
-	_collect_visible_widgets(panel, controls)
-	for c in controls:
-		# ScrollContainer clips its content, so off-screen rows are fine.
-		if not _has_scroll_ancestor(c, panel) and not bg_rect.encloses(c.get_global_rect()):
-			failures.append("%s: %s %s spills outside Background %s" % [panel.name, c.name, c.get_global_rect(), bg_rect])
-	for i in controls.size():
-		for j in range(i + 1, controls.size()):
-			if controls[i].get_global_rect().intersects(controls[j].get_global_rect()):
-				failures.append("%s: %s overlaps %s" % [panel.name, controls[i].name, controls[j].name])
-
-static func _collect_visible_widgets(node: Node, out: Array[Control]) -> void:
-	for child in node.get_children():
-		if not (child is Control) or not child.visible:
-			continue
-		if child is Button or child is Label:
-			out.append(child)
-		_collect_visible_widgets(child, out)
-
-static func _has_scroll_ancestor(node: Node, stop_at: Node) -> bool:
-	var parent := node.get_parent()
-	while parent != null and parent != stop_at:
-		if parent is ScrollContainer:
-			return true
-		parent = parent.get_parent()
-	return false

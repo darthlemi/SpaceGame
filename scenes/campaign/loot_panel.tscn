@@ -15,15 +15,20 @@ offset_right = 500.0
 offset_bottom = 350.0
 mouse_filter = 2
 
-[node name="RowsContainer" type="VBoxContainer" parent="."]
+[node name="Layout" type="VBoxContainer" parent="."]
 offset_left = 14.0
 offset_top = 14.0
 offset_right = 486.0
-offset_bottom = 286.0
+offset_bottom = 336.0
+mouse_filter = 2
 
-[node name="CloseButton" type="Button" parent="."]
-offset_left = 14.0
-offset_top = 300.0
-offset_right = 114.0
-offset_bottom = 330.0
+[node name="RowsScroll" type="ScrollContainer" parent="Layout"]
+size_flags_vertical = 3
+
+[node name="RowsContainer" type="VBoxContainer" parent="Layout/RowsScroll"]
+size_flags_horizontal = 3
+
+[node name="CloseButton" type="Button" parent="Layout"]
+custom_minimum_size = Vector2(100, 0)
+size_flags_horizontal = 0
 text = "Close"

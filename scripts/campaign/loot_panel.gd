@@ -5,8 +5,8 @@ var _defeated_fleet: CampaignFleet
 var _player_fleet: CampaignFleet
 var _rows: Dictionary = {}
 
-@onready var rows_container: VBoxContainer = $RowsContainer
-@onready var close_button: Button = $CloseButton
+@onready var rows_container: VBoxContainer = $Layout/RowsScroll/RowsContainer
+@onready var close_button: Button = $Layout/CloseButton
 
 func _ready() -> void:
 	close_button.pressed.connect(close)
@@ -34,6 +34,7 @@ func refresh() -> void:
 
 func _rebuild_rows() -> void:
 	for child in rows_container.get_children():
+		rows_container.remove_child(child)
 		child.queue_free()
 	_rows = {}
 	for commodity in _defeated_fleet.cargo.keys():

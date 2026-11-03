@@ -3,6 +3,7 @@ extends RefCounted
 const LootPanelScene = preload("res://scenes/campaign/loot_panel.tscn")
 const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 const Commodity = preload("res://scripts/campaign/commodity.gd")
+const UiLayoutCheck = preload("res://tests/ui_layout_check.gd")
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
@@ -50,6 +51,24 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	panel.refresh()
 	if not take_button.disabled:
 		failures.append("LootPanel: expected Take disabled once the defeated fleet's cargo is exhausted")
+
+	# Every commodity plus padding rows: no row count may push content
+	# outside the panel or under the Close button.
+	for commodity in Commodity.Type.values():
+		defeated_fleet.cargo[commodity] = 5.0
+	panel.open_for(defeated_fleet, player_fleet)
+	# Rebuilding again before freed rows are flushed must not stack them.
+	panel.open_for(defeated_fleet, player_fleet)
+	if panel.rows_container.get_child_count() != Commodity.Type.size():
+		failures.append("LootPanel: expected %d rows after a same-frame rebuild, got %d" % [Commodity.Type.size(), panel.rows_container.get_child_count()])
+	for i in 6:
+		var extra_row := HBoxContainer.new()
+		var extra_button := Button.new()
+		extra_button.text = "Take"
+		extra_row.add_child(extra_button)
+		panel.rows_container.add_child(extra_row)
+	await tree.process_frame
+	UiLayoutCheck.check_panel_layout(panel, failures)
 
 	panel.close()
 	if panel.visible:

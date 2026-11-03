@@ -77,6 +77,7 @@ func _bootstrap_default_campaign() -> void:
 		{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
 	]
 	player.cargo = {Commodity.Type.FUEL: PLAYER_STARTING_FUEL}
+	player.ensure_flagship()
 	CampaignState.player_fleet = player
 
 	var pirate := CampaignFleet.new()

@@ -60,11 +60,43 @@ func consume_fuel(distance: float) -> void:
 		return
 	cargo[Commodity.Type.FUEL] = max(0.0, held - fuel_burn_per_distance() * distance)
 
+func crew_capacity() -> int:
+	var sum := 0
+	for comp in ship_compositions:
+		sum += CrewRules.complement(comp)
+	return sum
+
 func crew_total() -> int:
 	var sum := 0
 	for comp in ship_compositions:
-		sum += ShipType.crew_for(ShipType.kind_of(comp))
+		sum += CrewRules.crew_of(comp)
 	return sum
+
+# Flags the largest class when none is flagged; ties go to the lowest index.
+func ensure_flagship() -> void:
+	if ship_compositions.is_empty() or flagship_index() != -1:
+		return
+	var best := 0
+	for i in ship_compositions.size():
+		if CrewRules.class_size_rank(ship_compositions[i]) > CrewRules.class_size_rank(ship_compositions[best]):
+			best = i
+	set_flagship(best)
+
+func flagship_index() -> int:
+	for i in ship_compositions.size():
+		if CrewRules.is_flagship(ship_compositions[i]):
+			return i
+	return -1
+
+func has_uncrewed_ship() -> bool:
+	for comp in ship_compositions:
+		if CrewRules.crew_of(comp) <= 0:
+			return true
+	return false
+
+func set_flagship(index: int) -> void:
+	for i in ship_compositions.size():
+		ship_compositions[i]["flagship"] = (i == index)
 
 func fuel_amount() -> float:
 	return cargo.get(Commodity.Type.FUEL, 0.0)
@@ -80,4 +112,7 @@ func fuel_burn_rate() -> float:
 	return fuel_burn_per_distance() * speed
 
 func travel_speed() -> float:
-	return speed if fuel_amount() > 0.0 else speed * EMPTY_FUEL_SPEED_FACTOR
+	# An uncrewed ship crawls the whole fleet, same as no fuel; the two don't stack.
+	if fuel_amount() <= 0.0 or has_uncrewed_ship():
+		return speed * EMPTY_FUEL_SPEED_FACTOR
+	return speed

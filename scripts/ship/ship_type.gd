@@ -41,6 +41,12 @@ const LOADOUT_POINTS := {
 	Kind.CAPITAL: 40,
 }
 
+const SHIP_PRICE := {
+	Kind.CORVETTE: 400.0,
+	Kind.FREIGHTER: 500.0,
+	Kind.CAPITAL: 2000.0,
+}
+
 static func points_budget_for(kind: Kind) -> int:
 	return LOADOUT_POINTS[kind]
 
@@ -118,4 +124,5 @@ static func new_composition(kind: Kind) -> Dictionary:
 		"weapon_mount_items": mount_items,
 		"shield_item": "",
 		"engine_item": "",
+		"crew": crew_for(kind),
 	}

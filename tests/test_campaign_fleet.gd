@@ -102,9 +102,38 @@ static func run() -> Array[String]:
 	var fuel_fleet := CampaignFleet.new()
 	fuel_fleet.speed = 100.0
 	fuel_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CAPITAL)]
+	# new_composition starts fully crewed, so actual crew equals the class complements here.
 	var expected_crew := ShipType.crew_for(ShipType.Kind.CORVETTE) + ShipType.crew_for(ShipType.Kind.CAPITAL)
 	if fuel_fleet.crew_total() != expected_crew:
 		failures.append("crew_total: expected %d, got %d" % [expected_crew, fuel_fleet.crew_total()])
+
+	var crewed_fleet := CampaignFleet.new()
+	crewed_fleet.ship_compositions = [
+		{"ship_type": ShipType.Kind.CORVETTE, "crew": 12},
+		{"ship_type": ShipType.Kind.FREIGHTER},
+	]
+	if crewed_fleet.crew_total() != 18:
+		failures.append("crew_total: expected 18 (12 + missing-key freighter 6), got %d" % crewed_fleet.crew_total())
+	if crewed_fleet.crew_capacity() != 18:
+		failures.append("crew_capacity: expected 18, got %d" % crewed_fleet.crew_capacity())
+	if crewed_fleet.has_uncrewed_ship():
+		failures.append("has_uncrewed_ship: expected false when all ships have crew")
+
+	var skeleton_fleet := CampaignFleet.new()
+	skeleton_fleet.speed = 100.0
+	skeleton_fleet.cargo = {Commodity.Type.FUEL: 10.0}
+	skeleton_fleet.ship_compositions = [
+		{"ship_type": ShipType.Kind.CORVETTE, "crew": 0},
+		{"ship_type": ShipType.Kind.FREIGHTER},
+	]
+	if not skeleton_fleet.has_uncrewed_ship():
+		failures.append("has_uncrewed_ship: expected true with a crew-0 ship")
+	var crawl_speed := 100.0 * CampaignFleet.EMPTY_FUEL_SPEED_FACTOR
+	if not is_equal_approx(skeleton_fleet.travel_speed(), crawl_speed):
+		failures.append("travel_speed: expected crawl with an uncrewed ship and fuel, got %s" % skeleton_fleet.travel_speed())
+	skeleton_fleet.cargo = {}
+	if not is_equal_approx(skeleton_fleet.travel_speed(), crawl_speed):
+		failures.append("travel_speed: expected crawl (not squared) with no fuel and an uncrewed ship, got %s" % skeleton_fleet.travel_speed())
 	var expected_burn := (ShipType.fuel_burn_for(ShipType.Kind.CORVETTE) + ShipType.fuel_burn_for(ShipType.Kind.CAPITAL)) / CampaignFleet.FUEL_BURN_DISTANCE
 	if not is_equal_approx(fuel_fleet.fuel_burn_per_distance(), expected_burn):
 		failures.append("fuel_burn_per_distance: expected %s, got %s" % [expected_burn, fuel_fleet.fuel_burn_per_distance()])

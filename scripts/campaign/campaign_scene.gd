@@ -17,6 +17,8 @@ var enemy_icons: Array[CampaignFleetIcon] = []
 @onready var trade_panel: TradePanel = $UILayer/TradePanel
 @onready var refit_panel: RefitPanel = $UILayer/RefitPanel
 @onready var repair_panel: RepairPanel = $UILayer/RepairPanel
+@onready var fleet_management_panel: FleetManagementPanel = $UILayer/FleetManagementPanel
+@onready var fleet_status_bar: Control = $UILayer/FleetStatusBar
 @onready var base_overview_panel: BaseOverviewPanel = $UILayer/BaseOverviewPanel
 @onready var loot_panel: LootPanel = $UILayer/LootPanel
 
@@ -56,6 +58,8 @@ func _ready() -> void:
 	base_overview_panel.shipyard_button.pressed.connect(_open_shipyard)
 	base_overview_panel.repair_button.pressed.connect(_open_repair)
 	base_overview_panel.undock_button.pressed.connect(_on_docking_panel_closed)
+	fleet_status_bar.fleet_button.pressed.connect(_open_fleet_management)
+	fleet_management_panel.close_button.pressed.connect(_on_fleet_management_closed)
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
@@ -349,6 +353,7 @@ func _close_dock_subpanels() -> void:
 	trade_panel.close()
 	refit_panel.close()
 	repair_panel.close()
+	fleet_management_panel.close()
 
 func _open_trade_goods() -> void:
 	_close_dock_subpanels()
@@ -361,6 +366,16 @@ func _open_shipyard() -> void:
 func _open_repair() -> void:
 	_close_dock_subpanels()
 	repair_panel.open_for(CampaignState.player_fleet)
+
+func _open_fleet_management() -> void:
+	_close_dock_subpanels()
+	fleet_management_panel.open_for(CampaignState.player_fleet, _economy_for_base(_docked_base))
+	get_tree().paused = true
+
+# Docked play stays paused behind the overview; only an undocked open unpauses.
+func _on_fleet_management_closed() -> void:
+	if _docked_base == null:
+		get_tree().paused = false
 
 # Reputation changes (e.g. a paid fine) can flip a faction between hostile and
 # friendly; re-derive behavior for its live icons instead of waiting for a reload.
@@ -384,7 +399,7 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if base_overview_panel.visible or engage_prompt.visible:
+		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible:
 			return
 		if get_tree().paused:
 			get_tree().paused = false

@@ -98,8 +98,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("expected FleetStatusBar %s inside the viewport %s" % [status_rect, viewport_rect])
 	UiLayoutCheck.check_panel_layout(status_bar, failures)
 	var crew_text: String = status_bar.get_node("Layout/CrewLabel").text
-	if crew_text != "Crew: %d" % campaign_state.player_fleet.crew_total():
-		failures.append("expected FleetStatusBar crew label to show the fleet crew total, got '%s'" % crew_text)
+	var crew_fleet: CampaignFleet = campaign_state.player_fleet
+	var expected_crew_text := "Crew: %d/%d (-%.1f cr/tick)" % [crew_fleet.crew_total(), crew_fleet.crew_capacity(), campaign_state.wage_bill(crew_fleet)]
+	if status_bar.get_node_or_null("Layout/FleetButton") == null:
+		failures.append("expected FleetStatusBar to have a Fleet button")
+	if crew_text != expected_crew_text:
+		failures.append("expected FleetStatusBar crew label '%s', got '%s'" % [expected_crew_text, crew_text])
 	var fuel_text: String = status_bar.get_node("Layout/FuelLabel").text
 	if not fuel_text.begins_with("Fuel: %.1f" % campaign_state.player_fleet.fuel_amount()):
 		failures.append("expected FleetStatusBar fuel label to show the fleet's fuel, got '%s'" % fuel_text)

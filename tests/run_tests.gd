@@ -197,6 +197,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [repair_panel_test.resource_path, f])
 	total_failures += repair_panel_failures.size()
 
+	var fleet_management_panel_test = load("res://tests/test_fleet_management_panel.gd")
+	var fleet_management_panel_failures: Array[String] = await fleet_management_panel_test.run_async(self)
+	for f in fleet_management_panel_failures:
+		print("FAIL [%s]: %s" % [fleet_management_panel_test.resource_path, f])
+	total_failures += fleet_management_panel_failures.size()
+
 	var base_overview_panel_test = load("res://tests/test_base_overview_panel.gd")
 	var base_overview_panel_failures: Array[String] = await base_overview_panel_test.run_async(self)
 	for f in base_overview_panel_failures:

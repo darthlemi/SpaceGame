@@ -148,4 +148,82 @@ static func run() -> Array[String]:
 	if deficit_then_clean_base.surplus_streak != 0:
 		failures.append("surplus_streak: expected 0 after a deficit tick, got %s" % deficit_then_clean_base.surplus_streak)
 
+
+	# Population: capacity is the sum of slot housing.
+	var housing_base := BaseEconomy.new()
+	housing_base.slots = [EconomyRole.mining(), EconomyRole.population()]
+	var expected_capacity := EconomyRole.housing_for(EconomyRole.RoleType.MINING) + EconomyRole.housing_for(EconomyRole.RoleType.POPULATION)
+	if housing_base.population_capacity() != expected_capacity:
+		failures.append("population_capacity: expected %s, got %s" % [expected_capacity, housing_base.population_capacity()])
+
+	# Grows with secure food, never past capacity.
+	var growing_base := BaseEconomy.new()
+	growing_base.slots = [EconomyRole.agriculture()]
+	growing_base.stock = {Commodity.Type.FOOD: BaseEconomy.FOOD_SECURE_STOCK}
+	growing_base.population = 1000.0
+	growing_base.tick()
+	if not is_equal_approx(growing_base.population, 1000.0 * (1.0 + BaseEconomy.POPULATION_GROWTH_RATE)):
+		failures.append("population: expected growth with secure food, got %s" % growing_base.population)
+	if growing_base.population_trend != 1:
+		failures.append("population_trend: expected 1 (growing), got %s" % growing_base.population_trend)
+	for i in 50:
+		growing_base.tick()
+	if growing_base.population > growing_base.population_capacity():
+		failures.append("population: expected capped at capacity %s, got %s" % [growing_base.population_capacity(), growing_base.population])
+	growing_base.tick()
+	if growing_base.population_trend != 0:
+		failures.append("population_trend: expected 0 (stable) at capacity, got %s" % growing_base.population_trend)
+
+	# An emptied base regrows from the floor rather than staying at 0.
+	var empty_base := BaseEconomy.new()
+	empty_base.slots = [EconomyRole.trade_hub()]
+	empty_base.stock = {Commodity.Type.FOOD: 50.0}
+	empty_base.tick()
+	if not is_equal_approx(empty_base.population, BaseEconomy.POPULATION_FLOOR * (1.0 + BaseEconomy.POPULATION_GROWTH_RATE)):
+		failures.append("population: expected regrowth from POPULATION_FLOOR, got %s" % empty_base.population)
+
+	# Starving: a population slot that cannot eat zeroes Food, so people leave.
+	var starving_base := BaseEconomy.new()
+	starving_base.slots = [EconomyRole.population()]
+	starving_base.stock = {}
+	starving_base.population = 2000.0
+	starving_base.tick()
+	if not is_equal_approx(starving_base.population, 2000.0 * (1.0 - BaseEconomy.POPULATION_DECLINE_RATE)):
+		failures.append("population: expected decline without food, got %s" % starving_base.population)
+	if starving_base.population_trend != -1:
+		failures.append("population_trend: expected -1 (declining), got %s" % starving_base.population_trend)
+
+	# Some food but below the secure level: holds steady.
+	var lean_base := BaseEconomy.new()
+	lean_base.slots = [EconomyRole.trade_hub()]
+	lean_base.stock = {Commodity.Type.FOOD: BaseEconomy.FOOD_SECURE_STOCK - 1.0}
+	lean_base.population = 1000.0
+	lean_base.tick()
+	if lean_base.population != 1000.0 or lean_base.population_trend != 0:
+		failures.append("population: expected unchanged with lean food, got %s trend %s" % [lean_base.population, lean_base.population_trend])
+
+	# Over capacity (housing lost): shrinks toward capacity even with food.
+	var crowded_base := BaseEconomy.new()
+	crowded_base.slots = [EconomyRole.mining()]
+	crowded_base.stock = {Commodity.Type.FOOD: 100.0}
+	crowded_base.population = 5000.0
+	crowded_base.tick()
+	if not is_equal_approx(crowded_base.population, 5000.0 * (1.0 - BaseEconomy.POPULATION_DECLINE_RATE)):
+		failures.append("population: expected over-capacity decline, got %s" % crowded_base.population)
+	crowded_base.population = crowded_base.population_capacity() + 1.0
+	crowded_base.tick()
+	if crowded_base.population != crowded_base.population_capacity():
+		failures.append("population: expected over-capacity decline to stop at capacity, got %s" % crowded_base.population)
+
+	# Wealth level mirrors deficit/surplus streaks.
+	var wealth_base := BaseEconomy.new()
+	if wealth_base.wealth_level() != BaseEconomy.WealthLevel.MIDDLING:
+		failures.append("wealth_level: expected MIDDLING for a fresh economy, got %s" % wealth_base.wealth_level())
+	wealth_base.surplus_streak = BaseEconomy.SURPLUS_STREAK_THRESHOLD
+	if wealth_base.wealth_level() != BaseEconomy.WealthLevel.WEALTHY:
+		failures.append("wealth_level: expected WEALTHY at the surplus threshold, got %s" % wealth_base.wealth_level())
+	wealth_base.deficit_streaks = {0: 1}
+	if wealth_base.wealth_level() != BaseEconomy.WealthLevel.POOR:
+		failures.append("wealth_level: expected POOR with any active deficit streak, got %s" % wealth_base.wealth_level())
+
 	return failures

@@ -3,7 +3,9 @@ extends Node
 signal skirmish_resolved(winner_fleet: CampaignFleet, loser_fleet: CampaignFleet)
 signal fleet_spawn_requested(fleet: CampaignFleet)
 signal fleet_role_changed(fleet: CampaignFleet)
+signal faction_reputation_changed(faction_enum: CampaignFleet.Faction)
 
+const FINE_PER_KILL := 150.0
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
 const ECONOMY_TICK_INTERVAL := 5.0
@@ -160,6 +162,17 @@ func equip_part(comp: Dictionary, fleet: CampaignFleet, slot_type: ShipType.Slot
 		comp["current_shield"] = new_item.max_shield if old_max <= 0.0 else comp["current_shield"] * (new_item.max_shield / old_max)
 	return true
 
+func pay_fine(faction_enum: CampaignFleet.Faction) -> bool:
+	var faction := _power_faction_for(faction_enum)
+	if faction == null or faction.fine <= 0.0 or credits < faction.fine:
+		return false
+	credits -= faction.fine
+	faction.reputation += faction.fine_reputation
+	faction.fine = 0.0
+	faction.fine_reputation = 0.0
+	faction_reputation_changed.emit(faction_enum)
+	return true
+
 func are_hostile(fleet_a: CampaignFleet, fleet_b: CampaignFleet) -> bool:
 	var a := fleet_a.faction
 	var b := fleet_b.faction
@@ -230,7 +243,12 @@ func _is_power_faction(faction: CampaignFleet.Faction) -> bool:
 func _apply_reputation_loss(defeated_faction: CampaignFleet.Faction) -> void:
 	for power_faction in factions:
 		if power_faction.faction_enum == defeated_faction:
-			power_faction.reputation = max(0.0, power_faction.reputation - REPUTATION_LOSS_PER_DEFEAT)
+			# Track the actual loss (clamped at 0) so paying the fine restores exactly that.
+			var loss: float = min(power_faction.reputation, REPUTATION_LOSS_PER_DEFEAT)
+			power_faction.reputation -= loss
+			power_faction.fine += FINE_PER_KILL
+			power_faction.fine_reputation += loss
+			faction_reputation_changed.emit(defeated_faction)
 
 func run_npc_trade_for_fleet(fleet: CampaignFleet, at_home: bool) -> void:
 	var faction := _power_faction_for(fleet.faction)
@@ -273,11 +291,11 @@ func _fleets_for(faction_enum: CampaignFleet.Faction, role: CampaignFleet.Role) 
 	return result
 
 func _economic_health(economy: BaseEconomy) -> FleetAllocationPolicy.EconomicHealth:
-	for streak in economy.deficit_streaks.values():
-		if streak > 0:
+	match economy.wealth_level():
+		BaseEconomy.WealthLevel.POOR:
 			return FleetAllocationPolicy.EconomicHealth.DEFICIT
-	if economy.surplus_streak >= BaseEconomy.SURPLUS_STREAK_THRESHOLD:
-		return FleetAllocationPolicy.EconomicHealth.STRONG
+		BaseEconomy.WealthLevel.WEALTHY:
+			return FleetAllocationPolicy.EconomicHealth.STRONG
 	return FleetAllocationPolicy.EconomicHealth.STABLE
 
 func _threat_ratio(combat_fleets: Array[CampaignFleet]) -> float:

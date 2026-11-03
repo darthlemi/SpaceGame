@@ -189,6 +189,19 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [refit_panel_test.resource_path, f])
 	total_failures += refit_panel_failures.size()
 
+	# Loaded (not preloaded) for the same CampaignState-autoload reason as above.
+	var repair_panel_test = load("res://tests/test_repair_panel.gd")
+	var repair_panel_failures: Array[String] = await repair_panel_test.run_async(self)
+	for f in repair_panel_failures:
+		print("FAIL [%s]: %s" % [repair_panel_test.resource_path, f])
+	total_failures += repair_panel_failures.size()
+
+	var base_overview_panel_test = load("res://tests/test_base_overview_panel.gd")
+	var base_overview_panel_failures: Array[String] = await base_overview_panel_test.run_async(self)
+	for f in base_overview_panel_failures:
+		print("FAIL [%s]: %s" % [base_overview_panel_test.resource_path, f])
+	total_failures += base_overview_panel_failures.size()
+
 	var game_over_test = preload("res://tests/test_game_over.gd")
 	var game_over_failures: Array[String] = await game_over_test.run_async(self)
 	for f in game_over_failures:

@@ -46,4 +46,11 @@ static func run() -> Array[String]:
 	if not refinery.consumes.is_empty():
 		failures.append("refinery: expected no consumption")
 
+
+	for role_type in EconomyRole.RoleType.values():
+		if EconomyRole.housing_for(role_type) <= 0.0:
+			failures.append("housing_for: expected positive housing for role %s" % role_type)
+	if EconomyRole.housing_for(EconomyRole.RoleType.POPULATION) <= EconomyRole.housing_for(EconomyRole.RoleType.MINING):
+		failures.append("housing_for: expected POPULATION to house more than MINING")
+
 	return failures

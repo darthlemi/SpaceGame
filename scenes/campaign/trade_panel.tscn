@@ -3,9 +3,9 @@
 [ext_resource type="Script" path="res://scripts/campaign/trade_panel.gd" id="1"]
 
 [node name="TradePanel" type="Control"]
-offset_left = 136.0
+offset_left = 652.0
 offset_top = 140.0
-offset_right = 636.0
+offset_right = 1152.0
 offset_bottom = 640.0
 mouse_filter = 2
 script = ExtResource("1")
@@ -26,17 +26,11 @@ mouse_filter = 2
 
 [node name="RowsContainer" type="VBoxContainer" parent="Layout"]
 
-[node name="RepairScroll" type="ScrollContainer" parent="Layout"]
+[node name="Spacer" type="Control" parent="Layout"]
 size_flags_vertical = 3
-
-[node name="RepairContainer" type="VBoxContainer" parent="Layout/RepairScroll"]
-size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="ButtonRow" type="HBoxContainer" parent="Layout"]
-
-[node name="RepairAllButton" type="Button" parent="Layout/ButtonRow"]
-custom_minimum_size = Vector2(150, 0)
-text = "Repair All"
 
 [node name="CloseButton" type="Button" parent="Layout/ButtonRow"]
 custom_minimum_size = Vector2(100, 0)

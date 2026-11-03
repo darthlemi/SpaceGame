@@ -90,51 +90,6 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if panel.visible:
 		failures.append("TradePanel: expected hidden after close")
 
-	panel.open_for(economy, fleet)
-	fleet.ship_compositions = [
-		{
-			"max_hp": 100.0, "current_hp": 40.0, "max_shield": 50.0, "current_shield": 50.0,
-			"engine_max_hp": 20.0, "engine_current_hp": 20.0,
-			"weapon_mount_max_hp": [], "weapon_mount_current_hp": [],
-		},
-		{
-			"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0,
-			"engine_max_hp": 20.0, "engine_current_hp": 20.0,
-			"weapon_mount_max_hp": [], "weapon_mount_current_hp": [],
-		},
-	]
-	campaign_state.credits = 1000.0
-	panel.refresh()
-
-	if panel.repair_container.get_child_count() != 1:
-		failures.append("TradePanel: expected exactly 1 repair row for 1 damaged ship, got %d" % panel.repair_container.get_child_count())
-	if panel.repair_all_button.disabled:
-		failures.append("TradePanel: expected Repair All enabled when credits cover the damaged ship")
-
-	var repair_row: HBoxContainer = panel.repair_container.get_child(0)
-	var repair_button: Button = repair_row.get_child(1)
-	var credits_before_repair: float = campaign_state.credits
-	repair_button.pressed.emit()
-	if not is_equal_approx(campaign_state.credits, credits_before_repair - CampaignState.REPAIR_COST):
-		failures.append("TradePanel: expected pressing Repair to deduct REPAIR_COST, got credits=%s" % campaign_state.credits)
-	if fleet.ship_compositions[0]["current_hp"] != 100.0:
-		failures.append("TradePanel: expected pressing Repair to fully heal the ship")
-	if panel.repair_container.get_child_count() != 0:
-		failures.append("TradePanel: expected 0 repair rows once no ship is damaged")
-
-	fleet.ship_compositions[0]["current_hp"] = 1.0
-	fleet.ship_compositions[1]["current_hp"] = 1.0
-	campaign_state.credits = 10.0
-	panel.refresh()
-	if not panel.repair_all_button.disabled:
-		failures.append("TradePanel: expected Repair All disabled when credits can't cover every damaged ship")
-
-	campaign_state.credits = 1000.0
-	panel.refresh()
-	panel.repair_all_button.pressed.emit()
-	if fleet.ship_compositions[0]["current_hp"] != 100.0 or fleet.ship_compositions[1]["current_hp"] != 100.0:
-		failures.append("TradePanel: expected Repair All to heal every damaged ship")
-
 	campaign_state.reset()
 	panel.queue_free()
 	return failures

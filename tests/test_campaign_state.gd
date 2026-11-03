@@ -785,5 +785,44 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	)
 	if abs(defeat_dominion.reputation - 45.0) > 0.001:
 		failures.append("resolve_engagement: expected reputation reduced by REPUTATION_LOSS_PER_DEFEAT to 45.0, got %s" % defeat_dominion.reputation)
+	if defeat_dominion.fine != CampaignState.FINE_PER_KILL:
+		failures.append("resolve_engagement: expected FINE_PER_KILL charged for destroying a faction fleet, got %s" % defeat_dominion.fine)
+	if defeat_dominion.fine_reputation != CampaignState.REPUTATION_LOSS_PER_DEFEAT:
+		failures.append("resolve_engagement: expected fine_reputation to record the reputation lost, got %s" % defeat_dominion.fine_reputation)
+
+	# Fines stack; at low reputation only the actual (clamped) loss is recorded.
+	defeat_dominion.reputation = 5.0
+	var second_enemy := CampaignFleet.new()
+	second_enemy.faction = CampaignFleet.Faction.DOMINION
+	second_enemy.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	defeat_state.start_engagement(second_enemy)
+	defeat_state.resolve_engagement(defeat_player.ship_compositions, [])
+	if defeat_dominion.fine != CampaignState.FINE_PER_KILL * 2.0:
+		failures.append("fines: expected two kills to stack fines, got %s" % defeat_dominion.fine)
+	if defeat_dominion.fine_reputation != CampaignState.REPUTATION_LOSS_PER_DEFEAT + 5.0:
+		failures.append("fines: expected the clamped 5.0 loss recorded, got fine_reputation %s" % defeat_dominion.fine_reputation)
+
+	# pay_fine: refused without enough credits, then clears the fine and restores reputation.
+	var signalled: Array = []
+	defeat_state.faction_reputation_changed.connect(func(f): signalled.append(f))
+	defeat_state.credits = defeat_dominion.fine - 1.0
+	if defeat_state.pay_fine(CampaignFleet.Faction.DOMINION):
+		failures.append("pay_fine: expected refusal when credits cannot cover the fine")
+	defeat_state.credits = 1000.0
+	if not defeat_state.pay_fine(CampaignFleet.Faction.DOMINION):
+		failures.append("pay_fine: expected success with enough credits")
+	if not is_equal_approx(defeat_state.credits, 1000.0 - CampaignState.FINE_PER_KILL * 2.0):
+		failures.append("pay_fine: expected the fine deducted, got credits %s" % defeat_state.credits)
+	if defeat_dominion.reputation != 0.0 + CampaignState.REPUTATION_LOSS_PER_DEFEAT + 5.0:
+		failures.append("pay_fine: expected recorded reputation restored, got %s" % defeat_dominion.reputation)
+	if defeat_dominion.fine != 0.0 or defeat_dominion.fine_reputation != 0.0:
+		failures.append("pay_fine: expected fine cleared, got fine=%s rep=%s" % [defeat_dominion.fine, defeat_dominion.fine_reputation])
+	if signalled != [CampaignFleet.Faction.DOMINION]:
+		failures.append("pay_fine: expected one faction_reputation_changed(DOMINION) emission, got %s" % [signalled])
+	if defeat_state.pay_fine(CampaignFleet.Faction.DOMINION):
+		failures.append("pay_fine: expected refusal when nothing is owed")
+	if defeat_state.pay_fine(CampaignFleet.Faction.FREEHOLD):
+		failures.append("pay_fine: expected refusal for a faction not in play")
+	defeat_state.free()
 
 	return failures

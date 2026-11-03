@@ -6,12 +6,22 @@ const SURPLUS_STREAK_THRESHOLD := 5
 const BAND_THRESHOLDS := [0.2, 0.6, 1.4, 1.8]
 const BAND_MULTIPLIERS := [1.6, 1.3, 1.0, 0.8, 0.6]
 const SELL_SPREAD := 0.8
+const POPULATION_GROWTH_RATE := 0.02
+const POPULATION_DECLINE_RATE := 0.05
+# Growth restarts from this headcount, so an emptied base can repopulate.
+const POPULATION_FLOOR := 100.0
+const FOOD_SECURE_STOCK := 10.0
+
+enum WealthLevel { POOR, MIDDLING, WEALTHY }
 
 @export var slots: Array[EconomyRole] = []
 @export var max_slots: int = 2
 var stock: Dictionary = {}
 var deficit_streaks: Dictionary = {}
 var surplus_streak: int = 0
+var population: float = 0.0
+# -1 declining, 0 stable, 1 growing (as of the last tick).
+var population_trend: int = 0
 
 func tick() -> void:
 	for slot in slots:
@@ -49,6 +59,7 @@ func tick() -> void:
 		surplus_streak = 0
 	else:
 		surplus_streak += 1
+	_tick_population()
 
 func price_for(commodity: int) -> float:
 	var target: float = Commodity.TARGET_STOCK[commodity]
@@ -71,3 +82,34 @@ func net_commodities() -> Dictionary:
 		for commodity in slot.consumes:
 			net[commodity] = net.get(commodity, 0.0) - slot.consumes[commodity]
 	return net
+
+func population_capacity() -> float:
+	var sum := 0.0
+	for slot in slots:
+		sum += EconomyRole.housing_for(slot.role_type)
+	return sum
+
+func wealth_level() -> WealthLevel:
+	for streak in deficit_streaks.values():
+		if streak > 0:
+			return WealthLevel.POOR
+	if surplus_streak >= SURPLUS_STREAK_THRESHOLD:
+		return WealthLevel.WEALTHY
+	return WealthLevel.MIDDLING
+
+# Runs after production, so a slot that just starved has already zeroed Food.
+func _tick_population() -> void:
+	var previous := population
+	var capacity := population_capacity()
+	var food: float = stock.get(Commodity.Type.FOOD, 0.0)
+	if population > capacity:
+		# Housing lost with a collapsed slot: people leave until they fit.
+		population = max(capacity, population * (1.0 - POPULATION_DECLINE_RATE))
+	elif food < 1.0:
+		population *= 1.0 - POPULATION_DECLINE_RATE
+	elif food >= FOOD_SECURE_STOCK:
+		population = min(capacity, max(population, POPULATION_FLOOR) * (1.0 + POPULATION_GROWTH_RATE))
+	if is_equal_approx(population, previous):
+		population_trend = 0
+	else:
+		population_trend = 1 if population > previous else -1

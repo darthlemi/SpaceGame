@@ -6,14 +6,11 @@ var _player_fleet: CampaignFleet
 var _rows: Dictionary = {}
 
 @onready var rows_container: VBoxContainer = $Layout/RowsContainer
-@onready var repair_container: VBoxContainer = $Layout/RepairScroll/RepairContainer
-@onready var repair_all_button: Button = $Layout/ButtonRow/RepairAllButton
 @onready var credits_label: Label = $Layout/CreditsLabel
 @onready var close_button: Button = $Layout/ButtonRow/CloseButton
 
 func _ready() -> void:
 	close_button.pressed.connect(close)
-	repair_all_button.pressed.connect(_on_repair_all_pressed)
 	visible = false
 	_build_rows()
 
@@ -41,40 +38,6 @@ func refresh() -> void:
 		row["label"].text = "%s  stock:%.0f  buy:%.0f  sell:%.0f  held:%.0f" % [Commodity.NAMES[commodity], stock, buy_price, sell_price, held]
 		row["buy_button"].disabled = CampaignState.credits < buy_price or stock < 1.0 or _player_fleet.cargo_total() + 1.0 > _player_fleet.cargo_capacity()
 		row["sell_button"].disabled = held < 1.0
-	_refresh_repair_section()
-
-func _refresh_repair_section() -> void:
-	for child in repair_container.get_children():
-		repair_container.remove_child(child)
-		child.queue_free()
-	var total_cost := 0.0
-	for i in _player_fleet.ship_compositions.size():
-		var comp: Dictionary = _player_fleet.ship_compositions[i]
-		var cost := CampaignState.repair_cost_for(comp)
-		if cost <= 0.0:
-			continue
-		total_cost += cost
-		var row := HBoxContainer.new()
-		var label := Label.new()
-		label.text = "Ship %d  repair cost: %d" % [i + 1, cost]
-		var button := Button.new()
-		button.text = "Repair"
-		button.disabled = CampaignState.credits < cost
-		button.pressed.connect(_on_repair_pressed.bind(i))
-		row.add_child(label)
-		row.add_child(button)
-		repair_container.add_child(row)
-	repair_all_button.disabled = total_cost <= 0.0 or CampaignState.credits < total_cost
-
-func _on_repair_pressed(index: int) -> void:
-	CampaignState.repair_ship(_player_fleet.ship_compositions[index])
-	refresh()
-
-func _on_repair_all_pressed() -> void:
-	for comp in _player_fleet.ship_compositions:
-		if CampaignState.repair_cost_for(comp) > 0.0 and CampaignState.credits >= CampaignState.REPAIR_COST:
-			CampaignState.repair_ship(comp)
-	refresh()
 
 func _build_rows() -> void:
 	if not _rows.is_empty():

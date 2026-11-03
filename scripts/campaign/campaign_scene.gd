@@ -7,6 +7,8 @@ const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 
 const HOME_BASE_POSITION := Vector2(600, 400)
 const PLAYER_STARTING_FUEL := 30.0
+# Bases start below housing capacity so population has room to grow.
+const STARTING_POPULATION_FRACTION := 0.75
 
 var player_icon: CampaignFleetIcon
 var enemy_icons: Array[CampaignFleetIcon] = []
@@ -14,11 +16,14 @@ var enemy_icons: Array[CampaignFleetIcon] = []
 @onready var engage_prompt: Control = $UILayer/EngagePrompt
 @onready var trade_panel: TradePanel = $UILayer/TradePanel
 @onready var refit_panel: RefitPanel = $UILayer/RefitPanel
+@onready var repair_panel: RepairPanel = $UILayer/RepairPanel
+@onready var base_overview_panel: BaseOverviewPanel = $UILayer/BaseOverviewPanel
 @onready var loot_panel: LootPanel = $UILayer/LootPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
 var _travel_target: Area2D = null
+var _docked_base: Area2D = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -46,12 +51,16 @@ func _ready() -> void:
 	engage_prompt.visible = false
 	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
 	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
-	trade_panel.close_button.pressed.connect(_on_docking_panel_closed)
-	refit_panel.close_button.pressed.connect(_on_docking_panel_closed)
+	# Sub-panel Close buttons only close that panel, returning to the overview.
+	base_overview_panel.trade_goods_button.pressed.connect(_open_trade_goods)
+	base_overview_panel.shipyard_button.pressed.connect(_open_shipyard)
+	base_overview_panel.repair_button.pressed.connect(_open_repair)
+	base_overview_panel.undock_button.pressed.connect(_on_docking_panel_closed)
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
 	CampaignState.fleet_role_changed.connect(_on_fleet_role_changed)
+	CampaignState.faction_reputation_changed.connect(_on_faction_reputation_changed)
 
 	if CampaignState.pending_loot_fleet != null:
 		loot_panel.open_for(CampaignState.pending_loot_fleet, CampaignState.player_fleet)
@@ -136,6 +145,7 @@ func _bootstrap_default_campaign() -> void:
 	CampaignState.home_base_economy.max_slots = 2
 	for commodity in Commodity.Type.values():
 		CampaignState.home_base_economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
+	CampaignState.home_base_economy.population = CampaignState.home_base_economy.population_capacity() * STARTING_POPULATION_FRACTION
 
 	dominion_faction.economy = BaseEconomy.new()
 	dominion_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
@@ -153,6 +163,8 @@ func _bootstrap_default_campaign() -> void:
 		Commodity.Type.ORE: 50.0,
 		Commodity.Type.FOOD: 50.0,
 	}
+	for faction in CampaignState.factions:
+		faction.economy.population = faction.economy.population_capacity() * STARTING_POPULATION_FRACTION
 
 func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType:
 	match fleet.faction:
@@ -181,11 +193,19 @@ func _catalog_for_base(area: Area2D) -> Array[String]:
 func _economy_for_base(area: Area2D) -> BaseEconomy:
 	if area is HomeBase:
 		return CampaignState.home_base_economy
+	var faction := _faction_for_base(area)
+	return faction.economy if faction != null else null
+
+func _faction_for_base(area: Area2D) -> PowerFaction:
 	if area is FactionBase:
 		for faction in CampaignState.factions:
 			if faction.faction_enum == area.faction_enum:
-				return faction.economy
+				return faction
 	return null
+
+func _name_for_base(area: Area2D) -> String:
+	var faction := _faction_for_base(area)
+	return "%s Base" % faction.display_name if faction != null else "Home Base"
 
 func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType) -> CampaignFleetIcon:
 	var icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
@@ -254,8 +274,9 @@ func _trigger_arrival(area: Area2D) -> void:
 	elif area is HomeBase or area is FactionBase:
 		var economy := _economy_for_base(area)
 		if economy != null:
-			trade_panel.open_for(economy, CampaignState.player_fleet)
-			refit_panel.open_for(CampaignState.player_fleet, _catalog_for_base(area))
+			_close_docking_ui()
+			_docked_base = area
+			base_overview_panel.open_for(_name_for_base(area), economy, _faction_for_base(area))
 			get_tree().paused = true
 			_travel_target = null
 
@@ -264,8 +285,7 @@ func _on_player_area_exited(area: Area2D) -> void:
 		_pending_enemy_icon = null
 		engage_prompt.visible = false
 	elif area is HomeBase or area is FactionBase:
-		trade_panel.close()
-		refit_panel.close()
+		_close_docking_ui()
 		get_tree().paused = false
 
 func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
@@ -311,10 +331,39 @@ func _on_disengage_pressed() -> void:
 	get_tree().paused = false
 
 func _on_docking_panel_closed() -> void:
-	trade_panel.close()
-	refit_panel.close()
+	_close_docking_ui()
 	get_tree().paused = false
 	_travel_target = null
+
+func _close_docking_ui() -> void:
+	_close_dock_subpanels()
+	base_overview_panel.close()
+	_docked_base = null
+
+# Trade Goods / Shipyard / Repair share one screen slot; one open at a time.
+func _close_dock_subpanels() -> void:
+	trade_panel.close()
+	refit_panel.close()
+	repair_panel.close()
+
+func _open_trade_goods() -> void:
+	_close_dock_subpanels()
+	trade_panel.open_for(_economy_for_base(_docked_base), CampaignState.player_fleet)
+
+func _open_shipyard() -> void:
+	_close_dock_subpanels()
+	refit_panel.open_for(CampaignState.player_fleet, _catalog_for_base(_docked_base))
+
+func _open_repair() -> void:
+	_close_dock_subpanels()
+	repair_panel.open_for(CampaignState.player_fleet)
+
+# Reputation changes (e.g. a paid fine) can flip a faction between hostile and
+# friendly; re-derive behavior for its live icons instead of waiting for a reload.
+func _on_faction_reputation_changed(faction_enum: CampaignFleet.Faction) -> void:
+	for icon in enemy_icons:
+		if is_instance_valid(icon) and icon.fleet.faction == faction_enum:
+			_on_fleet_role_changed(icon.fleet)
 
 func _find_clickable_target(global_pos: Vector2) -> Area2D:
 	var query := PhysicsPointQueryParameters2D.new()
@@ -331,7 +380,7 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if trade_panel.visible or engage_prompt.visible:
+		if base_overview_panel.visible or engage_prompt.visible:
 			return
 		if get_tree().paused:
 			get_tree().paused = false

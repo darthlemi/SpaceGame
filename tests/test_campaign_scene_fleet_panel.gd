@@ -39,12 +39,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	scene.engage_prompt.visible = false
 
 	# (c) docked: close keeps the pause and the overview.
-	var home_base: HomeBase = null
-	for child in scene.get_children():
-		if child is HomeBase:
-			home_base = child
-			break
-	scene._trigger_arrival(home_base)
+	scene._trigger_arrival(scene.station_nodes[campaign_state.galaxy.home_station().id])
 	var overview: BaseOverviewPanel = scene.base_overview_panel
 	if not overview.visible or not tree.paused:
 		failures.append("(c) setup: expected docked overview and pause")
@@ -69,12 +64,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.process_frame
 
 	# Modal respawn: map click, speed/pause controls and Fleet cannot resume or open panels.
-	campaign_state.reset()
-	var modal_player := CampaignFleet.new()
-	modal_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
-	campaign_state.player_fleet = modal_player
-	# Docking needs the home economy; the bootstrap is skipped when a fleet already exists.
-	campaign_state.home_base_economy = BaseEconomy.new()
+	campaign_state.new_game()
+	campaign_state.player_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	campaign_state.begin_respawn()
 	var modal_scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(modal_scene)
@@ -105,8 +96,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("modal respawn: (c) Fleet opened the fleet panel")
 	modal_scene.respawn_panel.free_button.pressed.emit()
 	var respawn_overview: BaseOverviewPanel = modal_scene.base_overview_panel
-	if not respawn_overview.visible or not tree.paused or not (modal_scene._docked_base is HomeBase):
-		failures.append("modal respawn: (d) expected the new ship docked at HomeBase (overview open, tree paused), overview=%s paused=%s" % [respawn_overview.visible, tree.paused])
+	if not respawn_overview.visible or not tree.paused or modal_scene._docked_base != modal_scene.station_nodes[campaign_state.galaxy.home_station().id]:
+		failures.append("modal respawn: (d) expected the new ship docked at the home station (overview open, tree paused), overview=%s paused=%s" % [respawn_overview.visible, tree.paused])
 	respawn_overview.undock_button.pressed.emit()
 	if respawn_overview.visible or tree.paused:
 		failures.append("modal respawn: (d) expected Undock to close the overview and unpause")

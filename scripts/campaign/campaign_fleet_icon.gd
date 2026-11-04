@@ -23,8 +23,6 @@ const ENGINE_TRAIL_VELOCITY_MIN := 20.0
 const ENGINE_TRAIL_VELOCITY_MAX := 40.0
 const ENGINE_TRAIL_SCALE_MIN := 1.5
 const ENGINE_TRAIL_SCALE_MAX := 2.5
-const MAP_MIN := Vector2(0, 0)
-const MAP_MAX := Vector2(4000, 2400)
 const FACTION_CIRCLE_PADDING := 12.0
 const FACTION_CIRCLE_WIDTH := 2.0
 const SHIP_OFFSET_SPACING := 14.0
@@ -48,11 +46,13 @@ const FACTION_COLORS := {
 var fleet: CampaignFleet
 var player_target: CampaignFleetIcon
 var frozen: bool = false
+# Positions are local to the icon's SystemLayer. The scene keeps dest_position in step with
+# fleet.dest_station_id; has_destination is false while that station is out of this system.
+var dest_position: Vector2
+var has_destination: bool = false
 
 var _move_target: Vector2
 var _spawn_point: Vector2
-var _home_position: Vector2
-var _route_state: TraderBehavior.RouteState = TraderBehavior.RouteState.TO_BASE
 
 var _ship_dots: Array[Sprite2D] = []
 var _ship_dot_offsets: Array[Vector2] = []
@@ -60,7 +60,7 @@ var _ship_trails: Array[CPUParticles2D] = []
 var _heading_angle: float = 0.0
 var _faction_circle_radius: float = 0.0
 
-signal trader_arrived(at_home: bool)
+signal trader_arrived_at(station_id: String)
 
 func _ready() -> void:
 	# CampaignScene itself runs with PROCESS_MODE_ALWAYS (so its pause-aware
@@ -70,28 +70,16 @@ func _ready() -> void:
 	# behavior explicitly.
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 
-func setup(campaign_fleet: CampaignFleet, home_pos: Vector2) -> void:
+# spawn_point is the centre patrols and pirates wander around.
+func setup(campaign_fleet: CampaignFleet, spawn_point: Vector2) -> void:
 	fleet = campaign_fleet
-	global_position = fleet.position
-	_spawn_point = fleet.position
+	position = fleet.position
+	_spawn_point = spawn_point
 	_move_target = fleet.position
-	_home_position = home_pos
 	_sync_ship_dots()
 
 func set_move_target(target: Vector2) -> void:
 	_move_target = target
-
-func set_route_endpoints(home_pos: Vector2, away_pos: Vector2, reset_state: bool = true) -> void:
-	_home_position = home_pos
-	_spawn_point = away_pos
-	if reset_state:
-		_route_state = TraderBehavior.RouteState.FROM_BASE
-
-func route_endpoints_match(home_pos: Vector2, away_pos: Vector2) -> bool:
-	return _home_position == home_pos and _spawn_point == away_pos
-
-func route_away_point() -> Vector2:
-	return _spawn_point
 
 func _physics_process(delta: float) -> void:
 	if fleet == null:
@@ -103,48 +91,56 @@ func _physics_process(delta: float) -> void:
 		return
 	match behavior_type:
 		BehaviorType.PATROL:
-			_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, global_position, wander_radius, arrival_radius)
+			_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, position, wander_radius, arrival_radius)
 		BehaviorType.TRADER:
 			_process_trader()
 		BehaviorType.PIRATE:
 			_process_pirate()
 		BehaviorType.PLAYER:
 			pass
-	_move_target = _move_target.clamp(MAP_MIN, MAP_MAX)
+	_move_target = JumpRules.clamp_to_system(_move_target)
 	# Only the player runs on fuel; NPC fleets carry none and would crawl forever.
 	var is_player := behavior_type == BehaviorType.PLAYER
 	var step_speed := fleet.travel_speed() if is_player else fleet.speed
-	var previous_position := global_position
-	global_position = global_position.move_toward(_move_target, step_speed * delta)
-	fleet.position = global_position
-	var movement := global_position - previous_position
+	var previous_position := position
+	position = position.move_toward(_move_target, step_speed * delta)
+	fleet.position = position
+	var movement := position - previous_position
 	if is_player:
 		fleet.consume_fuel(movement.length())
 	if movement.length() > HEADING_EPSILON:
 		_heading_angle = movement.angle()
-	var is_moving := movement.length() > HEADING_EPSILON
+	var trails_on := movement.length() > HEADING_EPSILON and is_visible_in_tree()
 	for i in _ship_dots.size():
 		_ship_dots[i].rotation = _heading_angle
 		_ship_trails[i].position = _ship_dot_offsets[i]
 		_ship_trails[i].rotation = _heading_angle
-		_ship_trails[i].emitting = is_moving
+		_ship_trails[i].emitting = trails_on
 
+# Threat checks use global positions so icons in other system layers are never in range.
 func _process_trader() -> void:
 	if player_target != null and is_instance_valid(player_target) and TraderBehavior.should_flee(global_position, player_target.global_position, flee_range):
-		_move_target = TraderBehavior.flee_target(global_position, player_target.global_position, flee_distance)
+		_move_target = TraderBehavior.flee_target(position, _to_local_space(player_target.global_position), flee_distance)
 		return
-	var previous_state := _route_state
-	_route_state = TraderBehavior.next_route_state(_route_state, global_position, _home_position, _spawn_point, arrival_radius)
-	_move_target = TraderBehavior.route_target(_route_state, _home_position, _spawn_point)
-	if _route_state != previous_state:
-		trader_arrived.emit(_route_state == TraderBehavior.RouteState.FROM_BASE)
+	if not has_destination:
+		_move_target = position
+		return
+	_move_target = dest_position
+	if position.distance_to(dest_position) <= arrival_radius:
+		# Cleared first so a destination the handler sets is kept.
+		has_destination = false
+		trader_arrived_at.emit(fleet.dest_station_id)
 
 func _process_pirate() -> void:
 	if player_target != null and is_instance_valid(player_target) and player_target.fleet != null and PirateBehavior.in_detection_range(global_position, player_target.global_position, detection_range):
 		if PirateBehavior.should_intercept(fleet.total_strength(), player_target.fleet.total_strength()):
-			_move_target = player_target.global_position
+			_move_target = _to_local_space(player_target.global_position)
 			return
-	_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, global_position, wander_radius, arrival_radius)
+	_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, position, wander_radius, arrival_radius)
+
+# Layers only translate, so a global point maps to this icon's parent space by the layer offset.
+func _to_local_space(global_point: Vector2) -> Vector2:
+	return global_point - global_position + position
 
 func _sync_ship_dots() -> void:
 	var target: int = fleet.ship_compositions.size()

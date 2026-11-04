@@ -9,7 +9,7 @@ const WEALTH_NAMES := {
 const TREND_NAMES := {-1: "declining", 0: "stable", 1: "growing"}
 
 var _economy: BaseEconomy
-# Null at HomeBase: no reputation or fines there.
+# Null at stations no power faction owns (home, neutral, pirate): no reputation or fines there.
 var _faction: PowerFaction
 
 @onready var title_label: Label = $Layout/TitleLabel

@@ -93,12 +93,16 @@ func repair_ship(comp: Dictionary) -> void:
 		comp["weapon_mount_current_hp"] = (comp["weapon_mount_max_hp"] as Array).duplicate()
 
 # Total loss: keeps reputation and fines, loses cargo, parts, ships and a share of credits.
+# The new ship starts in the home station's system.
 func begin_respawn() -> void:
 	credits = floori(credits * (1.0 - RESPAWN_CREDIT_PENALTY))
 	if player_fleet != null:
 		player_fleet.cargo = {}
 		player_fleet.part_inventory.clear()
 		player_fleet.ship_compositions.clear()
+		var home: StationData = galaxy.home_station() if galaxy != null else null
+		if home != null:
+			player_fleet.system_id = home.system_id
 	pending_respawn = true
 
 # buy false forces a free corvette; buy true pays SHIP_PRICE[kind] or fails.

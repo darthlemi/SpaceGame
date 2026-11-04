@@ -1,15 +1,18 @@
 extends Node2D
 
 const CampaignFleetIconScene = preload("res://scenes/campaign/campaign_fleet_icon.tscn")
-const HomeBaseScene = preload("res://scenes/campaign/home_base.tscn")
-const FactionBaseScene = preload("res://scenes/campaign/faction_base.tscn")
 const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 
 const ENGAGE_BLOCKED_TEXT := "Neither fleet can fight"
-const HOME_BASE_POSITION := Vector2(600, 400)
+# Far wider than a system, so hidden layers never overlap the current one's Area2Ds.
+const SYSTEM_SPACING := 5000.0
 
 var player_icon: CampaignFleetIcon
 var enemy_icons: Array[CampaignFleetIcon] = []
+# system_id -> SystemLayer.
+var layers: Dictionary = {}
+# station_id -> CampaignStation.
+var station_nodes: Dictionary = {}
 
 @onready var engage_prompt: Control = $UILayer/EngagePrompt
 @onready var trade_panel: TradePanel = $UILayer/TradePanel
@@ -25,7 +28,6 @@ var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
 var _travel_target: Area2D = null
 var _docked_base: Area2D = null
-var _home_base: Area2D = null
 var _paused_before_fleet_panel: bool = false
 var _engage_prompt_text: String = ""
 
@@ -34,26 +36,20 @@ func _ready() -> void:
 
 	if CampaignState.player_fleet == null:
 		CampaignState.new_game()
+	elif CampaignState.galaxy == null:
+		# Fixtures that hand-build a player fleet still need a galaxy to place it in.
+		CampaignState.galaxy = GalaxyData.build()
 
 	if CampaignState.pending_respawn:
-		CampaignState.player_fleet.position = HOME_BASE_POSITION
+		CampaignState.player_fleet.position = CampaignState.galaxy.home_station().position
 
-	_home_base = HomeBaseScene.instantiate()
-	_home_base.global_position = HOME_BASE_POSITION
-	add_child(_home_base)
-
-	for faction in CampaignState.factions:
-		var station := _faction_station(faction.faction_enum)
-		if station == null:
-			continue
-		var faction_base: Area2D = FactionBaseScene.instantiate()
-		faction_base.faction_enum = faction.faction_enum
-		faction_base.global_position = station.position
-		add_child(faction_base)
+	_build_layers()
 
 	player_icon = _spawn_icon(CampaignState.player_fleet, CampaignFleetIcon.BehaviorType.PLAYER)
 	player_icon.area_entered.connect(_on_player_area_entered)
 	player_icon.area_exited.connect(_on_player_area_exited)
+	# Before NPCs spawn, so no two systems' fleets ever share the origin.
+	show_system(CampaignState.player_fleet.system_id)
 
 	for enemy_fleet in CampaignState.enemy_fleets:
 		_setup_enemy_icon(enemy_fleet)
@@ -84,105 +80,106 @@ func _ready() -> void:
 		loot_panel.open_for(CampaignState.pending_loot, CampaignState.player_fleet)
 	CampaignState.pending_loot = null
 
-# The new ship appears docked at home base, exactly as on arrival (overview open, paused).
+# The new ship appears docked at the home station, exactly as on arrival (overview open, paused).
 func _on_respawn_finished() -> void:
-	_trigger_arrival(_home_base)
+	_trigger_arrival(station_nodes.get(CampaignState.galaxy.home_station().id))
 	if _docked_base == null:
 		get_tree().paused = false
 
+func layer_for(system_id: String) -> SystemLayer:
+	return layers.get(system_id)
+
+# Layer i in sorted id order parks at slot i + 1, so slot 0 (the origin) is the current system's alone.
+func show_system(system_id: String) -> void:
+	var ids: Array = layers.keys()
+	ids.sort()
+	for i in ids.size():
+		layers[ids[i]].set_current(ids[i] == system_id, Vector2(SYSTEM_SPACING * (i + 1), 0))
+
+func _build_layers() -> void:
+	var ids: Array = CampaignState.galaxy.systems.keys()
+	ids.sort()
+	for system_id in ids:
+		var layer := SystemLayer.new()
+		layer.name = system_id
+		layer.system_id = system_id
+		add_child(layer)
+		layers[system_id] = layer
+	for station in CampaignState.galaxy.stations:
+		station_nodes[station.id] = layer_for(station.system_id).add_station(station)
+
 func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType:
-	match fleet.faction:
-		CampaignFleet.Faction.PIRATE:
-			return CampaignFleetIcon.BehaviorType.PIRATE
-		CampaignFleet.Faction.TRADER:
-			return CampaignFleetIcon.BehaviorType.TRADER
-		CampaignFleet.Faction.DOMINION, CampaignFleet.Faction.FREEHOLD:
-			if fleet.role == CampaignFleet.Role.TRADER:
-				return CampaignFleetIcon.BehaviorType.TRADER
-			return CampaignFleetIcon.BehaviorType.PIRATE if CampaignState.is_hostile_to_player(fleet) else CampaignFleetIcon.BehaviorType.PATROL
-		_:
-			return CampaignFleetIcon.BehaviorType.PATROL
+	if fleet.role == CampaignFleet.Role.TRADER:
+		return CampaignFleetIcon.BehaviorType.TRADER
+	return CampaignFleetIcon.BehaviorType.PIRATE if CampaignState.is_hostile_to_player(fleet) else CampaignFleetIcon.BehaviorType.PATROL
+
+# Faction haulers hold their route; neutral traders flee the player and combat fleets react to it.
+func _player_target_for(fleet: CampaignFleet) -> CampaignFleetIcon:
+	if fleet.role == CampaignFleet.Role.TRADER and fleet.faction != CampaignFleet.Faction.TRADER:
+		return null
+	return player_icon
 
 func _catalog_for_base(area: Area2D) -> Array[String]:
-	if area is FactionBase:
-		return RefitCatalog.for_faction(area.faction_enum)
-	return RefitCatalog.HOME_CATALOG
+	return RefitCatalog.for_faction(area.station.owner)
 
 func _economy_for_base(area: Area2D) -> BaseEconomy:
-	if area is HomeBase:
-		return CampaignState.home_base_economy
-	if area is FactionBase:
-		var station := _faction_station(area.faction_enum)
-		return station.economy if station != null else null
-	return null
-
-# TODO: Task 3 replaces this single-map stand-in with per-system stations.
-func _faction_station(faction_enum: CampaignFleet.Faction) -> StationData:
-	var stations := CampaignState.stations_of(faction_enum)
-	return stations[0] if not stations.is_empty() else null
+	return area.station.economy if area is CampaignStation else null
 
 func _faction_for_base(area: Area2D) -> PowerFaction:
-	if area is FactionBase:
-		for faction in CampaignState.factions:
-			if faction.faction_enum == area.faction_enum:
-				return faction
-	return null
+	return CampaignState.power_faction_for(area.station.owner) if area is CampaignStation else null
 
 func _name_for_base(area: Area2D) -> String:
-	var faction := _faction_for_base(area)
-	return "%s Base" % faction.display_name if faction != null else "Home Base"
+	return area.station.display_name
 
 func _spawn_icon(fleet: CampaignFleet, behavior: CampaignFleetIcon.BehaviorType) -> CampaignFleetIcon:
+	# Hand-built fixture fleets carry no system; treat them as being in the start system.
+	if not layers.has(fleet.system_id):
+		fleet.system_id = CampaignState.galaxy.start_system_id
 	var icon: CampaignFleetIcon = CampaignFleetIconScene.instantiate()
 	icon.behavior_type = behavior
-	add_child(icon)
-	icon.setup(fleet, HOME_BASE_POSITION)
+	layer_for(fleet.system_id).add_child(icon)
+	icon.setup(fleet, _spawn_point_for(fleet))
 	return icon
 
+# Fleets wander around their home station; away from home they wander where they are.
+func _spawn_point_for(fleet: CampaignFleet) -> Vector2:
+	var home: StationData = CampaignState.galaxy.station(fleet.home_station_id)
+	return home.position if home != null and home.system_id == fleet.system_id else fleet.position
+
 func _setup_enemy_icon(fleet: CampaignFleet) -> CampaignFleetIcon:
-	var behavior := _behavior_for_fleet(fleet)
-	var icon := _spawn_icon(fleet, behavior)
-	var is_faction_hauler := (fleet.faction == CampaignFleet.Faction.DOMINION or fleet.faction == CampaignFleet.Faction.FREEHOLD) and fleet.role == CampaignFleet.Role.TRADER
-	if not is_faction_hauler:
-		icon.player_target = player_icon
+	var icon := _spawn_icon(fleet, _behavior_for_fleet(fleet))
+	icon.player_target = _player_target_for(fleet)
 	icon.area_entered.connect(_on_enemy_area_entered.bind(icon))
-	icon.trader_arrived.connect(_on_trader_arrived.bind(icon))
+	icon.trader_arrived_at.connect(_on_trader_arrived_at.bind(icon))
 	enemy_icons.append(icon)
-	_configure_trade_route(icon, fleet)
+	# Only a fresh trader starts here; a saved destination (even "") is kept across rebuilds.
+	if fleet.role == CampaignFleet.Role.TRADER and fleet.dest_station_id == "":
+		fleet.dest_station_id = CampaignState.next_trade_destination(fleet)
+	_aim_trader(icon)
 	return icon
+
+# TODO: Task 5 adds AI jumping; until then a destination in another system leaves the trader idle.
+func _aim_trader(icon: CampaignFleetIcon) -> void:
+	var dest: StationData = CampaignState.galaxy.station(icon.fleet.dest_station_id)
+	icon.has_destination = dest != null and dest.system_id == icon.fleet.system_id
+	if icon.has_destination:
+		icon.dest_position = dest.position
 
 func _on_fleet_spawn_requested(fleet: CampaignFleet) -> void:
 	_setup_enemy_icon(fleet)
 
 func _on_fleet_role_changed(fleet: CampaignFleet) -> void:
 	for icon in enemy_icons:
-		if icon.fleet == fleet:
+		if is_instance_valid(icon) and icon.fleet == fleet:
 			icon.behavior_type = _behavior_for_fleet(fleet)
-			icon.player_target = player_icon if fleet.role == CampaignFleet.Role.COMBAT else null
-			_configure_trade_route(icon, fleet)
+			icon.player_target = _player_target_for(fleet)
+			_aim_trader(icon)
 			break
 
-func _on_trader_arrived(at_home: bool, icon: CampaignFleetIcon) -> void:
-	if icon.fleet.faction == CampaignFleet.Faction.DOMINION or icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
-		if CampaignState.galaxy == null:
-			return
-		var station: StationData = CampaignState.galaxy.station(icon.fleet.home_station_id) if at_home else CampaignState.galaxy.home_station()
-		CampaignState.run_npc_trade_at(icon.fleet, station)
-
-func _configure_trade_route(icon: CampaignFleetIcon, fleet: CampaignFleet) -> void:
-	if fleet.faction != CampaignFleet.Faction.DOMINION and fleet.faction != CampaignFleet.Faction.FREEHOLD:
-		return
-	var home: StationData = CampaignState.galaxy.station(fleet.home_station_id) if CampaignState.galaxy != null else null
-	if home == null:
-		return
-	var away_pos := _dock_point_for(fleet.faction) if fleet.role == CampaignFleet.Role.TRADER else home.position
-	var reset_state := not icon.route_endpoints_match(home.position, away_pos)
-	icon.set_route_endpoints(home.position, away_pos, reset_state)
-
-func _dock_point_for(faction_enum: CampaignFleet.Faction) -> Vector2:
-	if faction_enum == CampaignFleet.Faction.DOMINION:
-		return HOME_BASE_POSITION + Vector2(40, 0)
-	return HOME_BASE_POSITION + Vector2(-40, 0)
+func _on_trader_arrived_at(station_id: String, icon: CampaignFleetIcon) -> void:
+	CampaignState.run_npc_trade_at(icon.fleet, CampaignState.galaxy.station(station_id))
+	icon.fleet.dest_station_id = CampaignState.next_trade_destination(icon.fleet)
+	_aim_trader(icon)
 
 func _on_player_area_entered(area: Area2D) -> void:
 	if area != _travel_target:
@@ -208,7 +205,7 @@ func _trigger_arrival(area: Area2D) -> void:
 		engage_prompt.visible = true
 		get_tree().paused = true
 		_travel_target = null
-	elif area is HomeBase or area is FactionBase:
+	elif area is CampaignStation:
 		var economy := _economy_for_base(area)
 		if economy != null:
 			_close_docking_ui()
@@ -221,7 +218,7 @@ func _on_player_area_exited(area: Area2D) -> void:
 	if area == _pending_enemy_icon:
 		_pending_enemy_icon = null
 		engage_prompt.visible = false
-	elif area is HomeBase or area is FactionBase:
+	elif area is CampaignStation:
 		_close_docking_ui()
 		get_tree().paused = false
 
@@ -246,10 +243,10 @@ func _physics_process(delta: float) -> void:
 		if not is_instance_valid(_travel_target) or _travel_target.is_queued_for_deletion():
 			_travel_target = null
 		else:
-			player_icon.set_move_target(_travel_target.global_position)
+			player_icon.set_move_target(_to_player_space(_travel_target.global_position))
 	elif _mouse_held:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			player_icon.set_move_target(get_global_mouse_position())
+			player_icon.set_move_target(_to_player_space(get_global_mouse_position()))
 		else:
 			_mouse_held = false
 
@@ -329,7 +326,7 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 		var collider = result.collider
 		if collider == player_icon:
 			continue
-		if collider is CampaignFleetIcon or collider is HomeBase or collider is FactionBase:
+		if collider is CampaignFleetIcon or collider is CampaignStation:
 			return collider
 	return null
 
@@ -353,4 +350,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			_travel_target = null
 			_mouse_held = true
-			player_icon.set_move_target(get_global_mouse_position())
+			player_icon.set_move_target(_to_player_space(get_global_mouse_position()))
+
+# The current layer sits at the origin, but the player icon moves in its layer's space.
+func _to_player_space(global_point: Vector2) -> Vector2:
+	return player_icon.get_parent().to_local(global_point)

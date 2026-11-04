@@ -11,9 +11,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(scene)
 	await tree.process_frame
-	# The player fleet spawns already docked at HomeBase, which now auto-pauses
-	# the tree on area_entered -- clear that incidental pause so the
-	# teleport-and-await-physics-frame checks below actually progress.
+	# Clear any incidental pause so the teleport-and-await-physics-frame checks below progress.
 	tree.paused = false
 
 	var overview: BaseOverviewPanel = scene.get_node("UILayer/BaseOverviewPanel")
@@ -23,32 +21,26 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if overview.visible:
 		failures.append("expected BaseOverviewPanel hidden before the player docks anywhere")
 
-	# HomeBase sits at CampaignScene.HOME_BASE_POSITION; the player icon
-	# starts there too, but area_entered only fires on a fresh overlap
-	# transition, so move away first and then back onto it. Docking now
-	# only opens the panel when the overlap is the player's deliberate
-	# click target, so set _travel_target (what a real click would set)
-	# to the HomeBase node before re-approaching it.
-	scene.player_icon.global_position = Vector2(-5000, -5000)
+	# The player icon starts on the home station, but area_entered only fires on a fresh
+	# overlap transition, so move away first and then back onto it. Docking only opens the
+	# panel when the overlap is the player's deliberate click target, so set _travel_target
+	# (what a real click would set) to the home station node before re-approaching it.
+	scene.player_icon.position = Vector2(-5000, -5000)
 	for i in 3:
 		await tree.physics_frame
-	var home_base: HomeBase = null
-	for child in scene.get_children():
-		if child is HomeBase:
-			home_base = child
-			break
+	var home_base: CampaignStation = scene.station_nodes[campaign_state.galaxy.home_station().id]
 	scene._travel_target = home_base
-	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	scene.player_icon.position = home_base.position
 	for i in 5:
 		await tree.physics_frame
 
 	# Docking opens only the overview; sub-panels open from its buttons.
 	if not overview.visible:
-		failures.append("expected BaseOverviewPanel visible after docking at HomeBase")
+		failures.append("expected BaseOverviewPanel visible after docking at the home station")
 	if overview.title_label.text != "Home Base":
 		failures.append("expected the overview titled 'Home Base', got '%s'" % overview.title_label.text)
 	if overview.population_label.text.begins_with("Population: 0 "):
-		failures.append("expected bootstrap to seed HomeBase population, got '%s'" % overview.population_label.text)
+		failures.append("expected bootstrap to seed the home station population, got '%s'" % overview.population_label.text)
 	for sub_panel in [trade_panel, refit_panel, repair_panel]:
 		if sub_panel.visible:
 			failures.append("expected %s hidden until chosen from the overview" % sub_panel.name)
@@ -136,11 +128,11 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("expected Undock to close the overview and sub-panels and unpause")
 
 	# Re-dock to cover leaving the base by moving away.
-	scene.player_icon.global_position = Vector2(-5000, -5000)
+	scene.player_icon.position = Vector2(-5000, -5000)
 	for i in 3:
 		await tree.physics_frame
 	scene._travel_target = home_base
-	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	scene.player_icon.position = home_base.position
 	for i in 5:
 		await tree.physics_frame
 	overview.trade_goods_button.pressed.emit()
@@ -149,83 +141,78 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# transition (mirrors how a real move command would unpause).
 	tree.paused = false
 
-	scene.player_icon.global_position = Vector2(-5000, -5000)
+	scene.player_icon.position = Vector2(-5000, -5000)
 	for i in 5:
 		await tree.physics_frame
 
 	for docking_panel in [overview, trade_panel, refit_panel, repair_panel]:
 		if docking_panel.visible:
-			failures.append("expected %s hidden after leaving HomeBase" % docking_panel.name)
+			failures.append("expected %s hidden after leaving the home station" % docking_panel.name)
 
-	# Dock at a faction base and confirm the panel opens with that
-	# faction's own economy (not HomeBase's).
-	var faction_base: FactionBase = null
-	for child in scene.get_children():
-		if child is FactionBase:
-			faction_base = child
+	# Dock at a faction station and confirm the panel opens with that station's own economy.
+	# Haven has none, so put the player in Kestrel (Dominion) the way arriving there would.
+	_move_to_system(scene, scene.player_icon, "kestrel")
+	scene.show_system("kestrel")
+	var faction_base: CampaignStation = scene.station_nodes["kestrel_picket"]
+	scene._travel_target = faction_base
+	scene.player_icon.position = faction_base.position
+	for i in 5:
+		await tree.physics_frame
+	var docked_faction: PowerFaction = campaign_state.power_faction_for(faction_base.station.owner)
+	if not overview.visible:
+		failures.append("expected BaseOverviewPanel visible after docking at a faction station")
+	elif overview.title_label.text != faction_base.station.display_name:
+		failures.append("expected the overview titled after the station, got '%s'" % overview.title_label.text)
+	overview.trade_goods_button.pressed.emit()
+	if trade_panel._docked_base_economy != faction_base.station.economy:
+		failures.append("expected Trade Goods to open with the docked faction station's own economy")
+
+	# Paying a fine re-derives that faction's icon behavior immediately.
+	var faction_icon: CampaignFleetIcon = null
+	for icon in scene.enemy_icons:
+		if is_instance_valid(icon) and icon.fleet.faction == docked_faction.faction_enum and icon.fleet.role == CampaignFleet.Role.COMBAT:
+			faction_icon = icon
 			break
-	if faction_base == null:
-		failures.append("expected at least one FactionBase spawned by bootstrap")
+	if faction_icon == null:
+		failures.append("expected a combat fleet icon for the docked faction")
 	else:
-		scene._travel_target = faction_base
-		scene.player_icon.global_position = faction_base.global_position
-		for i in 5:
-			await tree.physics_frame
-		var docked_faction: PowerFaction = null
-		for faction in campaign_state.factions:
-			if faction.faction_enum == faction_base.faction_enum:
-				docked_faction = faction
-		if not overview.visible:
-			failures.append("expected BaseOverviewPanel visible after docking at a FactionBase")
-		elif overview.title_label.text != "%s Base" % docked_faction.display_name:
-			failures.append("expected the overview titled after the faction, got '%s'" % overview.title_label.text)
-		overview.trade_goods_button.pressed.emit()
-		if trade_panel._docked_base_economy != docked_faction.economy:
-			failures.append("expected Trade Goods to open with the docked FactionBase's own economy")
+		docked_faction.reputation = campaign_state.HOSTILE_REPUTATION_THRESHOLD - 10.0
+		docked_faction.fine = 150
+		docked_faction.fine_reputation = 20.0
+		faction_icon.behavior_type = CampaignFleetIcon.BehaviorType.PIRATE
+		campaign_state.credits = 1000
+		overview.refresh()
+		overview.pay_fine_button.pressed.emit()
+		if faction_icon.behavior_type != CampaignFleetIcon.BehaviorType.PATROL:
+			failures.append("expected paying the fine to turn the faction's combat icon back to PATROL, got %s" % faction_icon.behavior_type)
 
-		# Paying a fine re-derives that faction's icon behavior immediately.
-		var faction_icon: CampaignFleetIcon = null
-		for icon in scene.enemy_icons:
-			if is_instance_valid(icon) and icon.fleet.faction == docked_faction.faction_enum and icon.fleet.role == CampaignFleet.Role.COMBAT:
-				faction_icon = icon
-				break
-		if faction_icon == null:
-			failures.append("expected a combat fleet icon for the docked faction")
-		else:
-			docked_faction.reputation = campaign_state.HOSTILE_REPUTATION_THRESHOLD - 10.0
-			docked_faction.fine = 150
-			docked_faction.fine_reputation = 20.0
-			faction_icon.behavior_type = CampaignFleetIcon.BehaviorType.PIRATE
-			campaign_state.credits = 1000
-			overview.refresh()
-			overview.pay_fine_button.pressed.emit()
-			if faction_icon.behavior_type != CampaignFleetIcon.BehaviorType.PATROL:
-				failures.append("expected paying the fine to turn the faction's combat icon back to PATROL, got %s" % faction_icon.behavior_type)
-
+	scene._on_docking_panel_closed()
+	_move_to_system(scene, scene.player_icon, "haven")
+	scene.show_system("haven")
 	tree.paused = false
 
 	# Flyby coverage: overlapping a base that was NOT the player's clicked
 	# travel target (e.g. drifting past it during free-drag movement) must
 	# not open the panel -- only a deliberate click (_travel_target set to
 	# that base) should.
-	scene.player_icon.global_position = Vector2(-5000, -5000)
+	scene.player_icon.position = Vector2(-5000, -5000)
 	for i in 3:
 		await tree.physics_frame
 	scene._travel_target = null
-	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	scene.player_icon.position = home_base.position
 	for i in 5:
 		await tree.physics_frame
 	if overview.visible:
-		failures.append("expected BaseOverviewPanel to stay hidden when overlapping HomeBase without it being the clicked travel target")
+		failures.append("expected BaseOverviewPanel to stay hidden when overlapping the home station without it being the clicked travel target")
 	tree.paused = false
 
 	# Arrival coverage: reaching the clicked target must clear _travel_target
 	# so the player regains normal click control once the panel is open.
-	scene.player_icon.global_position = Vector2(-5000, -5000)
+	scene.player_icon.position = Vector2(-5000, -5000)
 	for i in 3:
 		await tree.physics_frame
 	scene._travel_target = home_base
-	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	scene.player_icon.position = home_base.position
 	for i in 5:
 		await tree.physics_frame
 	if scene._travel_target != null:
@@ -238,14 +225,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# area_entered transition left to fire -- clicking the base (already
 	# overlapped) must still open the trade panel immediately.
 	var enemy_icon: CampaignFleetIcon = scene.enemy_icons[0]
-	var enemy_original_position: Vector2 = enemy_icon.global_position
-	scene.player_icon.global_position = Vector2(-5000, -5000)
-	enemy_icon.global_position = Vector2(-6000, -6000)
+	_move_to_system(scene, enemy_icon, "haven")
+	scene.player_icon.position = Vector2(-5000, -5000)
+	enemy_icon.position = Vector2(-6000, -6000)
 	for i in 3:
 		await tree.physics_frame
-	enemy_icon.global_position = scene.HOME_BASE_POSITION
+	enemy_icon.position = home_base.position
 	scene._travel_target = enemy_icon
-	scene.player_icon.global_position = scene.HOME_BASE_POSITION
+	scene.player_icon.position = home_base.position
 	for i in 5:
 		await tree.physics_frame
 	var engage_prompt: Control = scene.get_node("UILayer/EngagePrompt")
@@ -266,11 +253,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("expected clicking an already-overlapped base (after disengaging) to open the BaseOverviewPanel immediately")
 	tree.paused = false
 
-	enemy_icon.global_position = enemy_original_position
-	scene.player_icon.global_position = Vector2(-5000, -5000)
+	scene.player_icon.position = Vector2(-5000, -5000)
 	for i in 3:
 		await tree.physics_frame
 
 	campaign_state.reset()
 	scene.queue_free()
 	return failures
+
+static func _move_to_system(scene: Node2D, icon: CampaignFleetIcon, system_id: String) -> void:
+	icon.reparent(scene.layer_for(system_id))
+	icon.fleet.system_id = system_id

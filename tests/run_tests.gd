@@ -32,7 +32,6 @@ func _run_all() -> void:
 		preload("res://tests/test_trader_behavior.gd"),
 		preload("res://tests/test_pirate_behavior.gd"),
 		preload("res://tests/test_campaign_state.gd"),
-		preload("res://tests/test_faction_base.gd"),
 		preload("res://tests/test_power_faction.gd"),
 		preload("res://tests/test_commodity.gd"),
 		preload("res://tests/test_fleet_allocation_policy.gd"),
@@ -135,6 +134,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [campaign_scene_test.resource_path, f])
 	total_failures += campaign_scene_failures.size()
 
+	var campaign_layers_test = load("res://tests/test_campaign_layers.gd")
+	var campaign_layers_failures: Array[String] = await campaign_layers_test.run_async(self)
+	for f in campaign_layers_failures:
+		print("FAIL [%s]: %s" % [campaign_layers_test.resource_path, f])
+	total_failures += campaign_layers_failures.size()
+
 	var campaign_galaxy_state_test = load("res://tests/test_campaign_galaxy_state.gd")
 	var campaign_galaxy_state_failures: Array[String] = await campaign_galaxy_state_test.run_async(self)
 	for f in campaign_galaxy_state_failures:
@@ -166,12 +171,6 @@ func _run_all() -> void:
 	for f in campaign_fleet_icon_failures:
 		print("FAIL [%s]: %s" % [campaign_fleet_icon_test.resource_path, f])
 	total_failures += campaign_fleet_icon_failures.size()
-
-	var home_base_test = preload("res://tests/test_home_base.gd")
-	var home_base_failures: Array[String] = await home_base_test.run_async(self)
-	for f in home_base_failures:
-		print("FAIL [%s]: %s" % [home_base_test.resource_path, f])
-	total_failures += home_base_failures.size()
 
 	# Loaded (not preloaded): loot_panel.gd bare-references the CampaignState autoload.
 	var loot_panel_test = load("res://tests/test_loot_panel.gd")

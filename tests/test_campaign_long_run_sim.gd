@@ -12,7 +12,7 @@ extends RefCounted
 #
 # Distance-from-spawn output is report-only (informational, no "right"
 # answer). Map bounds ARE asserted: every icon's position must stay within
-# CampaignFleetIcon.MAP_MIN/MAP_MAX at every sampled step -- unlike the
+# JumpRules.SYSTEM_MIN/SYSTEM_MAX (in its layer) at every sampled step -- unlike the
 # pirate-engagement assertion above, this one is expected to pass; a failure
 # here is a real bug in the clamp, not a documented gap. Reading `_move_target`
 # (underscore-prefixed) is a deliberate one-file exception to verify internal
@@ -71,8 +71,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 				var d: float = icon.global_position.distance_to(spawn_positions[icon])
 				if d > max_distance[icon]:
 					max_distance[icon] = d
-				var pos: Vector2 = icon.global_position
-				if not out_of_bounds.has(icon) and (pos.x < CampaignFleetIcon.MAP_MIN.x or pos.x > CampaignFleetIcon.MAP_MAX.x or pos.y < CampaignFleetIcon.MAP_MIN.y or pos.y > CampaignFleetIcon.MAP_MAX.y):
+				var pos: Vector2 = icon.position
+				if not out_of_bounds.has(icon) and pos != JumpRules.clamp_to_system(pos):
 					out_of_bounds[icon] = pos
 			if pirate_icon != null:
 				for other in others:

@@ -4,3 +4,4 @@ test_error.txt
 art/src/out/
 .art_review*
 .superpowers/
+__pycache__/

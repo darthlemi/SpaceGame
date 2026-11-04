@@ -51,14 +51,27 @@ cd art\blender
 & "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_capital.py -- --out "$PWD\capital.png"
 ```
 
-Flags (after `--`, the same for both scripts unless noted):
+`art/blender/kitbash_freighter.py` — freighter: a long cargo bay of shipping containers
+(ribbed roofs, end frames, corner castings, mixed 40ft and 20ft boxes) either side of a
+keel, with a faceted command module at the bow and a wider engine block at the stern. It
+also imports `kitbash_corvette.py`. `--cargo muted` with seed 1 (both the defaults) is the
+approved design, and `--cargo mono` paints the containers gunmetal. It has 2 light-turret
+mounts: `dorsal_fore` and `dorsal_aft`.
+
+```powershell
+cd art\blender
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_freighter.py -- --out "$PWD\freighter.png"
+```
+
+Flags (after `--`, the same for every script unless noted):
 
 - `--out` — the output PNG path (required).
 - `--preview` — adds a space backdrop and engine flames for review renders.
   Leave it off for in-game sprites, which come out with a transparent background.
 - `--res` — render width in px (default 768).
 - `--samples` — Cycles samples (default 64).
-- `--seed` — corvette default 2, capital default 1.
+- `--seed` — corvette default 2, capital and freighter default 1.
+- `--cargo` — freighter only: `muted` (default) or `mono`.
 - `--hull` — capital only: `slot` (default), `bay` or `oval`.
 - `--verbose` — prints build timing and part counts.
 
@@ -67,7 +80,8 @@ plate, and the script writes `<out>.mounts.json` next to the PNG
 (`corvette.png` gives `corvette.mounts.json`). Each mount has these fields:
 
 - `id` — the mount name. The corvette uses `dorsal`, `port_fore`, `port_aft`,
-  `starboard_fore` and `starboard_aft`; the capital uses the six names listed above.
+  `starboard_fore` and `starboard_aft`; the capital and freighter use
+  the names listed above.
 - `x`, `y` — the position in Godot `Sprite2D`-local pixels, measured from the image centre,
   with +x toward the nose and +y down. Multiply by the `Sprite2D` scale to get a
   `WeaponMount` node's `position`.

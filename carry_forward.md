@@ -18,9 +18,19 @@
   - `organic_partition` plus `loft_quad`: the plates are the hull skin. Strips get slanted
     cuts and a per-strip split across the width that follows the real width, so plates stay
     between 1:1 and 2:1. Plate thickness tapers to nothing at the chine edge.
-  - A few stacked kitbash pieces (`armour` layer 1), plus turrets, vents and tanks.
-    Emissive neon trim and lights.
+  - A few stacked kitbash pieces (`armour` layer 1), plus vents and tanks. Emissive neon
+    trim and lights.
   - No side boosters.
+- **`8319a0a` removes the weapons from the render.** The game attaches weapons, so only
+  the grey mount plates are drawn (radius `MOUNT_RADIUS` 0.34).
+  - Each render writes `<out>.mounts.json` with 5 mounts: `dorsal`, `port_fore`,
+    `port_aft`, `starboard_fore` and `starboard_aft`.
+  - Each mount has `x` and `y` in Godot `Sprite2D`-local px (from the image centre, +x =
+    nose, +y = down), plus `radius` in px and `facing_deg`.
+  - Verified by sampling plate pixels at the JSON positions, plus an overlay in
+    `mounts-check.html` in the companion content folder.
+  - JSON was chosen over XML because Godot parses JSON natively and the repo had no data
+    format convention for this.
 - **Memory:** `ship-art-direction` records the taste rules learned over about nine rounds:
   - what was rejected;
   - one base color with small accents;
@@ -36,6 +46,9 @@
   rejects `-b`.
 - Follow `ship-art-direction` for every new hull. Show seeds side by side in the visual
   companion and let the user pick.
+- Never render weapons into ship art. Mounts are bare plates plus entries in
+  `.mounts.json`. A mounts file only matches the PNG it was rendered with, because
+  `--res` and `--preview` change the framing.
 
 ## Next steps
 1. **Put the corvette in the game.**
@@ -44,6 +57,10 @@
    - Render the transparent sprite (no `--preview`) over
      `assets\sprites\ships\corvette.png`.
    - Check the ship scene's scale and collision against the new silhouette.
+   - Place the `WeaponMount` nodes from `corvette.mounts.json` (position = json x/y ×
+     the `Sprite2D` scale). The scene currently has one hand-placed mount at (8, 0).
+     Decide between copying the values into `ship_corvette.tscn` and loading the JSON at
+     runtime.
 2. **Neon glow:** use Godot 2D glow (WorldEnvironment with HDR 2D). Engine flames become a
    VFX; the flames in `--preview` are review-only.
 3. **Remaining hulls:** freighter (plus its cargo/fuel variants) and capital, each needing
@@ -54,7 +71,7 @@
    started. Style mockups were shown, but no direction was chosen.
 6. **Spec:** `docs\superpowers\specs\2026-10-31-pxl-art-pipeline-design.md` is superseded
    for ships. Write a spec update once the Blender pipeline is formalized.
-7. **Unpushed commits:** `main` is 12 commits ahead of origin, including this entry. Push only when asked.
+7. **Unpushed commits:** `main` is 14 commits ahead of origin, including this entry. Push only when asked.
 8. **Untracked root files:** `images.jpg` (the reference), plus `MEMORY.md` and
    `token-efficient-execution.md`, which look like misplaced copies of auto-memory. Ask
    the user before deleting or committing them. Never commit the CRLF noise in

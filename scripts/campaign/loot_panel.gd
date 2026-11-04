@@ -78,6 +78,7 @@ func _rebuild_rows() -> void:
 	var has_ships := not _offer.ships.is_empty()
 	crew_row.visible = has_ships
 	take_button.visible = has_ships
+	crew_slider.max_value = _crew_cap()
 	crew_slider.set_value_no_signal(0.0)
 	refresh()
 
@@ -139,6 +140,7 @@ func _added_wages() -> int:
 	for comp in _kept_comps():
 		var copy := comp.duplicate(true)
 		CrewRules.set_crew(copy, 0)
+		copy["flagship"] = false
 		scratch.ship_compositions.append(copy)
 	CrewRules.add_crew(scratch.ship_compositions, int(crew_slider.value))
 	return CampaignState.wage_bill(scratch) - before
@@ -178,7 +180,7 @@ func _on_take_pressed(commodity: int) -> void:
 
 # Captured ships join empty; the slider's crew is then spread over the whole fleet.
 func _on_take_ships_pressed() -> void:
-	var crew := int(crew_slider.value)
+	var crew := mini(int(crew_slider.value), _crew_cap())
 	for comp in _kept_comps():
 		var copy := comp.duplicate(true)
 		CrewRules.set_crew(copy, 0)

@@ -155,6 +155,20 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if panel.visible:
 			failures.append("LootPanel: expected the panel closed after Take")
 
+	# The slider max is set on open, before any Keep toggle, and follows a reopened offer.
+	var berth_player := _full_player()
+	CrewRules.set_crew(berth_player.ship_compositions[0], CrewRules.complement(berth_player.ship_compositions[0]) - 5)
+	var big_offer := LootOffer.new()
+	big_offer.ships.assign([_comp(ShipType.Kind.CORVETTE, 10)])
+	panel.open_for(big_offer, berth_player)
+	if panel.crew_slider.max_value != 5.0:
+		failures.append("LootPanel: expected max 5 (free berths) on open with nothing kept, got %s" % panel.crew_slider.max_value)
+	var small_offer := LootOffer.new()
+	small_offer.ships.assign([_comp(ShipType.Kind.CORVETTE, 2)])
+	panel.open_for(small_offer, berth_player)
+	if panel.crew_slider.max_value != 2.0:
+		failures.append("LootPanel: expected max 2 after reopening with a smaller offer, got %s" % panel.crew_slider.max_value)
+
 	# Leave: nothing is taken.
 	var leave_offer := _ship_offer()
 	var leave_player := _full_player()

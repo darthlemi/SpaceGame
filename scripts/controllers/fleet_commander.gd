@@ -1,6 +1,13 @@
 class_name FleetCommander
 extends Node2D
 
+# Weapon frustums on selected ships: #ffb347 lines and a red hatch, both at 20% opacity.
+const FRUSTUM_COLOR := Color(1.0, 0.702, 0.278, 0.2)
+const FRUSTUM_DASH := 6.0
+const FRUSTUM_HATCH_COLOR := Color(1.0, 0.231, 0.231, 0.06)
+const FRUSTUM_HATCH_SPACING := 20.0
+const FRUSTUM_SEGMENTS := 32
+
 @export var select_radius: float = 24.0
 @export var click_target_radius: float = 24.0
 @export var drag_threshold: float = 6.0
@@ -100,10 +107,81 @@ func _group_facing(world_pos: Vector2) -> Vector2:
 func _draw() -> void:
 	for ship in selected_ships:
 		if is_instance_valid(ship):
+			_draw_frustums(ship)
 			draw_arc(ship.global_position, select_radius, 0, TAU, 24, Color(0.2, 1.0, 0.4), 2.0)
 	if _dragging:
 		var rect := Rect2(_drag_start, Vector2.ZERO).expand(get_global_mouse_position())
 		draw_rect(rect, Color(0.2, 1.0, 0.4, 0.3), false, 2.0)
+
+# Mirrors WeaponMount.can_engage: the arc is centred on the mount's facing.
+func _draw_frustums(ship: Ship) -> void:
+	for mount in FleetCommander.frustum_mounts(ship.weapon_mounts):
+		var origin := mount.global_position
+		var facing := mount.global_rotation
+		var arc := mount.weapon.fire_arc_degrees
+		var reach := mount.weapon.weapon_range
+		var polygon := FleetCommander.frustum_polygon(origin, facing, arc, reach, FRUSTUM_SEGMENTS)
+		var hatch := FleetCommander.hatch_segments(polygon, FRUSTUM_HATCH_SPACING)
+		if not hatch.is_empty():
+			draw_multiline(hatch, FRUSTUM_HATCH_COLOR, 1.0)
+		if arc >= 360.0:
+			draw_arc(origin, reach, 0.0, TAU, FRUSTUM_SEGMENTS * 2, FRUSTUM_COLOR, 3.0)
+			continue
+		var half := deg_to_rad(arc) * 0.5
+		draw_dashed_line(origin, polygon[1], FRUSTUM_COLOR, 2.0, FRUSTUM_DASH)
+		draw_dashed_line(origin, polygon[polygon.size() - 1], FRUSTUM_COLOR, 2.0, FRUSTUM_DASH)
+		draw_arc(origin, reach, facing - half, facing + half, FRUSTUM_SEGMENTS, FRUSTUM_COLOR, 3.0)
+
+# Mounts whose firing area is worth showing: armed and not destroyed.
+static func frustum_mounts(mounts: Array[WeaponMount]) -> Array[WeaponMount]:
+	var shown: Array[WeaponMount] = []
+	for mount in mounts:
+		if mount.weapon != null and not mount.is_destroyed():
+			shown.append(mount)
+	return shown
+
+# A wedge from origin (origin first, then the arc), or a circle without origin for a
+# 360-degree weapon, matching WeaponMount._within_arc.
+static func frustum_polygon(origin: Vector2, facing: float, arc_degrees: float, weapon_range: float, segments: int) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	if arc_degrees >= 360.0:
+		for i in segments:
+			points.append(origin + Vector2.RIGHT.rotated(TAU * i / segments) * weapon_range)
+		return points
+	var half := deg_to_rad(arc_degrees) * 0.5
+	points.append(origin)
+	for i in segments + 1:
+		points.append(origin + Vector2.RIGHT.rotated(facing - half + 2.0 * half * i / segments) * weapon_range)
+	return points
+
+# Diagonal hatch clipped to polygon, as from/to pairs for draw_multiline. Lines sit on
+# world-fixed offsets so the pattern doesn't crawl as the ship turns.
+static func hatch_segments(polygon: PackedVector2Array, spacing: float) -> PackedVector2Array:
+	var segments := PackedVector2Array()
+	if polygon.size() < 3:
+		return segments
+	var normal := Vector2(1, 1).normalized()
+	var along := Vector2(1, -1).normalized()
+	var centre := Vector2.ZERO
+	for point in polygon:
+		centre += point
+	centre /= polygon.size()
+	var low := INF
+	var high := -INF
+	var reach := 0.0
+	for point in polygon:
+		low = minf(low, point.dot(normal))
+		high = maxf(high, point.dot(normal))
+		reach = maxf(reach, point.distance_to(centre))
+	var centre_along := along * centre.dot(along)
+	for k in range(ceili(low / spacing), floori(high / spacing) + 1):
+		var base := normal * (k * spacing) + centre_along
+		var line := PackedVector2Array([base - along * reach, base + along * reach])
+		for piece in Geometry2D.intersect_polyline_with_polygon(line, polygon):
+			for j in piece.size() - 1:
+				segments.append(piece[j])
+				segments.append(piece[j + 1])
+	return segments
 
 static func ship_at_point(candidates: Array, point: Vector2, radius: float) -> Ship:
 	var best: Ship = null

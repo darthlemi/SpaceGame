@@ -1,3 +1,117 @@
+# Carry-Forward - SpaceGame 2026-11-03 (combat AI: hunting idle ships + weapon-aware standoff) - on main, committed, not pushed
+
+## Done (awaiting user playtest)
+- Bug: idle player ships flew to (0,0). Spawners set position after add_child had already
+  run Ship._ready -> HOLD captured the origin as _hold_center (confirmed headless). The
+  leash (250 from origin) also made them drop every chase, so they never auto-engaged.
+  Fix: `Ship._process_hold` anchors on its first tick (`_hold_anchored`), covering every
+  spawn path (combat spawners, debug spawn, drone bay).
+- Idle (HOLD) ships now hunt the nearest enemy anywhere, re-picking each tick, and only
+  loiter once no enemy is left (re-anchored where the fight ended). Removed `aggro_range`,
+  `leash_distance`, `_chase_target`, `Ship.should_disengage`. A MOVE_TO is therefore
+  transient while enemies remain: ships re-engage on arrival.
+- `Ship.engagement_distance` / `best_engagement_range`: standoff = longest weapon range
+  keeping `ENGAGE_DPS_SHARE` (0.75) of dps in reach, x `ENGAGE_RANGE_FRACTION` (0.8),
+  floored at hull radii + `ENGAGE_HULL_GAP` (30). < 0 = nothing working to shoot.
+- `ShipEngine.hold_station`: nose on target, thrust any direction (reverse capped at
+  `REVERSE_SPEED_FACTOR` 0.5) -> ships back off/sidestep keeping fixed arcs on target.
+  Used by ATTACK_TARGET orders and hold-chase (`Ship._engage`).
+- Per-mount targeting (`Ship.pick_mount_target`, `WeaponMount.can_engage` /
+  `nearest_engageable`): a mount that can't bear on the primary fires at any enemy in its
+  range+arc.
+- AIController: enemy with no working weapon retreats. Bomber drone closes to 0, EW drone
+  holds inside its aura (overrides).
+
+## Open / tune
+- Ships targeting the same enemy from similar bearings can stack (no ally separation).
+- Standoff ignores the enemy's range (no deliberate kiting of outranged targets).
+- No hold-position stance: if the user wants ships to stay put, it needs a new order.
+- PD weapons count toward dps share, so PD-heavy loadouts close in to PD range.
+
+---
+
+# Carry-Forward - SpaceGame 2026-11-03 (crew mechanic + crew combat rework) - on main
+
+## Pending
+- **Not pushed:** `main` is 8 commits ahead of origin (`626c418..32a39dc`,
+  rework spec through fix wave). The user hasn't asked for this push yet.
+- **Untested in-game:** none of the new UI or combat has been played. Check
+  fleet management, jettison, respawn, the loot window, escape and capture,
+  and the 70px status bar with its 2-line crew warning.
+- **Uncommitted noise:** `project.godot` and
+  `tests\test_campaign_scene_fleet_panel.gd` have CRLF-only diffs caused by
+  the open Godot editor, plus the usual `.import` churn. Revert them; don't
+  commit.
+
+## Completed this session
+- **Pushed earlier** (`fd1c87f..35ab62e`): the fleet-status-bar session plus
+  the crew mechanic.
+  - Spec `docs\superpowers\specs\2026-11-03-crew-mechanic-design.md`.
+  - Plan `docs\superpowers\plans\2026-11-03-crew-mechanic.md`.
+  - 9 tasks built with subagent-driven development plus a final review and
+    fix wave:
+    - per-ship crew data and `CrewRules` (`scripts\campaign\crew_rules.gd`);
+    - deploy by crew;
+    - base hire pools, hiring, wages and desertion with a flagship floor;
+    - Fleet Management panel (sliders, Balance, flagship, deploy, hire);
+    - Scuttle and Jettison (`jettison_panel`);
+    - respawn at HomeBase instead of game over (`respawn_panel`);
+    - NPC skirmish crew loss, faction refill and pirate regen.
+  - `test_ai_controller_targeting.gd` was fixed with a bounded
+    `physics_frame` poll and is no longer flaky.
+- **Committed, not pushed:** the crew combat rework.
+  - Spec `docs\superpowers\specs\2026-11-03-crew-combat-rework-design.md`
+    (amends the crew spec).
+  - Plan `docs\superpowers\plans\2026-11-03-crew-combat-rework.md`.
+  - Credits are `int` everywhere. Wages are 1 credit per 10 payable crew,
+    and the sell price is always below the buy price.
+  - Crew efficiency (`CrewRules.efficiency_for`, 1.0 down to 0.5) scales
+    fire rate, shield regen, speed and turn. The disabled state and the
+    stalemate are removed.
+  - A side loses when it has no active armed ship. Engage is blocked when
+    neither side can fight.
+  - The losing side rolls to escape (`scripts\combat\battle_resolution.gd`,
+    seeded RNG, speed vs the winner's fastest ship). Caught ships are
+    captured with their crew, in both directions. Cargo splits by captured
+    capacity.
+  - `LootOffer` plus a new loot window: Keep checkbox per ship, crew slider
+    capped by free berths, Take keeps the panel open, Leave exits.
+  - `deploy_indices` always includes an armed ship when the fleet has one.
+- **Suite:** only the `test_campaign_long_run_sim.gd` pirate-targeting flake
+  (5-6 failures), with no SCRIPT ERROR.
+
+## Rules / conventions established
+- SpaceGame plans are built directly on `main` (memory: `build-on-main`).
+  Don't push until the user asks.
+- The user wants reviews only on large changes, plus a final review of the
+  whole branch.
+- Credits are always whole numbers, so nothing below 1 is ever shown.
+- A Godot `--script` run that hits a parse error can hang. Kill only your
+  own process, and never the editor process with `project.godot` on its
+  command line.
+- New autoload-touching panels need `load()`, not `preload()`, in
+  `run_tests.gd`.
+
+## Next steps
+1. Push `main` once the user agrees.
+2. Playtest the rework, then tune these placeholders:
+   - wages and fees: `WAGE_PER_10_CREW`, `CREW_HIRE_COST`, `SHIP_PRICE`;
+   - crew efficiency: `MIN_CREW_EFFICIENCY`;
+   - escape: the `BattleResolution.ESCAPE_*` constants. A freighter or
+     capital currently has about a 10% chance against a corvette;
+   - hire pools: `CREW_POOL_*`;
+   - respawn: the penalty.
+3. Known quirks to raise with the user:
+   - Fewer than 10 billable crew costs no wages.
+   - The flagship floor can be bypassed with the slider.
+   - The loot panel overlaps the fleet panel slot.
+   - Escapers keep their crew unbalanced.
+4. Still open from older sessions: Missions design (disabled placeholder),
+   the low-fuel warning, population feeding back into prices, and the
+   PD/Interceptor missile-vs-drone bonus.
+
+---
+
 # Carry Forward - 2026-11-03 session (fleet status bar + fuel/crew, base overview) - COMMITTED to main
 
 ## Completed this session
@@ -65,15 +179,8 @@
 - `CARRY_FORWARD.md` is tracked in git as lowercase `carry_forward.md`.
 
 ## Next steps
-1. Push main (5 commits ahead of origin) when ready.
-2. Tune by playing - all guesses: fuel (`ShipType.BASE_STATS`,
-   `PLAYER_STARTING_FUEL`), population (`EconomyRole.HOUSING`, `BaseEconomy`
-   growth/decline/`FOOD_SECURE_STOCK`), `FINE_PER_KILL`.
-3. Visual check: Produces/Consumes wrapping in the 320px overview.
-4. Missions: design TBD; button is a disabled placeholder.
-5. Possible follow-ups (not requested): crew as a real mechanic (hire, wages,
-   combat losses); low-fuel warning; fractional fuel remainders (<1) cannot be
-   sold via TradePanel; population feeding back into production/prices.
+Superseded by the crew-mechanic entry at the top: pushed, and crew is now a
+real mechanic.
 
 ---
 

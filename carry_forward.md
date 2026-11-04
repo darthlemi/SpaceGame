@@ -1,52 +1,54 @@
-# Carry-Forward - SpaceGame 2026-11-04 (bigger fleets / bigger world: brainstorm) - mid-brainstorm, no spec yet
+# Carry-Forward - SpaceGame 2026-11-04 (star systems and jumping: spec + plan approved, not built)
 
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
-## Current thread: bigger fleets, bigger world
+## Completed this session
+- Brainstormed sub-project 1 of "bigger world". The map is now a fixed galaxy of FTL-style
+  systems, each the size of today's map, linked by jumps (no camera). This replaces the earlier
+  pan/zoom camera idea.
+- Spec approved: `docs\superpowers\specs\2026-11-04-star-systems-jumping-design.md` (`0ecf9d1`).
+- Plan written: `docs\superpowers\plans\2026-11-04-star-systems-jumping.md` (`9da2d17`).
+  - 5 tasks: galaxy model; station-based state; system layers in the scene; player jumping and
+    jump map; AI jumping and the perf check.
+  - The draft layout has 26 systems, 37 stations and 40 links. The table is in Task 1 and the
+    user may adjust it.
 
-### Findings in the current code
-- `FleetAllocationPolicy`: `MAX_FLEETS = 4` per faction, `MAX_SHIPS_PER_FLEET = 3`. Ships are
-  added one at a time, free, only on `GROW_COMBAT` (pirate threat) or `GROW_TRADE` (wealthy).
-- New trade fleets start as one freighter (`CampaignState._grow_fleet`).
-- Pirates never add ships, only crew (`PIRATE_CREW_REGEN`). No pirate base or economy.
-- Factions have no credits: just a `BaseEconomy` stockpile and crew pool.
-- The player has no hard ship cap. The 3 cap only applies in `_settle_player_defeat` captures.
-- The campaign has no camera: a fixed 1152x648 view, fleets clamped to 4000x2400
-  (`campaign_fleet_icon.gd` `MAP_MIN`/`MAP_MAX`). Bases are hand-placed in `campaign_scene.gd`.
-- Combat has 3 spawn points per side (`combat_scene.gd` `player_spawn_points` /
-  `enemy_spawn_points`). Extra ships reuse them (`points[k % size]` in `_spawn_fleet_from_data`).
-- Overworld clump: `CLUMP_RADIUS` 36 caps ship spread regardless of fleet size, so 10-ship fleets
-  will overlap on the map.
+## Next steps
+1. **Waiting on the user:** review the plan and pick an execution method. Recommended:
+   subagent-driven with batched reviews (one after Task 2, one after Tasks 3-4, a final review on
+   the most capable model), started in a **fresh session** with only the spec and plan.
+2. **Perf gate (plan Task 5):** if `tests\perf_galaxy.gd` misses the bar (8 ms average, 33 ms
+   max, at 1x and 5x), stop and report. Don't build off-screen simulation unasked.
+3. **Later sub-projects, in agreed order:**
+   1. more factions (4-5, one hostile, one peacekeeper, a couple neutral);
+   2. AI economy and bigger fleets;
+   3. the mysterious end-game faction (jump gates, cheaper or longer jumps, better ships);
+   4. big battles.
+   Decisions already made for the AI economy sub-project, kept from the earlier brainstorm:
+   - **Fleet size:** 4-10 ships for every faction's fleets.
+   - **No hard cap:** fleet size is limited by credits, crew and fuel, for the player and the AI
+     alike.
+   - **AI cheats by discount:** AI pays like the player, but everything costs less.
+   - **Pirates become a full faction**, with an economy.
+   - **Convoys:** freighters always travel with escorts, bigger on dangerous routes.
+   Unconfirmed guesses to put to the user then:
+   - a treasury per faction, with one discount of about 50%;
+   - pirates earn by raiding;
+   - convoy danger is measured by enemy strength near the route;
+   - a convoy that can't afford an escort waits in port.
+   Code facts to remember:
+   - `CLUMP_RADIUS` 36 will overlap 10-ship fleets on the map;
+   - combat has only 3 spawn points per side.
 
-### Decisions (user's words, agreed in playbacks)
-- **Fleet size:** 4-10 ships for every faction's fleets (pirates, patrols, convoys).
-- **No hard cap:** a fleet's size is limited by what it can support in credits, crew and fuel.
-  Same rule for the player and the AI.
-- **AI cheats via discount:** AI pays for ships, crew and fuel like the player, but everything
-  costs less. My proposal (not explicitly confirmed): a credit treasury per faction, fed by its
-  economy and trade; one tunable discount (say 50%); crew from the base crew pool; fuel from the
-  base stockpile. Losses must be rebuilt by saving up, so fleets visibly shrink and regrow.
-- **Pirates become a full faction** with a base and economy. My guess, unconfirmed: they earn
-  mainly by raiding, and stay hostile to the power factions.
-- **Convoys:** freighters always travel with warship escorts. Bigger escorts on dangerous routes.
-  My guesses, unconfirmed: danger comes from enemy strength near the route; a convoy that can't
-  afford its escort waits in port.
-- **Map:** each faction owns several bases across its own territory, plus neutral stations in
-  between. The play area grows to fit, which needs a pan/zoom campaign camera. The 16-station
-  art pool (`assets\sprites\stations\`) gets used here.
-
-### Next steps
-1. **Open question to the user:** agree the order of the three sub-projects. My recommendation:
-   1. bigger map: campaign camera, multiple bases per faction, neutral stations, pirate base;
-   2. AI economy and fleets: treasuries, discounted costs, 4-10 ship fleets that grow and
-      shrink, escorted convoys;
-   3. big battles: formation spawning for 10 ships per side, plus clump scaling on the map.
-   The alternative is bigger fights on the current map first.
-2. Continue brainstorming sub-project 1. Still to cover: hand-placed vs generated layout, base
-   count, what neutral stations offer, camera controls. Write
-   `docs\superpowers\specs\2026-11-04-<topic>-design.md`, run the builder check, then the plan.
-3. Confirm the guesses marked above when brainstorming sub-project 2.
+## Star systems: calls the user should check while reading the plan
+- **Caught mid-warp:** the user never answered this. As written, hostile contact during the
+  countdown forces the engage prompt, and no new warp can start while a hostile is touching you.
+- **Distress signal:** about 3x the base fuel price, delivered instantly. With no money and no
+  fuel, you're stuck (the user's rule).
+- **Every base is dockable and tradeable, pirate bases included** (the user's rule).
+- **Bases:** every base uses the station renders with a faction-coloured ring. The old
+  `assets\sprites\bases\` art becomes unused but is kept.
 
 ## Open ideas
 - **Neutral vs pirate station services:** what makes them different to visit (black-market
@@ -55,7 +57,7 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
   simulation if the frame-time check fails or the galaxy grows.
 
 ## Repo state
-- **Unpushed:** `main` is 19 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Unpushed:** `main` is 23 commits ahead of origin (`03e243d` onward). Push only when asked.
 - **Untracked root files:** `images.jpg` (the kitbash reference), `images.jpg.import`,
   `MEMORY.md`, `token-efficient-execution.md`. The user said to leave them alone.
 - Never commit the `.import` churn or the CRLF-only noise in `project.godot` and
@@ -95,15 +97,15 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 - **Population feeding back into prices:** not built.
 - **HomeBase has no ORE/FOOD producer** (only `refinery()` for fuel), so its seed stock drains
   under hauler traffic.
-- **Trader route reset after combat (parked, unverified since 2026-10-31):** returning from
-  combat may reset in-flight traders' `_route_state`, causing a wasted round trip. The real fix
-  is persisting the route state on `CampaignFleet`.
+- **Trader route reset after combat:** plan Task 3 absorbs this. Routes move to
+  `CampaignFleet.dest_station_id`.
 
 ### Art
 - **Ship mount counts:** the user is updating the art (capital 3 plates, freighter 0, corvette 1).
   Re-render with the `art\README.md` `--res` values (corvette 75, capital 122x111 at 80%,
   freighter 107), then re-place the mounts.
-- **Stations into the game:** nothing uses the 16-station pool yet. Now part of sub-project 1.
+- **Stations into the game:** plan Tasks 1 and 3 (`CampaignStation`, art chosen per station in
+  `GalaxyData`).
 - **Station follow-ups, when asked:**
   - per-faction accent re-renders;
   - more variety within a type (truss always puts the habitat at -X and the pier at +X);

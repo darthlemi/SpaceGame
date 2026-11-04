@@ -8,6 +8,7 @@ const EMPTY_FUEL_COLOR := Color(1.0, 0.3, 0.3, 1.0)
 @onready var credits_label: Label = $Layout/CreditsLabel
 @onready var cargo_label: Label = $Layout/CargoLabel
 @onready var fleet_button: Button = $Layout/FleetButton
+@onready var jump_button: Button = $Layout/JumpButton
 
 func _ready() -> void:
 	# Keep refreshing while docked (tree paused) so trades show up immediately.
@@ -25,7 +26,8 @@ func _update_display() -> void:
 	ships_label.text = "Ships: %d" % fleet.ship_compositions.size()
 	var fuel := fleet.fuel_amount()
 	if fuel > 0.0:
-		fuel_label.text = "Fuel: %.1f (-%.2f/s moving)" % [fuel, fleet.fuel_burn_rate()]
+		# Second line: one line leaves no room for "Cancel Warp (...)" before SpeedControls.
+		fuel_label.text = "Fuel: %.1f\n(-%.2f/s moving)" % [fuel, fleet.fuel_burn_rate()]
 		fuel_label.remove_theme_color_override("font_color")
 	else:
 		fuel_label.text = "Fuel: EMPTY (%d%% speed)" % roundi(CampaignFleet.EMPTY_FUEL_SPEED_FACTOR * 100.0)
@@ -41,3 +43,4 @@ func _update_display() -> void:
 		crew_label.remove_theme_color_override("font_color")
 	credits_label.text = "Credits: %d" % CampaignState.credits
 	cargo_label.text = "Cargo: %.1f/%d" % [fleet.cargo_total(), fleet.cargo_capacity()]
+	jump_button.text = "Cancel Warp (%.1f)" % fleet.warp_remaining if fleet.is_warping() else "Jump"

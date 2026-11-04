@@ -23,12 +23,14 @@ var station_nodes: Dictionary = {}
 @onready var base_overview_panel: BaseOverviewPanel = $UILayer/BaseOverviewPanel
 @onready var loot_panel: LootPanel = $UILayer/LootPanel
 @onready var respawn_panel: RespawnPanel = $UILayer/RespawnPanel
+@onready var jump_map_panel: JumpMapPanel = $UILayer/JumpMapPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
 var _travel_target: Area2D = null
 var _docked_base: Area2D = null
 var _paused_before_fleet_panel: bool = false
+var _paused_before_jump_map: bool = false
 var _engage_prompt_text: String = ""
 
 func _ready() -> void:
@@ -50,6 +52,9 @@ func _ready() -> void:
 	player_icon.area_exited.connect(_on_player_area_exited)
 	# Before NPCs spawn, so no two systems' fleets ever share the origin.
 	show_system(CampaignState.player_fleet.system_id)
+	# Fixture fleets skip new_game(), so chart where they start for the jump map.
+	if not CampaignState.visited.has(CampaignState.player_fleet.system_id):
+		CampaignState.record_visit(CampaignState.player_fleet.system_id)
 
 	for enemy_fleet in CampaignState.enemy_fleets:
 		_setup_enemy_icon(enemy_fleet)
@@ -65,8 +70,13 @@ func _ready() -> void:
 	base_overview_panel.undock_button.pressed.connect(_on_docking_panel_closed)
 	fleet_status_bar.fleet_button.pressed.connect(_open_fleet_management)
 	fleet_management_panel.close_button.pressed.connect(_on_fleet_management_closed)
+	fleet_status_bar.jump_button.pressed.connect(_on_jump_button_pressed)
+	jump_map_panel.jump_requested.connect(_on_jump_requested)
+	jump_map_panel.distress_requested.connect(_on_distress_requested)
+	jump_map_panel.closed.connect(_on_jump_map_closed)
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
+	CampaignState.fleet_jumped.connect(_on_fleet_jumped)
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
 	CampaignState.fleet_role_changed.connect(_on_fleet_role_changed)
 	CampaignState.faction_reputation_changed.connect(_on_faction_reputation_changed)
@@ -182,9 +192,24 @@ func _on_trader_arrived_at(station_id: String, icon: CampaignFleetIcon) -> void:
 	_aim_trader(icon)
 
 func _on_player_area_entered(area: Area2D) -> void:
+	# Caught mid-countdown: contact cancels the warp and forces the engage prompt.
+	if CampaignState.player_fleet.is_warping() and _is_hostile_icon(area):
+		CampaignState.player_fleet.cancel_warp()
+		_trigger_arrival(area)
+		return
 	if area != _travel_target:
 		return
 	_trigger_arrival(area)
+
+# Hostile means running pirate behaviour, so fleeing traders never catch or block the player.
+func _is_hostile_icon(area: Area2D) -> bool:
+	return area is CampaignFleetIcon and area != player_icon and _behavior_for_fleet(area.fleet) == CampaignFleetIcon.BehaviorType.PIRATE
+
+func _player_hostile_contact() -> bool:
+	for area in player_icon.get_overlapping_areas():
+		if _is_hostile_icon(area):
+			return true
+	return false
 
 static func _deploys_armed(fleet: CampaignFleet) -> bool:
 	for i in CrewRules.deploy_indices(fleet.ship_compositions):
@@ -239,6 +264,7 @@ func _physics_process(delta: float) -> void:
 		return
 	CampaignState.tick_skirmishes(delta)
 	CampaignState.tick_economy(delta)
+	CampaignState.tick_warps(delta)
 	if _travel_target != null:
 		if not is_instance_valid(_travel_target) or _travel_target.is_queued_for_deletion():
 			_travel_target = null
@@ -310,6 +336,64 @@ func _on_fleet_management_closed() -> void:
 	if _docked_base == null:
 		get_tree().paused = _paused_before_fleet_panel
 
+func _on_jump_button_pressed() -> void:
+	if CampaignState.player_fleet.is_warping():
+		CampaignState.player_fleet.cancel_warp()
+	else:
+		_open_jump_map()
+
+# Same modal rules as the Fleet panel. The map covers whatever is open; closing it returns there.
+func _open_jump_map() -> void:
+	if engage_prompt.visible or respawn_panel.visible:
+		return
+	if not jump_map_panel.visible:
+		_paused_before_jump_map = get_tree().paused
+	jump_map_panel.open_for(CampaignState, _docked_base != null, _player_hostile_contact())
+	get_tree().paused = true
+
+func _on_jump_map_closed() -> void:
+	get_tree().paused = _paused_before_jump_map
+
+# Jumping while docked undocks first; the countdown runs in game time, so this unpauses.
+func _on_jump_requested(system_id: String) -> void:
+	if not CampaignState.begin_player_warp(system_id, _player_hostile_contact()):
+		jump_map_panel.refresh()
+		return
+	if _docked_base != null:
+		_on_docking_panel_closed()
+	fleet_management_panel.close()
+	jump_map_panel.close()
+	_travel_target = null
+	_mouse_held = false
+	get_tree().paused = false
+
+func _on_distress_requested() -> void:
+	CampaignState.send_distress()
+	jump_map_panel.refresh()
+
+func _on_fleet_jumped(fleet: CampaignFleet, _from_system: String) -> void:
+	var icon: CampaignFleetIcon = player_icon if fleet == CampaignState.player_fleet else _icon_for_fleet(fleet)
+	if icon == null:
+		return
+	icon.reparent(layer_for(fleet.system_id), false)
+	icon.setup(fleet, _spawn_point_for(fleet))
+	if icon == player_icon:
+		show_system(fleet.system_id)
+		_travel_target = null
+		_mouse_held = false
+		engage_prompt.visible = false
+		_pending_enemy_icon = null
+		_close_docking_ui()
+	else:
+		_aim_trader(icon)
+	icon.play_warp_in()
+
+func _icon_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon:
+	for icon in enemy_icons:
+		if is_instance_valid(icon) and icon.fleet == fleet:
+			return icon
+	return null
+
 # Reputation changes (e.g. a paid fine) can flip a faction between hostile and
 # friendly; re-derive behavior for its live icons instead of waiting for a reload.
 func _on_faction_reputation_changed(faction_enum: CampaignFleet.Faction) -> void:
@@ -331,12 +415,19 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 	return null
 
 func _unhandled_input(event: InputEvent) -> void:
+	# An open map handles J itself (it closes).
+	if event.is_action_pressed("open_jump_map") and not jump_map_panel.visible:
+		_open_jump_map()
+		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible or respawn_panel.visible:
+		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible or respawn_panel.visible or jump_map_panel.visible:
 			return
 		if get_tree().paused:
 			get_tree().paused = false
 			Engine.time_scale = 1.0
+		# The fleet holds still through a warp countdown.
+		if CampaignState.player_fleet.is_warping():
+			return
 		var target := _find_clickable_target(get_global_mouse_position())
 		if target != null:
 			_travel_target = target

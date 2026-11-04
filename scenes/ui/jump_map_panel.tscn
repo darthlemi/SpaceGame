@@ -1,0 +1,54 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/jump_map_panel.gd" id="1"]
+
+[node name="JumpMapPanel" type="Control"]
+offset_left = 10.0
+offset_top = 80.0
+offset_right = 1142.0
+offset_bottom = 638.0
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+offset_right = 1132.0
+offset_bottom = 558.0
+mouse_filter = 2
+color = Color(0.02, 0.03, 0.06, 1)
+
+[node name="Background" type="Panel" parent="."]
+offset_right = 1132.0
+offset_bottom = 558.0
+
+[node name="MapArea" type="Control" parent="."]
+offset_left = 14.0
+offset_top = 14.0
+offset_right = 1118.0
+offset_bottom = 420.0
+
+[node name="Strip" type="VBoxContainer" parent="."]
+offset_left = 14.0
+offset_top = 424.0
+offset_right = 1118.0
+offset_bottom = 544.0
+mouse_filter = 2
+
+[node name="InfoLabel" type="Label" parent="Strip"]
+
+[node name="ReasonLabel" type="Label" parent="Strip"]
+
+[node name="ButtonRow" type="HBoxContainer" parent="Strip"]
+mouse_filter = 2
+
+[node name="JumpButton" type="Button" parent="Strip/ButtonRow"]
+text = "Jump"
+
+[node name="DistressButton" type="Button" parent="Strip/ButtonRow"]
+text = "Distress signal"
+
+[node name="Spacer" type="Control" parent="Strip/ButtonRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="CloseButton" type="Button" parent="Strip/ButtonRow"]
+text = "Close"

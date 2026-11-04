@@ -35,6 +35,13 @@ const FACTION_COLORS := {
 	CampaignFleet.Faction.TRADER: Color(0.6, 0.6, 0.6, 1.0),
 	CampaignFleet.Faction.NEUTRAL: Color(0.6, 0.6, 0.6, 1.0),
 }
+const WARP_COLOR := Color("#3f9fff")
+const WARP_RING_GAP := 6.0
+const WARP_RING_WIDTH := 3.0
+const WARP_LABEL_FONT_SIZE := 16
+const WARP_LABEL_WIDTH := 40.0
+const WARP_IN_DURATION := 0.4
+const WARP_IN_START_RADIUS := 8.0
 
 @export var behavior_type: BehaviorType = BehaviorType.PATROL
 @export var wander_radius: float = 150.0
@@ -59,6 +66,9 @@ var _ship_dot_offsets: Array[Vector2] = []
 var _ship_trails: Array[CPUParticles2D] = []
 var _heading_angle: float = 0.0
 var _faction_circle_radius: float = 0.0
+# -1 when no warp-in is playing.
+var _warp_in_elapsed: float = -1.0
+var _drew_warp_ring: bool = false
 
 signal trader_arrived_at(station_id: String)
 
@@ -81,6 +91,20 @@ func setup(campaign_fleet: CampaignFleet, spawn_point: Vector2) -> void:
 func set_move_target(target: Vector2) -> void:
 	_move_target = target
 
+func play_warp_in() -> void:
+	_warp_in_elapsed = 0.0
+	queue_redraw()
+
+func _process(delta: float) -> void:
+	var animating := _warp_in_elapsed >= 0.0
+	if animating:
+		_warp_in_elapsed += delta
+		if _warp_in_elapsed >= WARP_IN_DURATION:
+			_warp_in_elapsed = -1.0
+	# The countdown ring changes every frame and must clear once the warp ends or is cancelled.
+	if animating or (fleet != null and (fleet.is_warping() or _drew_warp_ring)):
+		queue_redraw()
+
 func _physics_process(delta: float) -> void:
 	if fleet == null:
 		return
@@ -89,15 +113,19 @@ func _physics_process(delta: float) -> void:
 		for trail in _ship_trails:
 			trail.emitting = false
 		return
-	match behavior_type:
-		BehaviorType.PATROL:
-			_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, position, wander_radius, arrival_radius)
-		BehaviorType.TRADER:
-			_process_trader()
-		BehaviorType.PIRATE:
-			_process_pirate()
-		BehaviorType.PLAYER:
-			pass
+	if fleet.is_warping():
+		# A fleet holds still through its warp countdown.
+		_move_target = position
+	else:
+		match behavior_type:
+			BehaviorType.PATROL:
+				_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, position, wander_radius, arrival_radius)
+			BehaviorType.TRADER:
+				_process_trader()
+			BehaviorType.PIRATE:
+				_process_pirate()
+			BehaviorType.PLAYER:
+				pass
 	_move_target = JumpRules.clamp_to_system(_move_target)
 	# Only the player runs on fuel; NPC fleets carry none and would crawl forever.
 	var is_player := behavior_type == BehaviorType.PLAYER
@@ -196,3 +224,19 @@ func _draw() -> void:
 		return
 	var color: Color = FACTION_COLORS.get(fleet.faction, FACTION_COLORS[CampaignFleet.Faction.NEUTRAL])
 	draw_arc(Vector2.ZERO, _faction_circle_radius, 0.0, TAU, 48, color, FACTION_CIRCLE_WIDTH)
+	_drew_warp_ring = fleet.is_warping()
+	if _drew_warp_ring:
+		_draw_warp_countdown()
+	if _warp_in_elapsed >= 0.0:
+		var t := _warp_in_elapsed / WARP_IN_DURATION
+		var radius := lerpf(WARP_IN_START_RADIUS, _faction_circle_radius + WARP_RING_GAP, t)
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(WARP_COLOR, 1.0 - t), WARP_RING_WIDTH)
+
+# Fills clockwise from the top as the countdown runs, with the whole seconds left above it.
+func _draw_warp_countdown() -> void:
+	var radius := _faction_circle_radius + WARP_RING_GAP
+	var progress := clampf(1.0 - fleet.warp_remaining / JumpRules.WARP_DURATION, 0.0, 1.0)
+	if progress > 0.0:
+		draw_arc(Vector2.ZERO, radius, -PI / 2.0, -PI / 2.0 + TAU * progress, 48, WARP_COLOR, WARP_RING_WIDTH)
+	var label_pos := Vector2(-WARP_LABEL_WIDTH / 2.0, -radius - WARP_RING_WIDTH * 2.0)
+	draw_string(ThemeDB.fallback_font, label_pos, str(ceili(fleet.warp_remaining)), HORIZONTAL_ALIGNMENT_CENTER, WARP_LABEL_WIDTH, WARP_LABEL_FONT_SIZE, WARP_COLOR)

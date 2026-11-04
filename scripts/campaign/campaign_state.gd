@@ -4,6 +4,7 @@ signal skirmish_resolved(winner_fleet: CampaignFleet, loser_fleet: CampaignFleet
 signal fleet_spawn_requested(fleet: CampaignFleet)
 signal fleet_role_changed(fleet: CampaignFleet)
 signal faction_reputation_changed(faction_enum: CampaignFleet.Faction)
+signal fleet_jumped(fleet: CampaignFleet, from_system: String)
 
 const FINE_PER_KILL := 150
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
@@ -39,6 +40,11 @@ var active_skirmishes: Array[Skirmish] = []
 var credits: int = 500
 var home_base_economy: BaseEconomy = null
 var galaxy: Galaxy = null
+# system_id -> true. Discovered systems show on the jump map; visited ones also have a last_seen.
+var discovered: Dictionary = {}
+var visited: Dictionary = {}
+# system_id -> {"owners": Array, "stations": int, "pirates_seen": bool, "tier": int} at the last visit.
+var last_seen: Dictionary = {}
 # Not cleared by reset(), so a seed set before new_game() holds.
 var rng := RandomNumberGenerator.new()
 var _economy_tick_elapsed: float = 0.0
@@ -50,6 +56,10 @@ func start_engagement(enemy_fleet: CampaignFleet) -> void:
 			var other: CampaignFleetIcon = skirmish.icon_loser if skirmish.fleet_winner == enemy_fleet else skirmish.icon_winner
 			if is_instance_valid(other):
 				other.frozen = false
+	# Combat interrupts a countdown on either side, as a skirmish does.
+	enemy_fleet.cancel_warp()
+	if player_fleet != null:
+		player_fleet.cancel_warp()
 	active_enemy_fleet = enemy_fleet
 
 # Survivors are each side's ships left after escape rolls; captured are the losing side's
@@ -133,6 +143,9 @@ func reset() -> void:
 	credits = 500
 	home_base_economy = null
 	galaxy = null
+	discovered = {}
+	visited = {}
+	last_seen = {}
 	_economy_tick_elapsed = 0.0
 
 func new_game() -> void:
@@ -149,6 +162,86 @@ func new_game() -> void:
 		for role in station.fleet_quota:
 			for _i in station.fleet_quota[role]:
 				spawn_station_fleet(station, role)
+	record_visit(player_fleet.system_id)
+
+# The snapshot is what the jump map shows for this system until the next visit.
+func record_visit(system_id: String) -> void:
+	var sys: StarSystem = galaxy.system(system_id) if galaxy != null else null
+	if sys == null:
+		return
+	visited[system_id] = true
+	discovered[system_id] = true
+	for neighbour in sys.links:
+		discovered[neighbour] = true
+	var owners: Array = []
+	for station in galaxy.stations_in(system_id):
+		owners.append(station.owner)
+	var pirates_seen := false
+	for fleet in enemy_fleets:
+		if fleet.system_id == system_id and fleet.faction == CampaignFleet.Faction.PIRATE:
+			pirates_seen = true
+			break
+	last_seen[system_id] = {"owners": owners, "stations": owners.size(), "pirates_seen": pirates_seen, "tier": sys.tier}
+
+# "" when the player may jump to dest_id; otherwise the first reason it can't.
+func jump_block_reason(dest_id: String, hostile_contact: bool) -> String:
+	if player_fleet == null or galaxy == null or not galaxy.are_linked(player_fleet.system_id, dest_id):
+		return "Not connected"
+	if player_fleet.is_warping():
+		return "Warp already charging"
+	if hostile_contact:
+		return "Hostile fleet in contact"
+	if not JumpRules.can_afford(player_fleet):
+		return "Not enough fuel (need %.1f, have %.1f)" % [JumpRules.jump_cost(player_fleet), player_fleet.fuel_amount()]
+	return ""
+
+func begin_player_warp(dest_id: String, hostile_contact: bool) -> bool:
+	if jump_block_reason(dest_id, hostile_contact) != "":
+		return false
+	player_fleet.start_warp(dest_id)
+	return true
+
+# Game time: the caller only ticks while unpaused, so warps pause and speed up with the game.
+func tick_warps(delta: float) -> void:
+	var fleets: Array[CampaignFleet] = []
+	if player_fleet != null:
+		fleets.append(player_fleet)
+	fleets.append_array(enemy_fleets)
+	for fleet in fleets:
+		if not fleet.is_warping():
+			continue
+		fleet.warp_remaining -= delta
+		if fleet.warp_remaining <= 0.0:
+			complete_warp(fleet)
+
+# Fuel is spent only here, so a cancelled countdown costs nothing.
+func complete_warp(fleet: CampaignFleet) -> void:
+	var from_id := fleet.system_id
+	var origin: StarSystem = galaxy.system(from_id) if galaxy != null else null
+	var dest: StarSystem = galaxy.system(fleet.warp_target) if galaxy != null else null
+	assert(origin != null and dest != null, "complete_warp: unknown system %s or %s" % [from_id, fleet.warp_target])
+	if origin == null or dest == null:
+		fleet.cancel_warp()
+		return
+	fleet.cargo[Commodity.Type.FUEL] = maxf(0.0, fleet.fuel_amount() - JumpRules.jump_cost(fleet))
+	fleet.system_id = dest.id
+	fleet.position = JumpRules.arrival_point(origin.map_position, dest.map_position, rng)
+	fleet.cancel_warp()
+	if fleet == player_fleet:
+		record_visit(from_id)
+		record_visit(dest.id)
+	fleet_jumped.emit(fleet, from_id)
+
+# Buys exactly the shortfall for a jump at the distress premium; false when the quote isn't ok.
+func send_distress() -> bool:
+	if player_fleet == null:
+		return false
+	var quote := JumpRules.distress_quote(player_fleet, credits)
+	if not quote["ok"]:
+		return false
+	credits -= int(quote["price"])
+	player_fleet.cargo[Commodity.Type.FUEL] = player_fleet.fuel_amount() + float(quote["fuel"])
+	return true
 
 func tick_economy(delta: float) -> void:
 	_economy_tick_elapsed += delta
@@ -446,6 +539,8 @@ func _factions_hostile(a: CampaignFleet.Faction, b: CampaignFleet.Faction) -> bo
 func start_skirmish(icon_a: CampaignFleetIcon, icon_b: CampaignFleetIcon) -> void:
 	if icon_a.frozen or icon_b.frozen:
 		return
+	icon_a.fleet.cancel_warp()
+	icon_b.fleet.cancel_warp()
 	var strength_a := icon_a.fleet.total_strength()
 	var strength_b := icon_b.fleet.total_strength()
 	var imbalance_value := SkirmishResolution.imbalance(strength_a, strength_b)

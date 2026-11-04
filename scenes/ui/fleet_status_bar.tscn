@@ -21,7 +21,7 @@ offset_top = 4.0
 offset_right = 912.0
 offset_bottom = 56.0
 mouse_filter = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 16
 
 [node name="ShipsLabel" type="Label" parent="Layout"]
 vertical_alignment = 1
@@ -46,3 +46,7 @@ text = "Cargo: 0.0/0"
 [node name="FleetButton" type="Button" parent="Layout"]
 size_flags_vertical = 4
 text = "Fleet"
+
+[node name="JumpButton" type="Button" parent="Layout"]
+size_flags_vertical = 4
+text = "Jump"

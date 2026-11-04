@@ -7,9 +7,6 @@ const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 
 const ENGAGE_BLOCKED_TEXT := "Neither fleet can fight"
 const HOME_BASE_POSITION := Vector2(600, 400)
-const PLAYER_STARTING_FUEL := 30.0
-# Bases start below housing capacity so population has room to grow.
-const STARTING_POPULATION_FRACTION := 0.75
 
 var player_icon: CampaignFleetIcon
 var enemy_icons: Array[CampaignFleetIcon] = []
@@ -36,7 +33,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 	if CampaignState.player_fleet == null:
-		_bootstrap_default_campaign()
+		CampaignState.new_game()
 
 	if CampaignState.pending_respawn:
 		CampaignState.player_fleet.position = HOME_BASE_POSITION
@@ -46,9 +43,12 @@ func _ready() -> void:
 	add_child(_home_base)
 
 	for faction in CampaignState.factions:
+		var station := _faction_station(faction.faction_enum)
+		if station == null:
+			continue
 		var faction_base: Area2D = FactionBaseScene.instantiate()
 		faction_base.faction_enum = faction.faction_enum
-		faction_base.global_position = faction.base_position
+		faction_base.global_position = station.position
 		add_child(faction_base)
 
 	player_icon = _spawn_icon(CampaignState.player_fleet, CampaignFleetIcon.BehaviorType.PLAYER)
@@ -90,109 +90,6 @@ func _on_respawn_finished() -> void:
 	if _docked_base == null:
 		get_tree().paused = false
 
-func _bootstrap_default_campaign() -> void:
-	var player := CampaignFleet.new()
-	player.faction = CampaignFleet.Faction.PLAYER
-	player.position = HOME_BASE_POSITION
-	player.speed = 120.0
-	player.ship_compositions = [
-		{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
-		{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
-		{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
-	]
-	player.cargo = {Commodity.Type.FUEL: PLAYER_STARTING_FUEL}
-	player.ensure_flagship()
-	CampaignState.player_fleet = player
-
-	var pirate := CampaignFleet.new()
-	pirate.faction = CampaignFleet.Faction.PIRATE
-	pirate.position = Vector2(1000, 200)
-	pirate.speed = 100.0
-	pirate.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-
-	var trader := CampaignFleet.new()
-	trader.faction = CampaignFleet.Faction.TRADER
-	trader.position = Vector2(200, 550)
-	trader.speed = 80.0
-	trader.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0}]
-
-	var patrol := CampaignFleet.new()
-	patrol.faction = CampaignFleet.Faction.NEUTRAL
-	patrol.position = Vector2(900, 450)
-	patrol.speed = 90.0
-	patrol.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 30.0, "current_shield": 30.0}]
-
-	var dominion_faction := PowerFaction.new()
-	dominion_faction.faction_enum = CampaignFleet.Faction.DOMINION
-	dominion_faction.display_name = "Dominion"
-	dominion_faction.reputation = 60.0
-	dominion_faction.base_position = Vector2(1000, 550)
-
-	var freehold_faction := PowerFaction.new()
-	freehold_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
-	freehold_faction.display_name = "Freehold"
-	freehold_faction.reputation = 60.0
-	freehold_faction.base_position = Vector2(150, 150)
-
-	CampaignState.factions = [dominion_faction, freehold_faction]
-	CampaignState.factions_at_war = true
-
-	var dominion_fleet := CampaignFleet.new()
-	dominion_fleet.faction = CampaignFleet.Faction.DOMINION
-	dominion_fleet.position = Vector2(980, 480)
-	dominion_fleet.speed = 100.0
-	dominion_fleet.ship_compositions = [{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-
-	var freehold_fleet := CampaignFleet.new()
-	freehold_fleet.faction = CampaignFleet.Faction.FREEHOLD
-	freehold_fleet.position = Vector2(200, 200)
-	freehold_fleet.speed = 100.0
-	freehold_fleet.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-
-	var dominion_trader_fleet := CampaignFleet.new()
-	dominion_trader_fleet.faction = CampaignFleet.Faction.DOMINION
-	dominion_trader_fleet.role = CampaignFleet.Role.TRADER
-	dominion_trader_fleet.position = dominion_faction.base_position
-	dominion_trader_fleet.speed = 100.0
-	dominion_trader_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-
-	var freehold_trader_fleet := CampaignFleet.new()
-	freehold_trader_fleet.faction = CampaignFleet.Faction.FREEHOLD
-	freehold_trader_fleet.role = CampaignFleet.Role.TRADER
-	freehold_trader_fleet.position = freehold_faction.base_position
-	freehold_trader_fleet.speed = 100.0
-	freehold_trader_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-
-	CampaignState.enemy_fleets = [pirate, trader, patrol, dominion_fleet, freehold_fleet, dominion_trader_fleet, freehold_trader_fleet]
-
-	CampaignState.home_base_economy = BaseEconomy.new()
-	CampaignState.home_base_economy.slots = [EconomyRole.trade_hub(), EconomyRole.refinery()]
-	CampaignState.home_base_economy.max_slots = 2
-	for commodity in Commodity.Type.values():
-		CampaignState.home_base_economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
-	CampaignState.home_base_economy.population = CampaignState.home_base_economy.population_capacity() * STARTING_POPULATION_FRACTION
-
-	dominion_faction.economy = BaseEconomy.new()
-	dominion_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
-	dominion_faction.economy.max_slots = 2
-	dominion_faction.economy.stock = {
-		Commodity.Type.ORE: 50.0,
-		Commodity.Type.FUEL: 50.0,
-		Commodity.Type.FOOD: 50.0,
-	}
-
-	freehold_faction.economy = BaseEconomy.new()
-	freehold_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
-	freehold_faction.economy.max_slots = 2
-	freehold_faction.economy.stock = {
-		Commodity.Type.ORE: 50.0,
-		Commodity.Type.FOOD: 50.0,
-	}
-	for faction in CampaignState.factions:
-		faction.economy.population = faction.economy.population_capacity() * STARTING_POPULATION_FRACTION
-		faction.economy.crew_pool = faction.economy.crew_pool_cap()
-	CampaignState.home_base_economy.crew_pool = CampaignState.home_base_economy.crew_pool_cap()
-
 func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType:
 	match fleet.faction:
 		CampaignFleet.Faction.PIRATE:
@@ -202,15 +99,9 @@ func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType
 		CampaignFleet.Faction.DOMINION, CampaignFleet.Faction.FREEHOLD:
 			if fleet.role == CampaignFleet.Role.TRADER:
 				return CampaignFleetIcon.BehaviorType.TRADER
-			return CampaignFleetIcon.BehaviorType.PIRATE if _is_faction_hostile(fleet.faction) else CampaignFleetIcon.BehaviorType.PATROL
+			return CampaignFleetIcon.BehaviorType.PIRATE if CampaignState.is_hostile_to_player(fleet) else CampaignFleetIcon.BehaviorType.PATROL
 		_:
 			return CampaignFleetIcon.BehaviorType.PATROL
-
-func _is_faction_hostile(faction: CampaignFleet.Faction) -> bool:
-	for power_faction in CampaignState.factions:
-		if power_faction.faction_enum == faction:
-			return power_faction.reputation < CampaignState.HOSTILE_REPUTATION_THRESHOLD
-	return false
 
 func _catalog_for_base(area: Area2D) -> Array[String]:
 	if area is FactionBase:
@@ -220,8 +111,15 @@ func _catalog_for_base(area: Area2D) -> Array[String]:
 func _economy_for_base(area: Area2D) -> BaseEconomy:
 	if area is HomeBase:
 		return CampaignState.home_base_economy
-	var faction := _faction_for_base(area)
-	return faction.economy if faction != null else null
+	if area is FactionBase:
+		var station := _faction_station(area.faction_enum)
+		return station.economy if station != null else null
+	return null
+
+# TODO: Task 3 replaces this single-map stand-in with per-system stations.
+func _faction_station(faction_enum: CampaignFleet.Faction) -> StationData:
+	var stations := CampaignState.stations_of(faction_enum)
+	return stations[0] if not stations.is_empty() else null
 
 func _faction_for_base(area: Area2D) -> PowerFaction:
 	if area is FactionBase:
@@ -266,21 +164,20 @@ func _on_fleet_role_changed(fleet: CampaignFleet) -> void:
 
 func _on_trader_arrived(at_home: bool, icon: CampaignFleetIcon) -> void:
 	if icon.fleet.faction == CampaignFleet.Faction.DOMINION or icon.fleet.faction == CampaignFleet.Faction.FREEHOLD:
-		CampaignState.run_npc_trade_for_fleet(icon.fleet, at_home)
+		if CampaignState.galaxy == null:
+			return
+		var station: StationData = CampaignState.galaxy.station(icon.fleet.home_station_id) if at_home else CampaignState.galaxy.home_station()
+		CampaignState.run_npc_trade_at(icon.fleet, station)
 
 func _configure_trade_route(icon: CampaignFleetIcon, fleet: CampaignFleet) -> void:
 	if fleet.faction != CampaignFleet.Faction.DOMINION and fleet.faction != CampaignFleet.Faction.FREEHOLD:
 		return
-	var faction: PowerFaction = null
-	for f in CampaignState.factions:
-		if f.faction_enum == fleet.faction:
-			faction = f
-			break
-	if faction == null:
+	var home: StationData = CampaignState.galaxy.station(fleet.home_station_id) if CampaignState.galaxy != null else null
+	if home == null:
 		return
-	var away_pos := _dock_point_for(fleet.faction) if fleet.role == CampaignFleet.Role.TRADER else faction.base_position
-	var reset_state := not icon.route_endpoints_match(faction.base_position, away_pos)
-	icon.set_route_endpoints(faction.base_position, away_pos, reset_state)
+	var away_pos := _dock_point_for(fleet.faction) if fleet.role == CampaignFleet.Role.TRADER else home.position
+	var reset_state := not icon.route_endpoints_match(home.position, away_pos)
+	icon.set_route_endpoints(home.position, away_pos, reset_state)
 
 func _dock_point_for(faction_enum: CampaignFleet.Faction) -> Vector2:
 	if faction_enum == CampaignFleet.Faction.DOMINION:

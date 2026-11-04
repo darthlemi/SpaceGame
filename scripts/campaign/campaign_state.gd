@@ -17,6 +17,16 @@ const CREW_PER_WAGE_GROUP := 10
 const DESERTION_RATE := 0.2
 const RESPAWN_CREDIT_PENALTY := 0.25
 const PIRATE_CREW_REGEN := 1
+const FLEET_RESPAWN_DELAY := 60.0
+const NPC_SPEED := {CampaignFleet.Role.COMBAT: 100.0, CampaignFleet.Role.TRADER: 80.0}
+# Task 5 raises this once traders can jump.
+const TRADE_RANGE_JUMPS := 0
+const NPC_FUEL_TARGET_JUMPS := 3
+const NPC_SPAWN_SCATTER := 40.0
+const PLAYER_SPEED := 120.0
+const PLAYER_STARTING_FUEL := 30.0
+# Bases start below housing capacity so population has room to grow.
+const STARTING_POPULATION_FRACTION := 0.75
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
@@ -28,6 +38,9 @@ var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
 var credits: int = 500
 var home_base_economy: BaseEconomy = null
+var galaxy: Galaxy = null
+# Not cleared by reset(), so a seed set before new_game() holds.
+var rng := RandomNumberGenerator.new()
 var _economy_tick_elapsed: float = 0.0
 
 func start_engagement(enemy_fleet: CampaignFleet) -> void:
@@ -115,20 +128,122 @@ func reset() -> void:
 	active_skirmishes = []
 	credits = 500
 	home_base_economy = null
+	galaxy = null
 	_economy_tick_elapsed = 0.0
+
+func new_game() -> void:
+	reset()
+	galaxy = GalaxyData.build()
+	for station in galaxy.stations:
+		_seed_economy(station.economy)
+	var home := galaxy.home_station()
+	home_base_economy = home.economy
+	factions.assign([_new_power_faction(CampaignFleet.Faction.DOMINION, "Dominion"), _new_power_faction(CampaignFleet.Faction.FREEHOLD, "Freehold")])
+	factions_at_war = true
+	player_fleet = _new_player_fleet(home)
+	for station in galaxy.stations:
+		for role in station.fleet_quota:
+			for _i in station.fleet_quota[role]:
+				spawn_station_fleet(station, role)
 
 func tick_economy(delta: float) -> void:
 	_economy_tick_elapsed += delta
 	while _economy_tick_elapsed >= ECONOMY_TICK_INTERVAL:
 		_economy_tick_elapsed -= ECONOMY_TICK_INTERVAL
 		pay_wages()
-		if home_base_economy != null:
-			home_base_economy.tick()
-		for faction in factions:
-			if faction.economy != null:
-				faction.economy.tick()
-				_apply_fleet_allocation(faction)
+		if galaxy != null:
+			for station in galaxy.stations:
+				if station.economy != null:
+					station.economy.tick()
+					if _is_power_faction(station.owner):
+						_apply_station_allocation(station)
+				_tick_station_respawns(station, ECONOMY_TICK_INTERVAL)
 		_refill_npc_crew()
+
+static func fleet_faction_for(owner: CampaignFleet.Faction, role: CampaignFleet.Role) -> CampaignFleet.Faction:
+	if owner == CampaignFleet.Faction.NEUTRAL:
+		return CampaignFleet.Faction.TRADER if role == CampaignFleet.Role.TRADER else CampaignFleet.Faction.NEUTRAL
+	return owner
+
+func spawn_station_fleet(station: StationData, role: CampaignFleet.Role) -> CampaignFleet:
+	var fleet := CampaignFleet.new()
+	fleet.ship_compositions = DangerTier.fleet_for(_tier_of(station), role, rng)
+	fleet.faction = fleet_faction_for(station.owner, role)
+	fleet.role = role
+	fleet.home_station_id = station.id
+	fleet.system_id = station.system_id
+	fleet.speed = NPC_SPEED[role]
+	fleet.position = station.position + Vector2(rng.randf_range(-NPC_SPAWN_SCATTER, NPC_SPAWN_SCATTER), rng.randf_range(-NPC_SPAWN_SCATTER, NPC_SPAWN_SCATTER))
+	fleet.cargo = {Commodity.Type.FUEL: NPC_FUEL_TARGET_JUMPS * JumpRules.jump_cost(fleet)}
+	enemy_fleets.append(fleet)
+	fleet_spawn_requested.emit(fleet)
+	return fleet
+
+func is_hostile_to_player(fleet: CampaignFleet) -> bool:
+	if fleet.faction == CampaignFleet.Faction.PIRATE:
+		return true
+	if not _is_power_faction(fleet.faction):
+		return false
+	var faction := power_faction_for(fleet.faction)
+	return faction != null and faction.reputation < HOSTILE_REPUTATION_THRESHOLD
+
+func stations_of(owner: CampaignFleet.Faction) -> Array[StationData]:
+	var result: Array[StationData] = []
+	if galaxy == null:
+		return result
+	for station in galaxy.stations:
+		if station.owner == owner:
+			result.append(station)
+	return result
+
+func station_fleets(station: StationData, role: CampaignFleet.Role) -> Array[CampaignFleet]:
+	var result: Array[CampaignFleet] = []
+	for fleet in enemy_fleets:
+		if fleet.home_station_id == station.id and fleet.role == role:
+			result.append(fleet)
+	return result
+
+func _new_player_fleet(home: StationData) -> CampaignFleet:
+	var player := CampaignFleet.new()
+	player.faction = CampaignFleet.Faction.PLAYER
+	player.system_id = home.system_id
+	player.position = home.position
+	player.speed = PLAYER_SPEED
+	player.ship_compositions = [
+		{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"ship_type": ShipType.Kind.CAPITAL, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+		{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
+	]
+	player.cargo = {Commodity.Type.FUEL: PLAYER_STARTING_FUEL}
+	player.ensure_flagship()
+	return player
+
+func _new_power_faction(faction_enum: CampaignFleet.Faction, display_name: String) -> PowerFaction:
+	var faction := PowerFaction.new()
+	faction.faction_enum = faction_enum
+	faction.display_name = display_name
+	faction.reputation = 60.0
+	return faction
+
+func _seed_economy(economy: BaseEconomy) -> void:
+	for commodity in Commodity.Type.values():
+		economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
+	economy.population = economy.population_capacity() * STARTING_POPULATION_FRACTION
+	economy.crew_pool = economy.crew_pool_cap()
+
+func _tier_of(station: StationData) -> int:
+	var sys: StarSystem = galaxy.system(station.system_id) if galaxy != null else null
+	return sys.tier if sys != null else DangerTier.MIN_TIER
+
+# Each tick past the delay brings back one fleet; the timer resets once the role is at quota.
+func _tick_station_respawns(station: StationData, elapsed: float) -> void:
+	for role in station.fleet_quota:
+		if station_fleets(station, role).size() >= station.fleet_quota[role]:
+			station.respawn_timers[role] = 0.0
+			continue
+		station.respawn_timers[role] = station.respawn_timers.get(role, 0.0) + elapsed
+		if station.respawn_timers[role] >= FLEET_RESPAWN_DELAY:
+			spawn_station_fleet(station, role)
 
 # The flagship's deploy minimum is never billed or deserted, so the player can't be stranded.
 func flagship_floor(fleet: CampaignFleet) -> int:
@@ -298,7 +413,7 @@ func equip_part(comp: Dictionary, fleet: CampaignFleet, slot_type: ShipType.Slot
 	return true
 
 func pay_fine(faction_enum: CampaignFleet.Faction) -> bool:
-	var faction := _power_faction_for(faction_enum)
+	var faction := power_faction_for(faction_enum)
 	if faction == null or faction.fine <= 0 or credits < faction.fine:
 		return false
 	credits -= faction.fine
@@ -309,8 +424,9 @@ func pay_fine(faction_enum: CampaignFleet.Faction) -> bool:
 	return true
 
 func are_hostile(fleet_a: CampaignFleet, fleet_b: CampaignFleet) -> bool:
-	var a := fleet_a.faction
-	var b := fleet_b.faction
+	return _factions_hostile(fleet_a.faction, fleet_b.faction)
+
+func _factions_hostile(a: CampaignFleet.Faction, b: CampaignFleet.Faction) -> bool:
 	var pirate := CampaignFleet.Faction.PIRATE
 	if a == pirate and _is_power_faction(b):
 		return true
@@ -379,19 +495,17 @@ func _apply_winner_crew_loss(fleet: CampaignFleet, damage_fraction: float) -> vo
 		CrewRules.set_crew(comp, maxi(CrewRules.NPC_CREW_FLOOR, roundi(CrewRules.crew_of(comp) * (1.0 - damage_fraction))))
 	CrewRules.balance(fleet.ship_compositions)
 
-# Power-faction fleets draw from their faction's pool; pirates regenerate for free. Others get none.
+# Pirates regenerate for free; every other NPC draws from its home station's pool.
 func _refill_npc_crew() -> void:
 	for fleet in enemy_fleets:
 		if fleet.faction == CampaignFleet.Faction.PIRATE:
 			CrewRules.add_crew(fleet.ship_compositions, PIRATE_CREW_REGEN)
-		elif _is_power_faction(fleet.faction):
-			var faction := _power_faction_for(fleet.faction)
-			if faction == null or faction.economy == null:
-				continue
-			var added := CrewRules.add_crew(fleet.ship_compositions, floori(faction.economy.crew_pool))
-			faction.economy.crew_pool -= added
 		else:
-			continue
+			var home: StationData = galaxy.station(fleet.home_station_id) if galaxy != null else null
+			if home == null or home.economy == null:
+				continue
+			var added := CrewRules.add_crew(fleet.ship_compositions, floori(home.economy.crew_pool))
+			home.economy.crew_pool -= added
 		CrewRules.balance(fleet.ship_compositions)
 
 func _wage_groups(fleet: CampaignFleet) -> int:
@@ -476,45 +590,86 @@ func _apply_reputation_loss(defeated_faction: CampaignFleet.Faction) -> void:
 			power_faction.fine_reputation += loss
 			faction_reputation_changed.emit(defeated_faction)
 
-func run_npc_trade_for_fleet(fleet: CampaignFleet, at_home: bool) -> void:
-	var faction := _power_faction_for(fleet.faction)
-	if faction == null or faction.economy == null or home_base_economy == null:
+# At home: unload everything, then load home's surplus. Elsewhere: unload there, then load what home needs.
+func run_npc_trade_at(fleet: CampaignFleet, station: StationData) -> void:
+	var home := _home_station_of(fleet)
+	if home == null or station == null or home.economy == null or station.economy == null:
 		return
-	if at_home:
-		_unload_and_load_surplus(fleet, faction.economy)
-	else:
-		_unload_and_load_deficit(fleet, faction.economy)
+	for commodity in fleet.cargo:
+		var amount: float = fleet.cargo[commodity]
+		if amount > 0.0:
+			station.economy.stock[commodity] = station.economy.stock.get(commodity, 0.0) + amount
+	fleet.cargo = {}
+	_load_qualifying_commodities(fleet, home.economy.net_commodities(), station == home, station.economy.stock)
 
-func _power_faction_for(faction_enum: CampaignFleet.Faction) -> PowerFaction:
+# Home after every away stop. From home: the in-range partner best stocked with what home needs,
+# ties to fewer jumps then the shorter in-system distance; "" when there is no partner.
+func next_trade_destination(fleet: CampaignFleet) -> String:
+	var home := _home_station_of(fleet)
+	if home == null:
+		return ""
+	if fleet.dest_station_id != home.id:
+		return home.id
+	var needs: Array = []
+	if home.economy != null:
+		var net := home.economy.net_commodities()
+		for commodity in net:
+			if net[commodity] < 0.0:
+				needs.append(commodity)
+	var best: StationData = null
+	var best_score := 0.0
+	var best_jumps := 0
+	var best_dist := 0.0
+	for station in galaxy.stations:
+		if station == home or not _is_trade_partner(fleet.faction, station.owner):
+			continue
+		var jumps := galaxy.jump_distance(home.system_id, station.system_id)
+		if jumps < 0 or jumps > TRADE_RANGE_JUMPS:
+			continue
+		var score := 0.0
+		if station.economy != null:
+			for commodity in needs:
+				score += station.economy.stock.get(commodity, 0.0)
+		var dist := home.position.distance_to(station.position)
+		if best != null:
+			var tied := is_equal_approx(score, best_score)
+			if not tied and score < best_score:
+				continue
+			if tied and (jumps > best_jumps or (jumps == best_jumps and dist >= best_dist)):
+				continue
+		best = station
+		best_score = score
+		best_jumps = jumps
+		best_dist = dist
+	return best.id if best != null else ""
+
+func power_faction_for(faction_enum: CampaignFleet.Faction) -> PowerFaction:
 	for faction in factions:
 		if faction.faction_enum == faction_enum:
 			return faction
 	return null
 
-func _apply_fleet_allocation(faction: PowerFaction) -> void:
-	var combat_fleets := _fleets_for(faction.faction_enum, CampaignFleet.Role.COMBAT)
-	var trader_fleets := _fleets_for(faction.faction_enum, CampaignFleet.Role.TRADER)
-	var economic_health := _economic_health(faction.economy)
-	var threat_ratio := _threat_ratio(combat_fleets)
-	var action := FleetAllocationPolicy.decide(economic_health, threat_ratio, trader_fleets.size())
+func _home_station_of(fleet: CampaignFleet) -> StationData:
+	return galaxy.station(fleet.home_station_id) if galaxy != null else null
+
+func _is_trade_partner(fleet_faction: CampaignFleet.Faction, owner: CampaignFleet.Faction) -> bool:
+	return owner != CampaignFleet.Faction.PIRATE and not _factions_hostile(fleet_faction, owner)
+
+func _apply_station_allocation(station: StationData) -> void:
+	var combat_fleets := station_fleets(station, CampaignFleet.Role.COMBAT)
+	var trader_fleets := station_fleets(station, CampaignFleet.Role.TRADER)
+	var action := FleetAllocationPolicy.decide(_economic_health(station.economy), _threat_ratio_for(station), trader_fleets.size())
 	match action:
 		FleetAllocationPolicy.Action.GROW_COMBAT:
-			_grow_fleet(faction, combat_fleets, trader_fleets, CampaignFleet.Role.COMBAT)
+			_grow_station_fleet(combat_fleets, ShipType.Kind.CORVETTE)
 		FleetAllocationPolicy.Action.GROW_TRADE:
-			_grow_fleet(faction, combat_fleets, trader_fleets, CampaignFleet.Role.TRADER)
+			_grow_station_fleet(trader_fleets, ShipType.Kind.FREIGHTER)
 		FleetAllocationPolicy.Action.REALLOCATE_TO_COMBAT:
 			if trader_fleets.size() > 1:
 				trader_fleets[0].role = CampaignFleet.Role.COMBAT
 				fleet_role_changed.emit(trader_fleets[0])
 		FleetAllocationPolicy.Action.NONE:
 			pass
-
-func _fleets_for(faction_enum: CampaignFleet.Faction, role: CampaignFleet.Role) -> Array[CampaignFleet]:
-	var result: Array[CampaignFleet] = []
-	for fleet in enemy_fleets:
-		if fleet.faction == faction_enum and fleet.role == role:
-			result.append(fleet)
-	return result
 
 func _economic_health(economy: BaseEconomy) -> FleetAllocationPolicy.EconomicHealth:
 	match economy.wealth_level():
@@ -524,55 +679,27 @@ func _economic_health(economy: BaseEconomy) -> FleetAllocationPolicy.EconomicHea
 			return FleetAllocationPolicy.EconomicHealth.STRONG
 	return FleetAllocationPolicy.EconomicHealth.STABLE
 
-func _threat_ratio(combat_fleets: Array[CampaignFleet]) -> float:
+# Pirates in the station's system and its neighbours, over this station's own combat strength.
+func _threat_ratio_for(station: StationData) -> float:
+	var nearby: Array[String] = []
+	if galaxy != null:
+		nearby = galaxy.neighbours(station.system_id)
+	nearby.append(station.system_id)
 	var pirate_strength := 0.0
 	for fleet in enemy_fleets:
-		if fleet.faction == CampaignFleet.Faction.PIRATE:
+		if fleet.faction == CampaignFleet.Faction.PIRATE and nearby.has(fleet.system_id):
 			pirate_strength += fleet.total_strength()
 	var combat_strength := 0.0
-	for fleet in combat_fleets:
+	for fleet in station_fleets(station, CampaignFleet.Role.COMBAT):
 		combat_strength += fleet.total_strength()
 	return pirate_strength / max(combat_strength, 1.0)
 
-func _grow_fleet(faction: PowerFaction, combat_fleets: Array[CampaignFleet], trader_fleets: Array[CampaignFleet], role: CampaignFleet.Role) -> void:
-	var fleets_of_role := combat_fleets if role == CampaignFleet.Role.COMBAT else trader_fleets
-	var kind := ShipType.Kind.CORVETTE if role == CampaignFleet.Role.COMBAT else ShipType.Kind.FREIGHTER
-	for fleet in fleets_of_role:
+# Growth only adds a ship under the cap; lost fleets come back through respawn instead.
+func _grow_station_fleet(fleets: Array[CampaignFleet], kind: ShipType.Kind) -> void:
+	for fleet in fleets:
 		if fleet.ship_compositions.size() < FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
 			fleet.ship_compositions.append(ShipType.new_composition(kind))
 			return
-	if combat_fleets.size() + trader_fleets.size() >= FleetAllocationPolicy.MAX_FLEETS:
-		return
-	var new_fleet := CampaignFleet.new()
-	new_fleet.faction = faction.faction_enum
-	new_fleet.role = role
-	new_fleet.position = faction.base_position
-	new_fleet.speed = 100.0
-	new_fleet.ship_compositions = [ShipType.new_composition(kind)]
-	enemy_fleets.append(new_fleet)
-	fleet_spawn_requested.emit(new_fleet)
-
-func _unload_and_load_surplus(fleet: CampaignFleet, economy: BaseEconomy) -> void:
-	for commodity in fleet.cargo:
-		var amount: float = fleet.cargo[commodity]
-		if amount <= 0.0:
-			continue
-		economy.stock[commodity] = economy.stock.get(commodity, 0.0) + amount
-	fleet.cargo = {}
-
-	var net := economy.net_commodities()
-	_load_qualifying_commodities(fleet, net, true, economy.stock)
-
-func _unload_and_load_deficit(fleet: CampaignFleet, economy: BaseEconomy) -> void:
-	for commodity in fleet.cargo:
-		var amount: float = fleet.cargo[commodity]
-		if amount <= 0.0:
-			continue
-		home_base_economy.stock[commodity] = home_base_economy.stock.get(commodity, 0.0) + amount
-	fleet.cargo = {}
-
-	var net := economy.net_commodities()
-	_load_qualifying_commodities(fleet, net, false, home_base_economy.stock)
 
 func _load_qualifying_commodities(fleet: CampaignFleet, net: Dictionary, positive: bool, stock: Dictionary) -> void:
 	var qualifying: Array = []

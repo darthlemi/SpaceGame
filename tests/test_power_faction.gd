@@ -14,7 +14,6 @@ static func run() -> Array[String]:
 	faction.faction_enum = CampaignFleet.Faction.DOMINION
 	faction.display_name = "Dominion"
 	faction.reputation = 25.0
-	faction.base_position = Vector2(1000, 550)
 
 	if faction.faction_enum != CampaignFleet.Faction.DOMINION:
 		failures.append("PowerFaction: expected faction_enum to be settable")
@@ -22,15 +21,6 @@ static func run() -> Array[String]:
 		failures.append("PowerFaction: expected display_name to be settable")
 	if faction.reputation != 25.0:
 		failures.append("PowerFaction: expected reputation to be settable")
-	if faction.base_position != Vector2(1000, 550):
-		failures.append("PowerFaction: expected base_position to be settable")
-
-	if faction.economy != null:
-		failures.append("PowerFaction: expected default economy == null")
-	faction.economy = BaseEconomy.new()
-	if faction.economy == null:
-		failures.append("PowerFaction: expected economy to be settable")
-
 
 	var fresh := PowerFaction.new()
 	if fresh.fine != 0 or fresh.fine_reputation != 0.0:

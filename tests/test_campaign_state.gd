@@ -122,7 +122,7 @@ static func run() -> Array[String]:
 	var ticked_economy := BaseEconomy.new()
 	ticked_economy.slots = [EconomyRole.mining()]
 	ticked_economy.max_slots = 1
-	tick_state.home_base_economy = ticked_economy
+	tick_state.galaxy = _test_galaxy([_test_station("home_base", CampaignFleet.Faction.PLAYER, ticked_economy)])
 	tick_state.tick_economy(1.0)
 	if ticked_economy.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
 		failures.append("tick_economy: expected no tick yet before the interval elapses")
@@ -130,205 +130,186 @@ static func run() -> Array[String]:
 	if ticked_economy.stock.get(Commodity.Type.ORE, 0.0) != 5.0:
 		failures.append("tick_economy: expected one economy tick once the interval elapses, got Ore=%s" % ticked_economy.stock.get(Commodity.Type.ORE, 0.0))
 
-	# tick_economy: per-faction economies tick too, and a null economy is skipped.
-	var faction_tick_state := CampaignState.new()
-	var economy_faction := PowerFaction.new()
-	var faction_economy := BaseEconomy.new()
-	faction_economy.slots = [EconomyRole.mining()]
-	faction_economy.max_slots = 1
-	economy_faction.economy = faction_economy
-	var no_economy_faction := PowerFaction.new()
-	no_economy_faction.economy = null
-	faction_tick_state.factions = [economy_faction, no_economy_faction]
+	# tick_economy: every station's economy ticks, and a station with no economy is skipped.
+	var station_tick_state := CampaignState.new()
+	var station_economy := BaseEconomy.new()
+	station_economy.slots = [EconomyRole.mining()]
+	station_economy.max_slots = 1
+	var bare_station := _test_station("bare", CampaignFleet.Faction.NEUTRAL, null)
+	station_tick_state.galaxy = _test_galaxy([_test_station("mine", CampaignFleet.Faction.FREEHOLD, station_economy), bare_station])
+	station_tick_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+	if station_economy.stock.get(Commodity.Type.ORE, 0.0) != 5.0:
+		failures.append("tick_economy: expected the station's economy to tick, got Ore=%s" % station_economy.stock.get(Commodity.Type.ORE, 0.0))
+	if bare_station.economy != null:
+		failures.append("tick_economy: expected the economy-less station to remain untouched")
 
-	faction_tick_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
-	if faction_economy.stock.get(Commodity.Type.ORE, 0.0) != 5.0:
-		failures.append("tick_economy: expected the faction's economy to tick, got Ore=%s" % faction_economy.stock.get(Commodity.Type.ORE, 0.0))
-	if no_economy_faction.economy != null:
-		failures.append("tick_economy: expected the null-economy faction to remain untouched")
-
-	# reset() clears the new economy fields too.
+	# reset() clears the economy and galaxy fields too.
 	tick_state.credits = 10
 	tick_state.reset()
 	if tick_state.credits != 500:
 		failures.append("reset: expected credits reset to 500, got %s" % tick_state.credits)
 	if tick_state.home_base_economy != null:
 		failures.append("reset: expected home_base_economy cleared to null")
+	if tick_state.galaxy != null:
+		failures.append("reset: expected galaxy cleared to null")
 
-	# run_npc_trade_for_fleet: at the faction base, loads surplus commodities
-	# (produced more than consumed) from the faction's own stock into cargo.
+	# run_npc_trade_at: at its home station a hauler loads home's surplus
+	# commodities (produced more than consumed) from home's own stock.
 	var trade_route_state := CampaignState.new()
-	var trade_route_faction := PowerFaction.new()
-	trade_route_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
-	trade_route_faction.economy = BaseEconomy.new()
-	trade_route_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
-	trade_route_faction.economy.stock = {Commodity.Type.ORE: 15.0, Commodity.Type.FOOD: 15.0}
-	trade_route_state.factions = [trade_route_faction]
-	trade_route_state.home_base_economy = BaseEconomy.new()
+	var freehold_home := _test_station("freehold_home", CampaignFleet.Faction.FREEHOLD, BaseEconomy.new())
+	freehold_home.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
+	freehold_home.economy.stock = {Commodity.Type.ORE: 15.0, Commodity.Type.FOOD: 15.0}
+	var player_home := _test_station("home_base", CampaignFleet.Faction.PLAYER, BaseEconomy.new())
+	trade_route_state.galaxy = _test_galaxy([freehold_home, player_home])
 
 	var hauler := CampaignFleet.new()
 	hauler.faction = CampaignFleet.Faction.FREEHOLD
 	hauler.role = CampaignFleet.Role.TRADER
+	hauler.home_station_id = "freehold_home"
 	hauler.ship_compositions = [
 		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
 		{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0},
 	]
 
-	trade_route_state.run_npc_trade_for_fleet(hauler, true)
+	trade_route_state.run_npc_trade_at(hauler, freehold_home)
 	if hauler.cargo_total() <= 0.0:
-		failures.append("run_npc_trade_for_fleet: expected loading surplus at the faction base to fill cargo")
+		failures.append("run_npc_trade_at: expected loading surplus at the home station to fill cargo")
 	# Cargo capacity (40.0, two ships) comfortably covers both commodities'
 	# combined stock (30.0), so both must be drawn down individually -- this
 	# proves the loop handles every surplus commodity, not just the first one
 	# it encounters.
-	if trade_route_faction.economy.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
-		failures.append("run_npc_trade_for_fleet: expected loading surplus to draw down Ore stock to 0.0, got %s" % trade_route_faction.economy.stock.get(Commodity.Type.ORE, 0.0))
-	if trade_route_faction.economy.stock.get(Commodity.Type.FOOD, 0.0) != 0.0:
-		failures.append("run_npc_trade_for_fleet: expected loading surplus to draw down Food stock to 0.0, got %s" % trade_route_faction.economy.stock.get(Commodity.Type.FOOD, 0.0))
+	if freehold_home.economy.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
+		failures.append("run_npc_trade_at: expected loading surplus to draw down Ore stock to 0.0, got %s" % freehold_home.economy.stock.get(Commodity.Type.ORE, 0.0))
+	if freehold_home.economy.stock.get(Commodity.Type.FOOD, 0.0) != 0.0:
+		failures.append("run_npc_trade_at: expected loading surplus to draw down Food stock to 0.0, got %s" % freehold_home.economy.stock.get(Commodity.Type.FOOD, 0.0))
 
-	# Arriving at HomeBase: dumps carried cargo into home_base_economy.stock,
-	# then loads whatever the faction nets a deficit on (here, nothing is
-	# consumed by mining/agriculture, so no deficit cargo should be loaded).
-	trade_route_state.home_base_economy.stock[Commodity.Type.FUEL] = 20.0
+	# Arriving at another station: dumps carried cargo into that station's stock,
+	# then loads whatever home nets a deficit on (here, nothing is consumed by
+	# mining/agriculture, so no deficit cargo should be loaded).
+	player_home.economy.stock[Commodity.Type.FUEL] = 20.0
 	var cargo_before_dump: Dictionary = hauler.cargo.duplicate()
-	trade_route_state.run_npc_trade_for_fleet(hauler, false)
+	trade_route_state.run_npc_trade_at(hauler, player_home)
 	for commodity in cargo_before_dump:
-		if trade_route_state.home_base_economy.stock.get(commodity, 0.0) < cargo_before_dump[commodity]:
-			failures.append("run_npc_trade_for_fleet: expected carried cargo dumped into home_base_economy.stock")
+		if player_home.economy.stock.get(commodity, 0.0) < cargo_before_dump[commodity]:
+			failures.append("run_npc_trade_at: expected carried cargo dumped into the away station's stock")
 	if hauler.cargo_total() != 0.0:
-		failures.append("run_npc_trade_for_fleet: expected no deficit cargo loaded for a faction with no consuming slots, got cargo=%s" % hauler.cargo)
+		failures.append("run_npc_trade_at: expected no deficit cargo loaded for a home with no consuming slots, got cargo=%s" % hauler.cargo)
 
-	# A faction with a deficit (Dominion needs Ore/Fuel/Food) loads from
-	# home_base_economy.stock when arriving at HomeBase.
-	var deficit_faction := PowerFaction.new()
-	deficit_faction.faction_enum = CampaignFleet.Faction.DOMINION
-	deficit_faction.economy = BaseEconomy.new()
-	deficit_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
-	trade_route_state.factions.append(deficit_faction)
-	trade_route_state.home_base_economy.stock[Commodity.Type.ORE] = 30.0
+	# A home with a deficit (Dominion needs Ore/Fuel/Food) loads from the
+	# away station's stock.
+	var dominion_home := _test_station("dominion_home", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
+	dominion_home.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
+	trade_route_state.galaxy.stations.append(dominion_home)
+	player_home.economy.stock[Commodity.Type.ORE] = 30.0
 
 	var deficit_hauler := CampaignFleet.new()
 	deficit_hauler.faction = CampaignFleet.Faction.DOMINION
 	deficit_hauler.role = CampaignFleet.Role.TRADER
+	deficit_hauler.home_station_id = "dominion_home"
 	deficit_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
-	trade_route_state.run_npc_trade_for_fleet(deficit_hauler, false)
+	trade_route_state.run_npc_trade_at(deficit_hauler, player_home)
 	if deficit_hauler.cargo.get(Commodity.Type.ORE, 0.0) <= 0.0:
-		failures.append("run_npc_trade_for_fleet: expected Dominion's hauler to load Ore (a deficit commodity) from home_base_economy.stock")
+		failures.append("run_npc_trade_at: expected Dominion's hauler to load Ore (a deficit commodity) from the away station's stock")
 
-	# run_npc_trade_for_fleet: when cargo capacity is NOT enough to cover
-	# every deficit commodity, the available space must be split across all
+	# run_npc_trade_at: when cargo capacity is NOT enough to cover every
+	# deficit commodity, the available space must be split across all
 	# qualifying commodities, not raced for by whichever one net_commodities()
 	# happens to enumerate first. Dominion's industrial+population slots net
 	# WEAPONS +2, ORE -3, FUEL -2, FOOD -4 -- a single-ship hauler (capacity
-	# 20) arriving at a HomeBase stocked well above capacity in all three must
-	# come away with more than just Ore, including Fuel (the exact gap this
-	# milestone's refinery exists to close).
+	# 20) arriving at a station stocked well above capacity in all three must
+	# come away with more than just Ore, including Fuel.
 	var split_deficit_state := CampaignState.new()
-	var split_deficit_faction := PowerFaction.new()
-	split_deficit_faction.faction_enum = CampaignFleet.Faction.DOMINION
-	split_deficit_faction.economy = BaseEconomy.new()
-	split_deficit_faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
-	split_deficit_state.factions = [split_deficit_faction]
-	split_deficit_state.home_base_economy = BaseEconomy.new()
-	split_deficit_state.home_base_economy.stock = {
+	var split_deficit_home := _test_station("split_home", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
+	split_deficit_home.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
+	var split_deficit_away := _test_station("split_away", CampaignFleet.Faction.PLAYER, BaseEconomy.new())
+	split_deficit_away.economy.stock = {
 		Commodity.Type.ORE: 100.0,
 		Commodity.Type.FUEL: 100.0,
 		Commodity.Type.FOOD: 100.0,
 	}
+	split_deficit_state.galaxy = _test_galaxy([split_deficit_home, split_deficit_away])
 	var split_deficit_hauler := CampaignFleet.new()
 	split_deficit_hauler.faction = CampaignFleet.Faction.DOMINION
 	split_deficit_hauler.role = CampaignFleet.Role.TRADER
+	split_deficit_hauler.home_station_id = "split_home"
 	split_deficit_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
-	split_deficit_state.run_npc_trade_for_fleet(split_deficit_hauler, false)
+	split_deficit_state.run_npc_trade_at(split_deficit_hauler, split_deficit_away)
 	var split_deficit_commodities_loaded := 0
 	for commodity in [Commodity.Type.ORE, Commodity.Type.FUEL, Commodity.Type.FOOD]:
 		if split_deficit_hauler.cargo.get(commodity, 0.0) > 0.0:
 			split_deficit_commodities_loaded += 1
 	if split_deficit_commodities_loaded <= 1:
-		failures.append("run_npc_trade_for_fleet: expected cargo space to be split across all deficit commodities, not just one, got cargo=%s" % split_deficit_hauler.cargo)
+		failures.append("run_npc_trade_at: expected cargo space to be split across all deficit commodities, not just one, got cargo=%s" % split_deficit_hauler.cargo)
 	if split_deficit_hauler.cargo.get(Commodity.Type.FUEL, 0.0) <= 0.0:
-		failures.append("run_npc_trade_for_fleet: expected Fuel (a deficit commodity) to actually be picked up, not starved by a greedy first commodity")
+		failures.append("run_npc_trade_at: expected Fuel (a deficit commodity) to actually be picked up, not starved by a greedy first commodity")
 
-	# Symmetric case on the export side: a faction with multiple surplus
+	# Symmetric case on the export side: a home with multiple surplus
 	# commodities and capacity too small to carry all of them fully should
 	# still load more than one distinct commodity.
 	var split_surplus_state := CampaignState.new()
-	var split_surplus_faction := PowerFaction.new()
-	split_surplus_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
-	split_surplus_faction.economy = BaseEconomy.new()
-	split_surplus_faction.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
-	split_surplus_faction.economy.stock = {Commodity.Type.ORE: 50.0, Commodity.Type.FOOD: 50.0}
-	split_surplus_state.factions = [split_surplus_faction]
-	split_surplus_state.home_base_economy = BaseEconomy.new()
+	var split_surplus_home := _test_station("surplus_home", CampaignFleet.Faction.FREEHOLD, BaseEconomy.new())
+	split_surplus_home.economy.slots = [EconomyRole.mining(), EconomyRole.agriculture()]
+	split_surplus_home.economy.stock = {Commodity.Type.ORE: 50.0, Commodity.Type.FOOD: 50.0}
+	split_surplus_state.galaxy = _test_galaxy([split_surplus_home])
 	var split_surplus_hauler := CampaignFleet.new()
 	split_surplus_hauler.faction = CampaignFleet.Faction.FREEHOLD
 	split_surplus_hauler.role = CampaignFleet.Role.TRADER
+	split_surplus_hauler.home_station_id = "surplus_home"
 	split_surplus_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 
-	split_surplus_state.run_npc_trade_for_fleet(split_surplus_hauler, true)
+	split_surplus_state.run_npc_trade_at(split_surplus_hauler, split_surplus_home)
 	var split_surplus_commodities_loaded := 0
 	for commodity in [Commodity.Type.ORE, Commodity.Type.FOOD]:
 		if split_surplus_hauler.cargo.get(commodity, 0.0) > 0.0:
 			split_surplus_commodities_loaded += 1
 	if split_surplus_commodities_loaded <= 1:
-		failures.append("run_npc_trade_for_fleet: expected cargo space to be split across all surplus commodities, not just one, got cargo=%s" % split_surplus_hauler.cargo)
+		failures.append("run_npc_trade_at: expected cargo space to be split across all surplus commodities, not just one, got cargo=%s" % split_surplus_hauler.cargo)
 
-	# No-op cases: unknown faction, null economy, null home_base_economy.
+	# No-op cases: unknown home station, a home with no economy, no galaxy.
 	var orphan_hauler := CampaignFleet.new()
 	orphan_hauler.faction = CampaignFleet.Faction.PIRATE
-	trade_route_state.run_npc_trade_for_fleet(orphan_hauler, true)
+	orphan_hauler.home_station_id = "nowhere"
+	trade_route_state.run_npc_trade_at(orphan_hauler, player_home)
 	if orphan_hauler.cargo_total() != 0.0:
-		failures.append("run_npc_trade_for_fleet: expected no-op for a faction with no matching PowerFaction")
+		failures.append("run_npc_trade_at: expected no-op for a fleet with no known home station")
 
-	var null_economy_faction := PowerFaction.new()
-	null_economy_faction.faction_enum = CampaignFleet.Faction.TRADER
-	null_economy_faction.economy = null
-	trade_route_state.factions.append(null_economy_faction)
+	var null_economy_station := _test_station("null_economy", CampaignFleet.Faction.NEUTRAL, null)
+	trade_route_state.galaxy.stations.append(null_economy_station)
 	var null_economy_hauler := CampaignFleet.new()
 	null_economy_hauler.faction = CampaignFleet.Faction.TRADER
 	null_economy_hauler.role = CampaignFleet.Role.TRADER
+	null_economy_hauler.home_station_id = "null_economy"
 	null_economy_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-	trade_route_state.run_npc_trade_for_fleet(null_economy_hauler, true)
+	trade_route_state.run_npc_trade_at(null_economy_hauler, player_home)
 	if null_economy_hauler.cargo_total() != 0.0:
-		failures.append("run_npc_trade_for_fleet: expected no-op for a matching PowerFaction with a null economy")
+		failures.append("run_npc_trade_at: expected no-op for a home station with no economy")
 
-	var no_home_base_state := CampaignState.new()
-	var no_home_base_faction := PowerFaction.new()
-	no_home_base_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
-	no_home_base_faction.economy = BaseEconomy.new()
-	no_home_base_faction.economy.slots = [EconomyRole.mining()]
-	no_home_base_faction.economy.stock = {Commodity.Type.ORE: 50.0}
-	no_home_base_state.factions = [no_home_base_faction]
-	no_home_base_state.home_base_economy = null
-	var no_home_base_hauler := CampaignFleet.new()
-	no_home_base_hauler.faction = CampaignFleet.Faction.FREEHOLD
-	no_home_base_hauler.role = CampaignFleet.Role.TRADER
-	no_home_base_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
-	no_home_base_state.run_npc_trade_for_fleet(no_home_base_hauler, true)
-	if no_home_base_hauler.cargo_total() != 0.0:
-		failures.append("run_npc_trade_for_fleet: expected no-op when home_base_economy is null")
-	if no_home_base_faction.economy.stock.get(Commodity.Type.ORE, 0.0) != 50.0:
-		failures.append("run_npc_trade_for_fleet: expected faction stock unchanged when home_base_economy is null")
+	var no_galaxy_state := CampaignState.new()
+	var no_galaxy_station := _test_station("lonely", CampaignFleet.Faction.FREEHOLD, BaseEconomy.new())
+	no_galaxy_station.economy.slots = [EconomyRole.mining()]
+	no_galaxy_station.economy.stock = {Commodity.Type.ORE: 50.0}
+	var no_galaxy_hauler := CampaignFleet.new()
+	no_galaxy_hauler.faction = CampaignFleet.Faction.FREEHOLD
+	no_galaxy_hauler.role = CampaignFleet.Role.TRADER
+	no_galaxy_hauler.home_station_id = "lonely"
+	no_galaxy_hauler.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	no_galaxy_state.run_npc_trade_at(no_galaxy_hauler, no_galaxy_station)
+	if no_galaxy_hauler.cargo_total() != 0.0:
+		failures.append("run_npc_trade_at: expected no-op with no galaxy")
+	if no_galaxy_station.economy.stock.get(Commodity.Type.ORE, 0.0) != 50.0:
+		failures.append("run_npc_trade_at: expected station stock unchanged with no galaxy")
 
-	# Fleet allocation: a faction outmatched by pirates, with a healthy
-	# economy, grows a ship on its existing combat fleet.
+	# Fleet allocation: a station outmatched by pirates in its system, with a
+	# healthy economy, grows a ship on its existing combat fleet.
 	var grow_combat_state := CampaignState.new()
-	var grow_combat_faction := PowerFaction.new()
-	grow_combat_faction.faction_enum = CampaignFleet.Faction.DOMINION
-	grow_combat_faction.economy = BaseEconomy.new()
-	grow_combat_faction.economy.slots = [EconomyRole.mining()]  # no consumption -> never in deficit
-	grow_combat_state.factions = [grow_combat_faction]
-	grow_combat_state.home_base_economy = BaseEconomy.new()
+	var grow_combat_station := _test_station("dom", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
+	grow_combat_station.economy.slots = [EconomyRole.mining()]  # no consumption -> never in deficit
+	grow_combat_state.galaxy = _test_galaxy([grow_combat_station])
 
-	var weak_combat_fleet := CampaignFleet.new()
-	weak_combat_fleet.faction = CampaignFleet.Faction.DOMINION
-	weak_combat_fleet.role = CampaignFleet.Role.COMBAT
-	weak_combat_fleet.ship_compositions = [{"max_hp": 10.0, "current_hp": 10.0, "max_shield": 0.0, "current_shield": 0.0}]
-	var strong_pirate_fleet := CampaignFleet.new()
-	strong_pirate_fleet.faction = CampaignFleet.Faction.PIRATE
-	strong_pirate_fleet.ship_compositions = [{"max_hp": 1000.0, "current_hp": 1000.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var weak_combat_fleet := _test_station_fleet("dom", CampaignFleet.Faction.DOMINION, CampaignFleet.Role.COMBAT, 10.0)
+	var strong_pirate_fleet := _test_station_fleet("", CampaignFleet.Faction.PIRATE, CampaignFleet.Role.COMBAT, 1000.0)
 	grow_combat_state.enemy_fleets = [weak_combat_fleet, strong_pirate_fleet]
 
 	var ships_before: int = weak_combat_fleet.ship_compositions.size()
@@ -338,61 +319,41 @@ static func run() -> Array[String]:
 	elif weak_combat_fleet.ship_compositions[ships_before]["ship_type"] != ShipType.Kind.CORVETTE:
 		failures.append("tick_economy: expected a grown COMBAT fleet's new ship to be ship_type CORVETTE, got %s" % weak_combat_fleet.ship_compositions[ships_before]["ship_type"])
 
-	# A faction that's economically strong and safe from pirates grows a new
-	# trader fleet (spawn, since its one existing trader is already at the
-	# ship cap would be a separate case -- here there is no trader fleet yet,
-	# so this exercises the spawn-a-new-fleet path).
+	# A station that's economically strong and safe from pirates grows its
+	# trader fleet a freighter at a time up to the ship cap, never spawning a
+	# new fleet (lost fleets come back through respawn instead).
 	var grow_trade_state := CampaignState.new()
-	var grow_trade_faction := PowerFaction.new()
-	grow_trade_faction.faction_enum = CampaignFleet.Faction.FREEHOLD
-	grow_trade_faction.economy = BaseEconomy.new()
-	grow_trade_faction.economy.slots = [EconomyRole.mining()]
-	grow_trade_faction.base_position = Vector2(150, 150)
-	grow_trade_state.factions = [grow_trade_faction]
-	grow_trade_state.home_base_economy = BaseEconomy.new()
+	var grow_trade_station := _test_station("free", CampaignFleet.Faction.FREEHOLD, BaseEconomy.new())
+	grow_trade_station.economy.slots = [EconomyRole.mining()]
+	grow_trade_state.galaxy = _test_galaxy([grow_trade_station])
 
-	var safe_combat_fleet := CampaignFleet.new()
-	safe_combat_fleet.faction = CampaignFleet.Faction.FREEHOLD
-	safe_combat_fleet.role = CampaignFleet.Role.COMBAT
-	safe_combat_fleet.ship_compositions = [{"max_hp": 1000.0, "current_hp": 1000.0, "max_shield": 0.0, "current_shield": 0.0}]
-	grow_trade_state.enemy_fleets = [safe_combat_fleet]
+	var safe_combat_fleet := _test_station_fleet("free", CampaignFleet.Faction.FREEHOLD, CampaignFleet.Role.COMBAT, 1000.0)
+	var growing_trader := _test_station_fleet("free", CampaignFleet.Faction.FREEHOLD, CampaignFleet.Role.TRADER, 100.0)
+	grow_trade_state.enemy_fleets = [safe_combat_fleet, growing_trader]
 
 	var spawned := []
 	grow_trade_state.fleet_spawn_requested.connect(func(fleet: CampaignFleet): spawned.append(fleet))
-	for i in BaseEconomy.SURPLUS_STREAK_THRESHOLD + 1:
+	# The economy turns WEALTHY on tick SURPLUS_STREAK_THRESHOLD, then grows every tick until capped.
+	for i in BaseEconomy.SURPLUS_STREAK_THRESHOLD + FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
 		grow_trade_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
-	if spawned.is_empty():
-		failures.append("tick_economy: expected an economically strong, safe faction to spawn a new trader fleet")
-	elif spawned[0].role != CampaignFleet.Role.TRADER:
-		failures.append("tick_economy: expected the spawned fleet's role to be TRADER")
-	elif spawned[0].ship_compositions[0]["ship_type"] != ShipType.Kind.FREIGHTER:
-		failures.append("tick_economy: expected the spawned trader fleet's ship to be ship_type FREIGHTER, got %s" % spawned[0].ship_compositions[0]["ship_type"])
+	if growing_trader.ship_compositions.size() != FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
+		failures.append("tick_economy: expected a strong, safe station's trader to grow to the ship cap, got %d ships" % growing_trader.ship_compositions.size())
+	elif growing_trader.ship_compositions[1]["ship_type"] != ShipType.Kind.FREIGHTER:
+		failures.append("tick_economy: expected a grown trader fleet's new ship to be ship_type FREIGHTER, got %s" % growing_trader.ship_compositions[1]["ship_type"])
+	if not spawned.is_empty():
+		failures.append("tick_economy: expected growth never to spawn a fleet, got %d" % spawned.size())
 
-	# Reallocation: an outmatched faction in economic deficit with 2 trader
+	# Reallocation: an outmatched station in economic deficit with 2 trader
 	# fleets flips one to COMBAT instead of growing (can't afford to grow).
 	var reallocate_state := CampaignState.new()
-	var reallocate_faction := PowerFaction.new()
-	reallocate_faction.faction_enum = CampaignFleet.Faction.DOMINION
-	reallocate_faction.economy = BaseEconomy.new()
-	reallocate_faction.economy.slots = [EconomyRole.industrial()]  # will starve immediately, no inputs
-	reallocate_state.factions = [reallocate_faction]
-	reallocate_state.home_base_economy = BaseEconomy.new()
+	var reallocate_station := _test_station("dom", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
+	reallocate_station.economy.slots = [EconomyRole.industrial()]  # will starve immediately, no inputs
+	reallocate_state.galaxy = _test_galaxy([reallocate_station])
 
-	var weak_combat_fleet_2 := CampaignFleet.new()
-	weak_combat_fleet_2.faction = CampaignFleet.Faction.DOMINION
-	weak_combat_fleet_2.role = CampaignFleet.Role.COMBAT
-	weak_combat_fleet_2.ship_compositions = [{"max_hp": 1.0, "current_hp": 1.0, "max_shield": 0.0, "current_shield": 0.0}]
-	var trader_fleet_1 := CampaignFleet.new()
-	trader_fleet_1.faction = CampaignFleet.Faction.DOMINION
-	trader_fleet_1.role = CampaignFleet.Role.TRADER
-	trader_fleet_1.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
-	var trader_fleet_2 := CampaignFleet.new()
-	trader_fleet_2.faction = CampaignFleet.Faction.DOMINION
-	trader_fleet_2.role = CampaignFleet.Role.TRADER
-	trader_fleet_2.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 0.0, "current_shield": 0.0}]
-	var strong_pirate_fleet_2 := CampaignFleet.new()
-	strong_pirate_fleet_2.faction = CampaignFleet.Faction.PIRATE
-	strong_pirate_fleet_2.ship_compositions = [{"max_hp": 1000.0, "current_hp": 1000.0, "max_shield": 0.0, "current_shield": 0.0}]
+	var weak_combat_fleet_2 := _test_station_fleet("dom", CampaignFleet.Faction.DOMINION, CampaignFleet.Role.COMBAT, 1.0)
+	var trader_fleet_1 := _test_station_fleet("dom", CampaignFleet.Faction.DOMINION, CampaignFleet.Role.TRADER, 100.0)
+	var trader_fleet_2 := _test_station_fleet("dom", CampaignFleet.Faction.DOMINION, CampaignFleet.Role.TRADER, 100.0)
+	var strong_pirate_fleet_2 := _test_station_fleet("", CampaignFleet.Faction.PIRATE, CampaignFleet.Role.COMBAT, 1000.0)
 	reallocate_state.enemy_fleets = [weak_combat_fleet_2, trader_fleet_1, trader_fleet_2, strong_pirate_fleet_2]
 
 	var role_changes := []
@@ -860,27 +821,32 @@ static func run() -> Array[String]:
 	if broke_state.wage_bill(broke_fleet) != 0:
 		failures.append("wage_bill: expected 0 under one full wage group, got %s" % broke_state.wage_bill(broke_fleet))
 
-	# NPC crew: power-faction fleets refill from the faction pool, pirates regen a fixed amount.
+	# NPC crew: non-pirate fleets refill from their home station's pool, pirates regen a fixed amount.
 	var npc_state := CampaignState.new()
-	var npc_faction := PowerFaction.new()
-	npc_faction.faction_enum = CampaignFleet.Faction.DOMINION
-	npc_faction.economy = BaseEconomy.new()
-	npc_faction.economy.crew_pool = 5.0
-	npc_state.factions.assign([npc_faction])
+	var npc_economy := BaseEconomy.new()
+	npc_economy.crew_pool = 5.0
+	npc_state.galaxy = _test_galaxy([_test_station("dom", CampaignFleet.Faction.DOMINION, npc_economy)])
 	var npc_dominion := CampaignFleet.new()
 	npc_dominion.faction = CampaignFleet.Faction.DOMINION
+	npc_dominion.home_station_id = "dom"
 	npc_dominion.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	npc_dominion.ship_compositions[0]["crew"] = 2
 	var npc_pirate := CampaignFleet.new()
 	npc_pirate.faction = CampaignFleet.Faction.PIRATE
 	npc_pirate.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	npc_pirate.ship_compositions[0]["crew"] = 2
-	npc_state.enemy_fleets.assign([npc_dominion, npc_pirate])
+	var npc_homeless := CampaignFleet.new()
+	npc_homeless.faction = CampaignFleet.Faction.NEUTRAL
+	npc_homeless.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	npc_homeless.ship_compositions[0]["crew"] = 2
+	npc_state.enemy_fleets.assign([npc_dominion, npc_pirate, npc_homeless])
 	npc_state._refill_npc_crew()
-	if CrewRules.crew_of(npc_dominion.ship_compositions[0]) != 7 or not is_equal_approx(npc_faction.economy.crew_pool, 0.0):
-		failures.append("_refill_npc_crew: expected Dominion crew 7 and pool 0.0, got %s / %s" % [CrewRules.crew_of(npc_dominion.ship_compositions[0]), npc_faction.economy.crew_pool])
+	if CrewRules.crew_of(npc_dominion.ship_compositions[0]) != 7 or not is_equal_approx(npc_economy.crew_pool, 0.0):
+		failures.append("_refill_npc_crew: expected Dominion crew 7 and pool 0.0, got %s / %s" % [CrewRules.crew_of(npc_dominion.ship_compositions[0]), npc_economy.crew_pool])
 	if CrewRules.crew_of(npc_pirate.ship_compositions[0]) != 3:
 		failures.append("_refill_npc_crew: expected pirate crew 3, got %s" % CrewRules.crew_of(npc_pirate.ship_compositions[0]))
+	if CrewRules.crew_of(npc_homeless.ship_compositions[0]) != 2:
+		failures.append("_refill_npc_crew: expected a fleet with no home station to get no crew, got %s" % CrewRules.crew_of(npc_homeless.ship_compositions[0]))
 
 	campaign_state.reset()
 
@@ -1271,4 +1237,29 @@ static func _scuttle_fleet() -> CampaignFleet:
 	freighter["crew"] = 6
 	fleet.ship_compositions.assign([capital, freighter])
 	fleet.set_flagship(0)
+	return fleet
+
+static func _test_galaxy(stations: Array) -> Galaxy:
+	var galaxy := Galaxy.new()
+	var sys := StarSystem.new()
+	sys.id = "test"
+	galaxy.systems[sys.id] = sys
+	galaxy.stations.assign(stations)
+	return galaxy
+
+static func _test_station(id: String, owner: CampaignFleet.Faction, economy: BaseEconomy) -> StationData:
+	var station := StationData.new()
+	station.id = id
+	station.system_id = "test"
+	station.owner = owner
+	station.economy = economy
+	return station
+
+static func _test_station_fleet(home_id: String, faction: CampaignFleet.Faction, role: CampaignFleet.Role, hp: float) -> CampaignFleet:
+	var fleet := CampaignFleet.new()
+	fleet.faction = faction
+	fleet.role = role
+	fleet.home_station_id = home_id
+	fleet.system_id = "test"
+	fleet.ship_compositions = [{"max_hp": hp, "current_hp": hp, "max_shield": 0.0, "current_shield": 0.0}]
 	return fleet

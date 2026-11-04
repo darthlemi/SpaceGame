@@ -44,13 +44,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	faction.reputation = 30.0
 	faction.fine = 150
 	faction.fine_reputation = 15.0
-	faction.economy = BaseEconomy.new()
-	faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
-	faction.economy.deficit_streaks = {0: 2}
+	var faction_economy := BaseEconomy.new()
+	faction_economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
+	faction_economy.deficit_streaks = {0: 2}
 	# assign(): campaign_state is untyped here, so a bare literal won't coerce to Array[PowerFaction].
 	campaign_state.factions.assign([faction])
 	campaign_state.credits = 100
-	panel.open_for("Dominion Base", faction.economy, faction)
+	panel.open_for("Dominion Base", faction_economy, faction)
 	if panel.economy_label.text != "Economy: Poor":
 		failures.append("BaseOverviewPanel: expected a deficit economy to read Poor, got '%s'" % panel.economy_label.text)
 	if panel.produces_label.text != "Produces: Weapons":

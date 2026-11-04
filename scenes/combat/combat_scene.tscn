@@ -1,21 +1,25 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/combat/combat_scene.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/controllers/fleet_commander.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/ui/debug_console.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/speed_controls.tscn" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/combat_camera.gd" id="5"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal"]
-size = Vector2(1160, 50)
+size = Vector2(2320, 50)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_vertical"]
-size = Vector2(50, 660)
+size = Vector2(50, 1308)
 
 [node name="CombatScene" type="Node2D"]
 script = ExtResource("1")
 
 [node name="FleetCommander" type="Node2D" parent="."]
 script = ExtResource("2")
+
+[node name="CombatCamera" type="Camera2D" parent="."]
+script = ExtResource("5")
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 
@@ -35,25 +39,25 @@ visible = false
 [node name="Bounds" type="Node2D" parent="."]
 
 [node name="TopWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(570, 15)
+position = Vector2(1152, 15)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/TopWall"]
 shape = SubResource("RectangleShape2D_horizontal")
 
 [node name="BottomWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(570, 625)
+position = Vector2(1152, 1273)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/BottomWall"]
 shape = SubResource("RectangleShape2D_horizontal")
 
 [node name="LeftWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(15, 320)
+position = Vector2(15, 648)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/LeftWall"]
 shape = SubResource("RectangleShape2D_vertical")
 
 [node name="RightWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(1125, 320)
+position = Vector2(2277, 648)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/RightWall"]
 shape = SubResource("RectangleShape2D_vertical")

@@ -4,10 +4,11 @@ const ShipScene = preload("res://scenes/ship/ship_corvette.tscn")
 const PLAYER_GROUP := &"player_fleet"
 const ENEMY_GROUP := &"enemy_fleet"
 
-@export var player_spawn_points: Array[Vector2] = [Vector2(200, 200), Vector2(200, 300), Vector2(200, 400)]
-@export var enemy_spawn_points: Array[Vector2] = [Vector2(800, 200), Vector2(800, 300), Vector2(800, 400)]
+@export var player_spawn_points: Array[Vector2] = [Vector2(400, 400), Vector2(400, 600), Vector2(400, 800)]
+@export var enemy_spawn_points: Array[Vector2] = [Vector2(1600, 400), Vector2(1600, 600), Vector2(1600, 800)]
 
 @onready var fleet_commander: FleetCommander = $FleetCommander
+@onready var combat_camera: CombatCamera = $CombatCamera
 @onready var result_label: Label = $UILayer/ResultLabel
 @onready var debug_console: Control = $UILayer/DebugConsole/Panel
 
@@ -34,6 +35,7 @@ func _ready() -> void:
 	else:
 		player_ships = _spawn_fleet(player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
 		enemy_ships = _spawn_fleet(enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
+	combat_camera.focus(_spawn_centre())
 
 	# Ships are instantiated dynamically here rather than as static scene children, so
 	# their own _ready() (which resolves @onready hull/shield/engine) hasn't run yet at
@@ -55,6 +57,16 @@ func _ready() -> void:
 	debug_console.command_entered.connect(_on_debug_command)
 	# An unarmed side loses before a shot is fired.
 	_check_battle_end()
+
+# Midpoint between the two fleets' spawn areas, where the fight opens.
+func _spawn_centre() -> Vector2:
+	var points := player_spawn_points + enemy_spawn_points
+	if points.is_empty():
+		return combat_camera.arena_size / 2.0
+	var total := Vector2.ZERO
+	for point in points:
+		total += point
+	return total / float(points.size())
 
 func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []

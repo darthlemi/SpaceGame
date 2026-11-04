@@ -5,7 +5,7 @@ extends Node2D
 @export var click_target_radius: float = 24.0
 @export var drag_threshold: float = 6.0
 
-@export var formation_spacing: float = 60.0
+@export var formation_spacing: float = 120.0
 @export var formation_slop: float = 0.15
 
 var ships: Array[Ship] = []

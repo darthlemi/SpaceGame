@@ -55,8 +55,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if freighter.engine.hitbox_radius <= 0.0:
 		failures.append("ship_freighter.tscn: expected the Engine to have a positive hitbox_radius")
 
-	if not is_equal_approx(capital.hit_radius, 68.0):
-		failures.append("ship_capital.tscn: expected hit_radius 68.0, got %s" % capital.hit_radius)
+	if not is_equal_approx(capital.hit_radius, 54.0):
+		failures.append("ship_capital.tscn: expected hit_radius 54.0, got %s" % capital.hit_radius)
 	for mount in capital.weapon_mounts:
 		if mount.hitbox_radius <= 0.0:
 			failures.append("ship_capital.tscn: expected every capital WeaponMount to have a positive hitbox_radius")

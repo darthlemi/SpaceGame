@@ -23,6 +23,15 @@ static func run() -> Array[String]:
 	if ShipType.crew_for(ShipType.Kind.CAPITAL) <= ShipType.crew_for(ShipType.Kind.CORVETTE):
 		failures.append("crew_for: expected Capital to need more crew than Corvette")
 
+	for kind in ShipType.Kind.values():
+		var scene_ship: Ship = ShipType.scene_for(kind).instantiate()
+		var scene_engine: ShipEngine = scene_ship.get_node("Engine")
+		if not is_equal_approx(ShipType.base_speed_for(kind), scene_engine.max_speed):
+			failures.append("base_speed_for(%s): expected the scene's Engine.max_speed %s, got %s" % [kind, scene_engine.max_speed, ShipType.base_speed_for(kind)])
+		if not is_equal_approx(ShipType.BASE_STATS[kind]["turn_rate"], scene_engine.turn_rate):
+			failures.append("BASE_STATS turn_rate(%s): expected the scene's Engine.turn_rate %s, got %s" % [kind, scene_engine.turn_rate, ShipType.BASE_STATS[kind]["turn_rate"]])
+		scene_ship.free()
+
 	var comp := ShipType.new_composition(ShipType.Kind.CAPITAL)
 	if comp["ship_type"] != ShipType.Kind.CAPITAL:
 		failures.append("new_composition: expected ship_type == CAPITAL, got %s" % comp["ship_type"])

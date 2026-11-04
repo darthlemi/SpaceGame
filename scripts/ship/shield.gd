@@ -7,7 +7,9 @@ signal restored
 @export var max_shield: float = 50.0
 @export var regen_rate: float = 5.0
 var current_shield: float
+# regen_multiplier is a per-frame debuff reset below; crew_multiplier is persistent (set by Ship).
 var regen_multiplier: float = 1.0
+var crew_multiplier: float = 1.0
 
 func _ready() -> void:
 	current_shield = max_shield
@@ -15,7 +17,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if current_shield < max_shield:
 		var was_depleted := current_shield <= 0.0
-		current_shield = min(max_shield, current_shield + regen_rate * regen_multiplier * delta)
+		current_shield = min(max_shield, current_shield + regen_rate * regen_multiplier * crew_multiplier * delta)
 		if was_depleted and current_shield > 0.0:
 			restored.emit()
 	regen_multiplier = 1.0

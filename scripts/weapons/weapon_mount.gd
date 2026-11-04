@@ -5,6 +5,8 @@ const MuzzleFlashScene = preload("res://scenes/vfx/muzzle_flash.tscn")
 
 @export var weapon: Weapon
 var cooldown_remaining: float = 0.0
+# Set by Ship from crew efficiency.
+var fire_rate_multiplier: float = 1.0
 
 func _physics_process(delta: float) -> void:
 	if cooldown_remaining > 0.0:
@@ -21,7 +23,7 @@ func try_fire(target: Node2D) -> bool:
 	if not _within_arc(target):
 		return false
 	_spawn_projectile(target)
-	cooldown_remaining = 1.0 / weapon.fire_rate
+	cooldown_remaining = 1.0 / (weapon.fire_rate * fire_rate_multiplier)
 	return true
 
 func _within_arc(target: Node2D) -> bool:

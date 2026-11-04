@@ -168,7 +168,6 @@ func _kill_all_enemies() -> void:
 # already reads as queued for deletion when the check runs.
 func _wire_battle_end(ship: Ship) -> void:
 	ship.hull.destroyed.connect(_check_battle_end)
-	ship.disabled.connect(_check_battle_end)
 	for mount in ship.weapon_mounts:
 		mount.destroyed.connect(_check_battle_end)
 
@@ -203,7 +202,7 @@ func _has_armed_active_ship(group: StringName) -> bool:
 	return false
 
 func _is_active(member: Node) -> bool:
-	return is_instance_valid(member) and not member.is_queued_for_deletion() and not member.is_disabled()
+	return is_instance_valid(member) and not member.is_queued_for_deletion()
 
 func _show_result(text: String) -> void:
 	_resolved = true
@@ -215,14 +214,13 @@ func _show_result(text: String) -> void:
 func _report_to_campaign() -> void:
 	var player_comps: Array[Dictionary] = CampaignState.player_fleet.ship_compositions
 	var enemy_comps: Array[Dictionary] = CampaignState.active_enemy_fleet.ship_compositions
-	# A stalemate keeps disabled player ships, like a win; the loss path drops them.
-	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices, _player_won or _stalemate)
+	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices)
 	var enemy_survivors: Array[Dictionary] = []
 	var captured_crew := 0
 	if _player_won:
 		captured_crew = _captured_crew(enemy_comps)
 	else:
-		enemy_survivors = _collect_survivor_data(enemy_ships, enemy_comps, _enemy_spawned_indices, true)
+		enemy_survivors = _collect_survivor_data(enemy_ships, enemy_comps, _enemy_spawned_indices)
 	CampaignState.resolve_engagement(player_survivors, enemy_survivors, _player_won, captured_crew)
 	if CampaignState.player_fleet == null:
 		return
@@ -231,13 +229,9 @@ func _report_to_campaign() -> void:
 		CampaignState.begin_respawn()
 	get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
 
-# Disabled enemy ships and held-back enemy comps are both captured with the fleet.
+# Held-back enemy comps are captured with the fleet.
 func _captured_crew(enemy_comps: Array[Dictionary]) -> int:
 	var pool := 0
-	for ship in enemy_ships:
-		if _is_surviving(ship) and ship.is_disabled():
-			# Floor: rounding up would capture crew the ship no longer has.
-			pool += floori(ship.crew + CrewRules.ROUND_EPSILON)
 	for i in enemy_comps.size():
 		if not _enemy_spawned_indices.has(i):
 			pool += CrewRules.crew_of(enemy_comps[i])
@@ -245,24 +239,21 @@ func _captured_crew(enemy_comps: Array[Dictionary]) -> int:
 
 # Keeps comp order: each spawned comp becomes its ship's state (or is dropped if lost)
 # and held-back comps pass through. Debug-spawned extras go last with no orig comp.
-func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary], spawned_indices: Array[int], keep_disabled: bool) -> Array[Dictionary]:
+func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary], spawned_indices: Array[int]) -> Array[Dictionary]:
 	var survivors: Array[Dictionary] = []
 	for i in original_compositions.size():
 		var k := spawned_indices.find(i)
 		if k == -1:
 			survivors.append(original_compositions[i].duplicate(true))
-		elif _is_survivor(ships[k], keep_disabled):
+		elif _is_surviving(ships[k]):
 			survivors.append(_survivor_comp(ships[k], original_compositions[i]))
 	for k in range(spawned_indices.size(), ships.size()):
-		if _is_survivor(ships[k], keep_disabled):
+		if _is_surviving(ships[k]):
 			survivors.append(_survivor_comp(ships[k], {}))
 	return survivors
 
 func _is_surviving(ship: Ship) -> bool:
 	return is_instance_valid(ship) and not ship.hull.is_destroyed()
-
-func _is_survivor(ship: Ship, keep_disabled: bool) -> bool:
-	return _is_surviving(ship) and (keep_disabled or not ship.is_disabled())
 
 func _survivor_comp(ship: Ship, orig: Dictionary) -> Dictionary:
 	var orig_items: Array = orig.get("weapon_mount_items", [])
@@ -291,7 +282,7 @@ func _survivor_comp(ship: Ship, orig: Dictionary) -> Dictionary:
 		"flagship": CrewRules.is_flagship(orig),
 	}
 	# Untracked crew (debug-spawned extras) stays keyless, which reads as full crew.
-	# Floor so a disabled ship can't round back up past its disable threshold.
+	# Floor so rounding never grants crew the ship lost.
 	if ship.crew_complement > 0:
 		comp["crew"] = floori(ship.crew + CrewRules.ROUND_EPSILON)
 	return comp

@@ -307,8 +307,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(deploy_scene) and not deploy_scene.is_queued_for_deletion():
 		deploy_scene.queue_free()
 
-	# Disabled ending: disabling (not destroying) every enemy ship is a Victory;
-	# the enemy fleet is defeated and a share of its crew is captured.
+	# Destroyed ending: destroying every deployed enemy ship is a Victory; the enemy fleet is
+	# defeated and a share of its held-back crew is captured.
+	# TODO: Task 4 reworks the battle end and this crew capture.
 	campaign_state.reset()
 	var disable_player := CampaignFleet.new()
 	disable_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
@@ -326,20 +327,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.process_frame
 
 	if disable_scene.enemy_ships.size() != 2:
-		failures.append("disabled ending: expected the 2 crewed capitals deployed and the reserve held back, got %d enemy ships" % disable_scene.enemy_ships.size())
-	var captured_pool := 8
+		failures.append("destroyed ending: expected the 2 crewed capitals deployed and the reserve held back, got %d enemy ships" % disable_scene.enemy_ships.size())
+	# Only the held-back reserve (8 crew) is captured now that no ship is left alive.
+	var expected_captured := floori(CrewRules.CAPTURED_CREW_FRACTION * 8)
 	for ship in disable_scene.enemy_ships.duplicate():
-		# 21/220 hull left -> crew 40 * 21 / 220 = 3.8 (floors to 3), under the disable threshold (4).
-		ship.hull.apply_damage(ship.hull.current_hp - 21.0)
-		if not ship.is_disabled() or ship.hull.is_destroyed():
-			failures.append("disabled ending: expected each enemy capital disabled but alive, got disabled=%s hp=%s" % [ship.is_disabled(), ship.hull.current_hp])
-		captured_pool += floori(ship.crew + CrewRules.ROUND_EPSILON)
-	var expected_captured := floori(CrewRules.CAPTURED_CREW_FRACTION * captured_pool)
-	# 2 tells the formula apart: rounding gives 0.2 * (4 + 4 + 8) = 3, disabled-only 0.2 * 6 = 1.
-	if expected_captured != 2:
-		failures.append("disabled ending: expected the test setup to yield 2 captured crew (0.2 * (3 + 3 + 8)), got %d" % expected_captured)
+		ship.hull.apply_damage(ship.hull.max_hp)
 	if disable_scene.result_label.text != "Victory":
-		failures.append("disabled ending: expected 'Victory' once every enemy ship is disabled, got '%s'" % disable_scene.result_label.text)
+		failures.append("destroyed ending: expected 'Victory' once every enemy ship is destroyed, got '%s'" % disable_scene.result_label.text)
 	# The returned campaign scene's _ready hands pending_captured_crew to its loot panel and
 	# resets it, so read the captured count from the panel instead.
 	var pending_captured_crew := -1
@@ -354,9 +348,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			break
 
 	if campaign_state.enemy_fleets.has(disable_enemy):
-		failures.append("disabled ending: expected the disabled enemy fleet removed from enemy_fleets")
+		failures.append("destroyed ending: expected the defeated enemy fleet removed from enemy_fleets")
 	if pending_captured_crew != expected_captured:
-		failures.append("disabled ending: expected pending_captured_crew %d, got %d" % [expected_captured, pending_captured_crew])
+		failures.append("destroyed ending: expected pending_captured_crew %d, got %d" % [expected_captured, pending_captured_crew])
 	campaign_state.reset()
 	if is_instance_valid(disable_scene) and not disable_scene.is_queued_for_deletion():
 		disable_scene.queue_free()
@@ -366,7 +360,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var mutual_player := CampaignFleet.new()
 	mutual_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	var mutual_enemy := CampaignFleet.new()
-	mutual_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var mutual_reserve := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	mutual_reserve["crew"] = 3  # Under the corvette deploy minimum (4): held back, so the fleet outlives the knockout.
+	mutual_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), mutual_reserve])
 	campaign_state.enemy_fleets.assign([mutual_enemy])
 	campaign_state.player_fleet = mutual_player
 	campaign_state.start_engagement(mutual_enemy)
@@ -378,12 +374,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	var mutual_ships: Array = mutual_scene.player_ships + mutual_scene.enemy_ships
 	for ship in mutual_ships:
-		# Blocking the Ship's signals keeps its disabled handler from running the end check early.
-		ship.set_block_signals(true)
-		ship.hull.apply_damage(ship.hull.current_hp - 1.0)
-		ship.set_block_signals(false)
-		if not ship.is_disabled():
-			failures.append("mutual knockout: expected every ship disabled by the setup damage")
+		# Blocking the hull's signals keeps its destroyed handler from running the end check early.
+		ship.hull.set_block_signals(true)
+		ship.hull.apply_damage(ship.hull.max_hp)
+		ship.hull.set_block_signals(false)
+		ship.queue_free()
+		if not ship.hull.is_destroyed():
+			failures.append("mutual knockout: expected every ship destroyed by the setup damage")
 	if mutual_scene.result_label.visible:
 		failures.append("mutual knockout: expected no result before the end check runs")
 	mutual_scene._check_battle_end()

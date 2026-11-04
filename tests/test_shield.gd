@@ -46,6 +46,19 @@ static func run() -> Array[String]:
 		failures.append("regen_multiplier: expected reset to 1.0 after one frame, got %s" % debuffed.regen_multiplier)
 	debuffed.free()
 
+	var crewed := Shield.new()
+	crewed.max_shield = 50.0
+	crewed.current_shield = 0.0
+	crewed.regen_rate = 10.0
+	crewed.regen_multiplier = 0.5
+	crewed.crew_multiplier = 0.5
+	crewed._physics_process(1.0)
+	if not is_equal_approx(crewed.current_shield, 2.5):
+		failures.append("crew_multiplier: expected 10.0*0.5*0.5*1.0=2.5 regen, got %s" % crewed.current_shield)
+	if not is_equal_approx(crewed.crew_multiplier, 0.5):
+		failures.append("crew_multiplier: expected it to survive the per-frame regen_multiplier reset, got %s" % crewed.crew_multiplier)
+	crewed.free()
+
 	var signaled := Shield.new()
 	signaled.max_shield = 20.0
 	signaled.current_shield = 20.0

@@ -9,25 +9,39 @@ const TARGET_SCENE := "res://scenes/ship/ship.tscn"
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 
-	# Crew scales with hull loss; disabled fires once at 10% hull (threshold 2 of 12).
-	var ship: Ship = await _spawn(tree, 12, 12, 0)
-	var original_hp: float = ship.hull.current_hp
-	var disabled_count := [0]
-	ship.disabled.connect(func(): disabled_count[0] += 1)
-	ship.hull.apply_damage(original_hp * 0.5)
-	if absf(ship.crew - 6.0) > 0.01:
-		failures.append("crew after 50%% hull damage: expected ~6.0, got %f" % ship.crew)
-	if ship.is_disabled():
-		failures.append("ship disabled at 50% hull, expected not disabled")
-	ship.hull.apply_damage(original_hp * 0.4)
-	if not ship.is_disabled():
-		failures.append("expected disabled at 10%% hull (crew %f)" % ship.crew)
-	ship.hull.apply_damage(original_hp * 0.05)
-	if disabled_count[0] != 1:
-		failures.append("expected disabled emitted exactly once, got %d" % disabled_count[0])
+	# Crew scales with hull loss and efficiency follows: lerp(0.5, 1.0, crew / complement).
+	var ship: Ship = await _spawn(tree, 6, 12, 0)
+	_check_multipliers(ship, 0.75, "crew 6/12", failures)
+	ship.hull.apply_damage(ship.hull.current_hp * 0.5)
+	if absf(ship.crew - 3.0) > 0.01:
+		failures.append("crew after 50%% hull damage: expected ~3.0, got %f" % ship.crew)
+	_check_multipliers(ship, 0.625, "crew 3/12 after hull hit", failures)
+	if not is_equal_approx(ship.crew_efficiency(), 0.625):
+		failures.append("crew_efficiency: expected 0.625, got %s" % ship.crew_efficiency())
 	ship.free()
 
-	# Disabled ship fires nothing; control ship fires.
+	# Cooldown after firing is stretched by 1 / efficiency.
+	var slow: Ship = await _spawn(tree, 0, 12, 0)
+	var slow_target := await _spawn_target(tree, slow)
+	var slow_mount: WeaponMount = slow.weapon_mounts[0]
+	slow_mount.cooldown_remaining = 0.0
+	if not slow_mount.try_fire(slow_target):
+		failures.append("cooldown test: mount failed to fire (test would be vacuous)")
+	var expected_cooldown: float = 1.0 / (slow_mount.weapon.fire_rate * 0.5)
+	if not is_equal_approx(slow_mount.cooldown_remaining, expected_cooldown):
+		failures.append("cooldown at efficiency 0.5: expected %f, got %f" % [expected_cooldown, slow_mount.cooldown_remaining])
+	slow.free()
+	slow_target.free()
+
+	# The EW drone's per-frame regen_multiplier reset must not clear the crew part.
+	var ew: Ship = await _spawn(tree, 0, 12, 0)
+	ew.shield.regen_multiplier = 0.5
+	await tree.physics_frame
+	if not is_equal_approx(ew.shield.crew_multiplier, 0.5):
+		failures.append("shield.crew_multiplier after a physics frame: expected 0.5, got %s" % ew.shield.crew_multiplier)
+	ew.free()
+
+	# Heavy damage never disables: a ship at crew 1 still fires.
 	var control: Ship = await _spawn(tree, 12, 12, 0)
 	var control_target := await _spawn_target(tree, control)
 	await tree.physics_frame
@@ -37,22 +51,25 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if mount.cooldown_remaining > 0.0:
 			control_fired = true
 	if not control_fired:
-		failures.append("control: non-disabled ship never fired (test would be vacuous)")
+		failures.append("control: full-crew ship never fired (test would be vacuous)")
 	control.free()
 	control_target.free()
 
-	var dis: Ship = await _spawn(tree, 12, 12, 0)
-	dis.hull.apply_damage(dis.hull.current_hp * 0.9)
-	var dis_target := await _spawn_target(tree, dis)
+	var weak: Ship = await _spawn(tree, 12, 12, 1)
+	weak.hull.apply_damage(weak.hull.current_hp * 0.95)
+	var weak_target := await _spawn_target(tree, weak)
 	await tree.physics_frame
 	await tree.physics_frame
-	if not dis.is_disabled():
-		failures.append("fire test: ship expected to be disabled")
-	for mount in dis.weapon_mounts:
-		if mount.cooldown_remaining != 0.0:
-			failures.append("disabled ship fired a weapon (cooldown %f)" % mount.cooldown_remaining)
-	dis.free()
-	dis_target.free()
+	if weak.crew > 1.0 + 0.001:
+		failures.append("fire test: expected crew floored at 1, got %f" % weak.crew)
+	var weak_fired := false
+	for mount in weak.weapon_mounts:
+		if mount.cooldown_remaining > 0.0:
+			weak_fired = true
+	if not weak_fired:
+		failures.append("a ship at crew 1 never fired (cooldown stayed 0)")
+	weak.free()
+	weak_target.free()
 
 	# Crew floor holds under heavy damage.
 	var floored: Ship = await _spawn(tree, 12, 12, 1)
@@ -63,16 +80,25 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("crew_floor expected 1, got %d" % floored.crew_floor)
 	floored.free()
 
-	# Untracked crew (complement 0) never disables.
+	# Untracked crew (complement 0) keeps full efficiency.
 	var untracked: Ship = preload(CORVETTE_SCENE).instantiate()
 	tree.root.add_child(untracked)
 	await tree.process_frame
 	untracked.hull.apply_damage(untracked.hull.current_hp * 0.95)
-	if untracked.is_disabled():
-		failures.append("complement 0 ship was disabled")
+	if untracked.crew_efficiency() != 1.0:
+		failures.append("complement 0 ship efficiency: expected 1.0, got %s" % untracked.crew_efficiency())
 	untracked.free()
 
 	return failures
+
+static func _check_multipliers(ship: Ship, expected: float, label: String, failures: Array[String]) -> void:
+	if not is_equal_approx(ship.engine.crew_multiplier, expected):
+		failures.append("%s: engine.crew_multiplier expected %s, got %s" % [label, expected, ship.engine.crew_multiplier])
+	if not is_equal_approx(ship.shield.crew_multiplier, expected):
+		failures.append("%s: shield.crew_multiplier expected %s, got %s" % [label, expected, ship.shield.crew_multiplier])
+	for mount in ship.weapon_mounts:
+		if not is_equal_approx(mount.fire_rate_multiplier, expected):
+			failures.append("%s: mount.fire_rate_multiplier expected %s, got %s" % [label, expected, mount.fire_rate_multiplier])
 
 static func _spawn(tree: SceneTree, crew_count: int, complement: int, floor_count: int) -> Ship:
 	var ship: Ship = load(CORVETTE_SCENE).instantiate()

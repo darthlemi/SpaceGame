@@ -5,13 +5,15 @@ extends ShipComponent
 @export var turn_rate: float = 3.0
 @export var acceleration: float = 150.0
 
+# Set by Ship from crew efficiency.
+var crew_multiplier: float = 1.0
 var velocity: Vector2 = Vector2.ZERO
 
 func effective_acceleration() -> float:
 	return acceleration * health_fraction()
 
 func effective_max_speed() -> float:
-	return max_speed * health_fraction()
+	return max_speed * health_fraction() * crew_multiplier
 
 func steer_toward(current_pos: Vector2, current_rotation: float, target_pos: Vector2, delta: float, slow_radius: float = -1.0) -> Dictionary:
 	var to_target := target_pos - current_pos
@@ -21,7 +23,7 @@ func steer_toward(current_pos: Vector2, current_rotation: float, target_pos: Vec
 		velocity = velocity.move_toward(Vector2.ZERO, accel * delta)
 		return {"rotation": current_rotation, "velocity": velocity}
 	var desired_angle := to_target.angle()
-	var new_rotation := rotate_toward_angle(current_rotation, desired_angle, turn_rate * delta)
+	var new_rotation := rotate_toward_angle(current_rotation, desired_angle, turn_rate * crew_multiplier * delta)
 	var forward := Vector2.RIGHT.rotated(new_rotation)
 	var top_speed := effective_max_speed()
 	var effective_slow_radius := slow_radius if slow_radius >= 0.0 else stopping_distance()

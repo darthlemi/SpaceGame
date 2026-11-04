@@ -27,11 +27,42 @@ static func run() -> Array[String]:
 		var got := CrewRules.deploy_min_for(complement)
 		if got != expected_deploy_min[complement]:
 			failures.append("deploy_min_for(%d): expected %d, got %d" % [complement, expected_deploy_min[complement], got])
-	var expected_disable := {12: 2, 6: 1, 40: 4}
-	for complement in expected_disable:
-		var got := CrewRules.disable_threshold_for(complement)
-		if got != expected_disable[complement]:
-			failures.append("disable_threshold_for(%d): expected %d, got %d" % [complement, expected_disable[complement], got])
+
+	var expected_efficiency := [[12.0, 12, 1.0], [6.0, 12, 0.75], [0.0, 12, 0.5], [5.0, 0, 1.0], [24.0, 12, 1.0]]
+	for case in expected_efficiency:
+		var got := CrewRules.efficiency_for(case[0], case[1])
+		if not is_equal_approx(got, case[2]):
+			failures.append("efficiency_for(%s, %d): expected %s, got %s" % [case[0], case[1], case[2], got])
+
+	if CrewRules.is_armed(ShipType.new_composition(ShipType.Kind.FREIGHTER)):
+		failures.append("is_armed: expected a freighter to be unarmed")
+	if not CrewRules.is_armed(ShipType.new_composition(ShipType.Kind.CORVETTE)):
+		failures.append("is_armed: expected a fresh corvette to be armed")
+	var mountless := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	mountless["weapon_mount_current_hp"] = [0.0]
+	if CrewRules.is_armed(mountless):
+		failures.append("is_armed: expected a corvette with every mount at 0 hp to be unarmed")
+	var partial := ShipType.new_composition(ShipType.Kind.CAPITAL)
+	partial["weapon_mount_current_hp"] = [0.0, 0.0, 5.0]
+	if not CrewRules.is_armed(partial):
+		failures.append("is_armed: expected a capital with one live mount to be armed")
+	if not CrewRules.is_armed({"ship_type": ShipType.Kind.CORVETTE}):
+		failures.append("is_armed: expected a bootstrap corvette dict (no mount hp key) to be armed")
+	if CrewRules.is_armed({"ship_type": ShipType.Kind.FREIGHTER}):
+		failures.append("is_armed: expected a bootstrap freighter dict to be unarmed")
+
+	var corvette_base := ShipType.base_speed_for(ShipType.Kind.CORVETTE)
+	var bare_half := {"ship_type": ShipType.Kind.CORVETTE, "crew": 6}
+	if not is_equal_approx(CrewRules.comp_top_speed(bare_half), corvette_base * 0.75):
+		failures.append("comp_top_speed: expected a half-crew bare corvette at base * 0.75, got %s" % CrewRules.comp_top_speed(bare_half))
+	var damaged_engine := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	damaged_engine["engine_current_hp"] = damaged_engine["engine_max_hp"] * 0.5
+	if not is_equal_approx(CrewRules.comp_top_speed(damaged_engine), corvette_base * 0.5):
+		failures.append("comp_top_speed: expected a half-hp engine at base * 0.5, got %s" % CrewRules.comp_top_speed(damaged_engine))
+	var racer := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	racer["engine_item"] = "res://resources/engines/engine_freehold_racer.tres"
+	if not is_equal_approx(CrewRules.comp_top_speed(racer), 300.0):
+		failures.append("comp_top_speed: expected the equipped engine's max_speed 300, got %s" % CrewRules.comp_top_speed(racer))
 
 	var capital_no_key := {"ship_type": ShipType.Kind.CAPITAL}
 	if CrewRules.crew_of(capital_no_key) != 40:

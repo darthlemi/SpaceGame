@@ -3,7 +3,7 @@ extends RefCounted
 
 # Tuning placeholders.
 const DEPLOY_MIN_CREW_FRACTION := 0.3
-const DISABLE_CREW_FRACTION := 0.1
+const MIN_CREW_EFFICIENCY := 0.5
 const NPC_CREW_FLOOR := 1
 const CAPTURED_CREW_FRACTION := 0.2
 
@@ -65,6 +65,18 @@ static func balance(comps: Array[Dictionary]) -> void:
 		set_crew(comps[i], crew_of(comps[i]) + 1)
 		leftover -= 1
 
+# Top speed with crew and engine damage applied; missing keys read as full health.
+static func comp_top_speed(comp: Dictionary) -> float:
+	var base := ShipType.base_speed_for(ShipType.kind_of(comp))
+	var engine_path: String = comp.get("engine_item", "")
+	if engine_path != "":
+		base = load(engine_path).max_speed
+	var engine_max: float = comp.get("engine_max_hp", 0.0)
+	var engine_fraction := 1.0
+	if engine_max > 0.0:
+		engine_fraction = clampf(comp.get("engine_current_hp", engine_max) / engine_max, 0.0, 1.0)
+	return base * efficiency_for(float(crew_of(comp)), complement(comp)) * engine_fraction
+
 static func class_size_rank(comp: Dictionary) -> int:
 	return CLASS_SIZE_RANK[ShipType.kind_of(comp)]
 
@@ -97,14 +109,28 @@ static func deploy_indices(comps: Array[Dictionary]) -> Array[int]:
 static func deploy_min_for(complement_crew: int) -> int:
 	return _threshold(DEPLOY_MIN_CREW_FRACTION, complement_crew)
 
-static func disable_threshold_for(complement_crew: int) -> int:
-	return _threshold(DISABLE_CREW_FRACTION, complement_crew)
+static func efficiency_for(crew: float, complement_crew: int) -> float:
+	if complement_crew <= 0:
+		return 1.0
+	return lerpf(MIN_CREW_EFFICIENCY, 1.0, clampf(crew / float(complement_crew), 0.0, 1.0))
 
 static func free_berths(comps: Array[Dictionary]) -> int:
 	var sum := 0
 	for comp in comps:
 		sum += complement(comp) - crew_of(comp)
 	return sum
+
+# A missing weapon_mount_current_hp key counts as armed (bootstrap comps).
+static func is_armed(comp: Dictionary) -> bool:
+	var count := int(ShipType.BASE_STATS[ShipType.kind_of(comp)]["weapon_mount_count"])
+	if count <= 0:
+		return false
+	if not comp.has("weapon_mount_current_hp"):
+		return true
+	for hp in comp["weapon_mount_current_hp"]:
+		if hp > 0.0:
+			return true
+	return false
 
 static func is_flagship(comp: Dictionary) -> bool:
 	return comp.get("flagship", false)

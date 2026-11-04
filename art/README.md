@@ -138,4 +138,4 @@ Then copy the five PNGs into `assets\sprites\ui\`.
 The 9-slice margins in `assets\ui\theme.tres` must match the script: `texture_margin` 6
 for the 24x24 buttons and 15 for the 66x66 panel. Everything that isn't a straight run
 (corners, brackets, glow) stays inside those margins, and the tiled centre is a whole
-number of pattern periods (6 px dashes, 3 px scanlines), so tiling never seams.
+number of pattern periods (6 px dashes, 6 px scanlines), so tiling never seams.

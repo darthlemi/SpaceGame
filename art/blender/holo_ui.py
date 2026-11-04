@@ -9,7 +9,7 @@ Run headless in Blender 5.2; see art\\README.md for the command.
 
 9-slice contract (keep in sync with theme.tres texture_margin_*): everything that is not a
 straight run lives inside the margins, and the tiled centre is a whole number of pattern
-periods (button dashes 6 px, panel scanlines 3 px), so tiling never smears or seams.
+periods (button dashes 6 px, panel scanlines 6 px), so tiling never smears or seams.
 """
 import argparse
 import logging
@@ -44,8 +44,8 @@ PANEL_INNER_GLOW = (0.25, 0.17, 0.1, 0.05)
 BRACKET_INSET = 3         # 2 px thick L-brackets over the border's outer edge
 BRACKET_THICK = 2
 BRACKET_LEN = 12          # ends at px 14, inside the 15 px margin
-SCANLINE_PITCH = 3
-SCANLINE_ALPHA = 0.03    # mockup's 6% was sRGB-blended; Cycles stacks in linear (brighter)
+SCANLINE_PITCH = 6        # 36 px tiled centre = 6 whole periods
+SCANLINE_ALPHA = 0.015   # faint: Cycles stacks in linear light, brighter than sRGB blending
 
 # Draw order, bottom to top; the camera looks down -Z.
 Z_FILL, Z_SCAN, Z_GLOW, Z_LINE, Z_BRACKET = range(5)

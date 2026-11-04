@@ -162,4 +162,22 @@ static func run() -> Array[String]:
 	if fuel_fleet.fuel_amount() != 0.0:
 		failures.append("consume_fuel: expected fuel clamped at 0.0, got %s" % fuel_fleet.fuel_amount())
 
+	var warp_fleet := CampaignFleet.new()
+	if warp_fleet.is_warping():
+		failures.append("is_warping: expected false by default")
+	warp_fleet.start_warp("x")
+	if not warp_fleet.is_warping() or warp_fleet.warp_remaining != 3.0 or warp_fleet.warp_target != "x":
+		failures.append("start_warp: expected warping 3.0 to x, got %s / %s" % [warp_fleet.warp_remaining, warp_fleet.warp_target])
+	warp_fleet.cancel_warp()
+	if warp_fleet.is_warping() or warp_fleet.warp_target != "":
+		failures.append("cancel_warp: expected cleared warp state")
+
+	var strength_fleet := CampaignFleet.new()
+	strength_fleet.ship_compositions = [
+		{"max_hp": 100.0, "current_hp": 10.0, "max_shield": 50.0, "current_shield": 0.0},
+		{"max_hp": 60.0, "current_hp": 0.0, "max_shield": 20.0, "current_shield": 5.0},
+	]
+	if strength_fleet.max_strength() != 230.0:
+		failures.append("max_strength: expected 230.0 ignoring damage, got %s" % strength_fleet.max_strength())
+
 	return failures

@@ -45,6 +45,10 @@ func _run_all() -> void:
 		preload("res://tests/test_battle_resolution.gd"),
 		preload("res://tests/test_refit_catalog.gd"),
 		preload("res://tests/test_theme.gd"),
+		preload("res://tests/test_galaxy.gd"),
+		preload("res://tests/test_galaxy_data.gd"),
+		preload("res://tests/test_jump_rules.gd"),
+		preload("res://tests/test_danger_tier.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:

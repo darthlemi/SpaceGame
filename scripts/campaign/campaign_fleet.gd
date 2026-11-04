@@ -19,6 +19,14 @@ const FUEL_BURN_DISTANCE := 1000.0
 @export var cargo: Dictionary = {}
 @export var part_inventory: Array[String] = []
 
+@export var system_id: String = ""
+var home_station_id: String = ""
+var warp_remaining: float = 0.0
+var warp_target: String = ""
+var jump_path: Array[String] = []
+var dest_station_id: String = ""
+var jump_cooldown: float = 0.0
+
 func total_strength() -> float:
 	var sum := 0.0
 	for comp in ship_compositions:
@@ -31,6 +39,19 @@ func is_destroyed() -> bool:
 			return false
 	return true
 
+func is_warping() -> bool:
+	return warp_remaining > 0.0
+
+func max_strength() -> float:
+	var sum := 0.0
+	for comp in ship_compositions:
+		sum += comp["max_hp"] + comp["max_shield"]
+	return sum
+
+func start_warp(target: String) -> void:
+	warp_target = target
+	warp_remaining = JumpRules.WARP_DURATION
+
 func repair_to_full() -> void:
 	for comp in ship_compositions:
 		comp["current_hp"] = comp["max_hp"]
@@ -40,6 +61,10 @@ func apply_fractional_damage(fraction: float) -> void:
 	for comp in ship_compositions:
 		comp["current_hp"] = max(0.0, comp["current_hp"] * (1.0 - fraction))
 		comp["current_shield"] = max(0.0, comp["current_shield"] * (1.0 - fraction))
+
+func cancel_warp() -> void:
+	warp_remaining = 0.0
+	warp_target = ""
 
 func cargo_capacity() -> float:
 	var sum := 0.0

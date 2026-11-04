@@ -308,6 +308,59 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(freed_scene) and not freed_scene.is_queued_for_deletion():
 		freed_scene.queue_free()
 
+	# The flagship starts selected, wherever it sits in the fleet.
+	campaign_state.reset()
+	var flag_comp := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	flag_comp["flagship"] = true
+	var flag_player := CampaignFleet.new()
+	flag_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), flag_comp])
+	var flag_enemy := CampaignFleet.new()
+	flag_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([flag_enemy])
+	campaign_state.player_fleet = flag_player
+	campaign_state.start_engagement(flag_enemy)
+	var flag_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(flag_scene)
+	await tree.process_frame
+	await tree.process_frame
+	if flag_scene.player_ships.size() != 2 or flag_scene.fleet_commander.selected_ships != [flag_scene.player_ships[1]]:
+		failures.append("initial selection: expected only the flagship selected, got %s" % [flag_scene.fleet_commander.selected_ships])
+	campaign_state.reset()
+	if is_instance_valid(flag_scene) and not flag_scene.is_queued_for_deletion():
+		flag_scene.queue_free()
+
+	# Quick battle (no campaign): the first player ship starts selected. Clicks mirror the
+	# overworld: left selects an own ship or orders the selection, right clears it.
+	var click_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(click_scene)
+	await tree.process_frame
+	await tree.process_frame
+	var commander: FleetCommander = click_scene.fleet_commander
+	var first: Ship = click_scene.player_ships[0]
+	var second: Ship = click_scene.player_ships[1]
+	if commander.selected_ships != [first]:
+		failures.append("initial selection: expected the first player ship selected in a quick battle, got %s" % [commander.selected_ships])
+	commander._on_left_release(second.global_position, second.global_position)
+	if commander.selected_ships != [second]:
+		failures.append("left click: expected clicking an own ship to select only it, got %s" % [commander.selected_ships])
+	var empty_point := Vector2(1000, 1100)
+	commander._on_left_release(empty_point, empty_point)
+	if commander.selected_ships != [second] or second.current_order == null or second.current_order.type != Order.Type.MOVE_TO or second.current_order.target_position != empty_point:
+		failures.append("left click: expected empty space to move the selection there and keep it selected")
+	var enemy: Ship = click_scene.enemy_ships[0]
+	commander._on_left_release(enemy.global_position, enemy.global_position)
+	if second.current_order == null or second.current_order.type != Order.Type.ATTACK_TARGET or second.current_order.target_ship != enemy:
+		failures.append("left click: expected clicking an enemy to order the selection to attack it")
+	commander._on_right_press()
+	if not commander.selected_ships.is_empty():
+		failures.append("right click: expected the selection cleared, got %s" % [commander.selected_ships])
+	var first_order: Order = first.current_order
+	commander._on_left_release(empty_point, empty_point)
+	if first.current_order != first_order or second.current_order.type != Order.Type.ATTACK_TARGET:
+		failures.append("left click: expected no orders with nothing selected")
+	if is_instance_valid(click_scene) and not click_scene.is_queued_for_deletion():
+		click_scene.queue_free()
+
 	# Crew deployment: only crewed, deploy-flagged ships spawn; the held-back
 	# comps come back unchanged after the battle.
 	campaign_state.reset()

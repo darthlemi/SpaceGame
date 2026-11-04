@@ -55,18 +55,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_dragging = true
 		else:
 			_dragging = false
-			if _drag_start.distance_to(world_pos) < drag_threshold:
-				var picked := FleetCommander.ship_at_point(ships, world_pos, select_radius)
-				var picked_ships: Array[Ship] = []
-				if picked != null:
-					picked_ships.append(picked)
-				selected_ships = picked_ships
-			else:
-				var rect := Rect2(_drag_start, Vector2.ZERO).expand(world_pos)
-				selected_ships = FleetCommander.ships_in_rect(ships, rect)
-			queue_redraw()
+			_on_left_release(_drag_start, world_pos)
 	elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-		_issue_order(world_pos)
+		_on_right_press()
 
 func _issue_order(world_pos: Vector2) -> void:
 	selected_ships = selected_ships.filter(func(s): return is_instance_valid(s) and not s.is_queued_for_deletion())
@@ -82,6 +73,25 @@ func _issue_order(world_pos: Vector2) -> void:
 	for ship in selected_ships:
 		if destinations.has(ship):
 			ship.execute_order(Order.move_to(destinations[ship]))
+
+# Left click mirrors the overworld's click-to-move: a drag box-selects, a click on an
+# own ship selects it, and any other click orders the selection there.
+func _on_left_release(start: Vector2, end: Vector2) -> void:
+	if start.distance_to(end) >= drag_threshold:
+		selected_ships = FleetCommander.ships_in_rect(ships, Rect2(start, Vector2.ZERO).expand(end))
+	else:
+		var picked := FleetCommander.ship_at_point(ships, end, select_radius)
+		if picked != null:
+			var picked_ships: Array[Ship] = [picked]
+			selected_ships = picked_ships
+		else:
+			_issue_order(end)
+	queue_redraw()
+
+func _on_right_press() -> void:
+	var none: Array[Ship] = []
+	selected_ships = none
+	queue_redraw()
 
 func _compute_destinations(world_pos: Vector2) -> Dictionary:
 	if active_formation == Formation.Type.NONE:

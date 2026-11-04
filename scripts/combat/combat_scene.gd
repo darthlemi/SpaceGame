@@ -54,6 +54,7 @@ func _ready() -> void:
 		_wire_ai(ship)
 
 	fleet_commander.setup(player_ships, ENEMY_GROUP)
+	fleet_commander.selected_ships = _initial_selection()
 	debug_console.command_entered.connect(_on_debug_command)
 	# An unarmed side loses before a shot is fired.
 	_check_battle_end()
@@ -206,6 +207,21 @@ func _has_armed_active_ship(group: StringName) -> bool:
 			if mount.weapon != null and not mount.is_destroyed():
 				return true
 	return false
+
+# The flagship, or the first deployed ship when it was held back or there's no campaign.
+func _initial_selection() -> Array[Ship]:
+	var selection: Array[Ship] = []
+	if player_ships.is_empty():
+		return selection
+	var pick := player_ships[0]
+	if CampaignState.active_enemy_fleet != null:
+		var comps: Array[Dictionary] = CampaignState.player_fleet.ship_compositions
+		for k in _player_spawned_indices.size():
+			if CrewRules.is_flagship(comps[_player_spawned_indices[k]]):
+				pick = player_ships[k]
+				break
+	selection.append(pick)
+	return selection
 
 func _is_active(member: Node) -> bool:
 	return is_instance_valid(member) and not member.is_queued_for_deletion()

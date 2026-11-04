@@ -23,14 +23,14 @@
   `scratchpad\sheet.py` and isn't in the repo.
 
 ## Next steps
-1. **Commit** `art\blender\kitbash_station.py`, `art\README.md` and
-   `assets\sprites\stations\` (PNGs and `.import` files). Awaiting the user's OK. Exclude the
-   `.import` churn on other sprites and the untracked root files.
+1. **Committed:** `f9bef7b` stations, `a7b1092` carry-forward. 13 commits are unpushed
+   (`03e243d` onward). Push only when asked. The working tree is clean apart from
+   `MEMORY.md`, `token-efficient-execution.md` and `images.jpg(.import)` in the root. The user
+   said to leave those alone.
 2. **Bug (user-reported, below):** `_is_surviving` in `combat_scene.gd` gets a freed ship.
    The user thinks all their combat ships die.
-3. **Unrelated compile error:** `ESCAPE_SPEED_WEIGHT` isn't declared in
-   `scripts\combat\battle_resolution.gd:12`, which breaks `campaign_state.gd`. That file was
-   modified outside this session's work. Ask the user before touching it.
+3. **Resolved:** an uncommitted typo (`ESCAPE_SPEED_WEIGH`) in `battle_resolution.gd` broke
+   compilation. Reverted at the user's request, and Godot loads without script errors.
 4. **Stations into the game:** nothing uses the pool yet, and the three bases still use the
    pxl sprites. The user deferred this until more bases exist.
 5. **Station follow-ups, when asked:**

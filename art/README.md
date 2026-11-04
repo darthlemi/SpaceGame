@@ -93,3 +93,21 @@ so a mounts file only applies to its own PNG.
 
 Use `&`, not `start`: in PowerShell `start` is `Start-Process`, which rejects
 Blender's `-b` flag.
+
+### In-game sprites
+
+`assets/sprites/ships/{corvette,capital,freighter}.png` are rendered at exactly their
+in-game size, so each scene's `Sprite2D` scale is 1 (there is no camera zoom; 1 world px
+is 1 screen px). They come out at about 70, 153 and 101 px long. Render them with no
+`--preview` and these `--res` values, and leave the mounts JSON out of `assets`:
+
+```powershell
+cd art\blender; New-Item -ItemType Directory -Force "$env:TEMP\ships" | Out-Null
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_corvette.py -- --out "$env:TEMP\ships\corvette.png" --res 75
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_capital.py -- --out "$env:TEMP\ships\capital.png" --res 179
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_freighter.py -- --out "$env:TEMP\ships\freighter.png" --res 107
+```
+
+Then copy the PNGs into `assets\sprites\ships\`. The scene `WeaponMount` and `Engine`
+positions were taken from that render's `.mounts.json` at these sizes. If the art or
+`--res` changes, re-check them in `scenes\ship\ship_*.tscn`.

@@ -43,20 +43,20 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if capital.weapon_mounts.size() != 3:
 		failures.append("ship_capital.tscn: expected exactly 3 WeaponMounts, got %d" % capital.weapon_mounts.size())
 
-	if not is_equal_approx(corvette.hit_radius, 12.0):
-		failures.append("ship_corvette.tscn: expected hit_radius 12.0, got %s" % corvette.hit_radius)
+	if not is_equal_approx(corvette.hit_radius, 24.0):
+		failures.append("ship_corvette.tscn: expected hit_radius 24.0, got %s" % corvette.hit_radius)
 	if corvette.weapon_mounts.size() == 1 and corvette.weapon_mounts[0].hitbox_radius <= 0.0:
 		failures.append("ship_corvette.tscn: expected the WeaponMount to have a positive hitbox_radius")
 	if corvette.engine.hitbox_radius <= 0.0:
 		failures.append("ship_corvette.tscn: expected the Engine to have a positive hitbox_radius")
 
-	if not is_equal_approx(freighter.hit_radius, 22.0):
-		failures.append("ship_freighter.tscn: expected hit_radius 22.0, got %s" % freighter.hit_radius)
+	if not is_equal_approx(freighter.hit_radius, 44.0):
+		failures.append("ship_freighter.tscn: expected hit_radius 44.0, got %s" % freighter.hit_radius)
 	if freighter.engine.hitbox_radius <= 0.0:
 		failures.append("ship_freighter.tscn: expected the Engine to have a positive hitbox_radius")
 
-	if not is_equal_approx(capital.hit_radius, 34.0):
-		failures.append("ship_capital.tscn: expected hit_radius 34.0, got %s" % capital.hit_radius)
+	if not is_equal_approx(capital.hit_radius, 68.0):
+		failures.append("ship_capital.tscn: expected hit_radius 68.0, got %s" % capital.hit_radius)
 	for mount in capital.weapon_mounts:
 		if mount.hitbox_radius <= 0.0:
 			failures.append("ship_capital.tscn: expected every capital WeaponMount to have a positive hitbox_radius")

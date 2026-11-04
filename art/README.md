@@ -39,21 +39,35 @@ cd art\blender
 & "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_corvette.py -- --out "$PWD\corvette.png"
 ```
 
-Flags (after `--`):
+`art/blender/kitbash_capital.py` — capital ship: a low, faceted saucer with an opening at
+the bow where the bridge prow sits between two mandibles. It imports the shared hull,
+plating and material code from `kitbash_corvette.py`, so keep both files together.
+`--hull slot` with seed 1 (both the defaults) is the approved design. `--hull bay` and
+`--hull oval` are the rejected alternatives. It has 6 mounts: `port_fore`, `port_mid`,
+`port_aft`, `starboard_fore`, `starboard_mid` and `starboard_aft`.
+
+```powershell
+cd art\blender
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_capital.py -- --out "$PWD\capital.png"
+```
+
+Flags (after `--`, the same for both scripts unless noted):
 
 - `--out` — the output PNG path (required).
 - `--preview` — adds a space backdrop and engine flames for review renders.
   Leave it off for in-game sprites, which come out with a transparent background.
 - `--res` — render width in px (default 768).
 - `--samples` — Cycles samples (default 64).
-- `--seed` — default 2.
+- `--seed` — corvette default 2, capital default 1.
+- `--hull` — capital only: `slot` (default), `bay` or `oval`.
 - `--verbose` — prints build timing and part counts.
 
 Weapons are not rendered, because the game attaches them. Each mount shows as a bare grey
 plate, and the script writes `<out>.mounts.json` next to the PNG
 (`corvette.png` gives `corvette.mounts.json`). Each mount has these fields:
 
-- `id` — `dorsal`, `port_fore`, `port_aft`, `starboard_fore` or `starboard_aft`.
+- `id` — the mount name. The corvette uses `dorsal`, `port_fore`, `port_aft`,
+  `starboard_fore` and `starboard_aft`; the capital uses the six names listed above.
 - `x`, `y` — the position in Godot `Sprite2D`-local pixels, measured from the image centre,
   with +x toward the nose and +y down. Multiply by the `Sprite2D` scale to get a
   `WeaponMount` node's `position`.

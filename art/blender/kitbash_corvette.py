@@ -551,7 +551,8 @@ def build_corvette(kit, rng, mats, preview):
     return plates, mounts
 
 
-def write_mounts(scene, mounts, image_path, json_path, seed):
+def write_mounts(scene, mounts, image_path, json_path, seed, ship="corvette",
+                 radius=MOUNT_RADIUS):
     """Write mount positions in Godot Sprite2D-local pixels: origin at the image centre,
     +x toward the nose, +y down. Multiply by the Sprite2D's scale to get node positions."""
     cam = scene.camera
@@ -564,11 +565,11 @@ def write_mounts(scene, mounts, image_path, json_path, seed):
     out = []
     for name, x, y, z in mounts:
         centre = to_px(Vector((x, y, z)))
-        edge = to_px(Vector((x + MOUNT_RADIUS, y, z)))
+        edge = to_px(Vector((x + radius, y, z)))
         out.append({"id": name, "x": round(centre.x, 1), "y": round(centre.y, 1),
                     "radius": round((edge - centre).length, 1), "facing_deg": 0.0})
     data = {
-        "ship": "corvette",
+        "ship": ship,
         "seed": seed,
         "image": os.path.basename(image_path),
         "width": w,
@@ -678,4 +679,5 @@ def main():
                  args.seed)
 
 
-main()
+if __name__ == "__main__":  # importable by the other hull scripts
+    main()

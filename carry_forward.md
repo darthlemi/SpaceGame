@@ -1,3 +1,55 @@
+# Carry-Forward - SpaceGame 2026-11-04 (combat crash fix, weapon frustums, click controls) - on main, committed, not pushed
+
+## Completed this session
+- `8556395` crash fix: `_is_surviving(ship: Ship)` in `combat_scene.gd` got ships freed earlier in
+  the battle (the report is deferred). The typed parameter rejected them before
+  `is_instance_valid` ran, so `_collect_survivor_data` returned nothing and every player ship was
+  reported lost. The parameter is now untyped. New "freed-ship report" test.
+- `e16d65e` weapon frustums. Every selected ship shows one per armed, intact mount:
+  - dashed sides, a solid range edge and a red diagonal hatch;
+  - all `#ffb347` at 20% opacity; 360-degree weapons draw as a circle;
+  - code: `FleetCommander._draw_frustums`, `frustum_mounts`, `frustum_polygon`,
+    `hatch_segments` (world-anchored lines clipped with `Geometry2D`);
+  - picked in the visual companion (`.superpowers\brainstorm\1985-1793813508\`).
+- `75e6711` combat clicks match the overworld:
+  - left click on an own ship selects it; left drag box-selects;
+  - left click on empty space moves the selection there; left click on an enemy attacks it;
+  - right click clears the selection;
+  - the flagship starts selected (`combat_scene._initial_selection`). The fallback is the first
+    deployed ship (flagship held back, or a quick battle).
+  - Input logic lives in `FleetCommander._on_left_release` / `_on_right_press`, which tests call
+    directly.
+- `38a6217` a drag box that catches nothing keeps the current selection.
+- Suite: only the known `test_campaign_long_run_sim` flake (6 failures), no SCRIPT ERROR.
+
+## Rules / conventions established
+- GDScript 4: a freed object fails ANY Object-typed parameter check (even `Object`), so a function
+  that guards with `is_instance_valid` must take an untyped parameter. Callers that filter
+  first (`can_engage`, `_is_active`) are safe.
+- Tests that kill every ship in one frame never see freed ships in deferred work. Free one, await
+  two frames, then end the battle.
+- Write stubs before a red run. A missing function is a parse error, which can hang the
+  `--script` run.
+- Screenshot script: await one `process_frame` before touching autoloads in `_initialize`.
+
+## Next steps
+1. **Unpushed:** `03e243d`..`38a6217` (17 commits). Push only when asked.
+2. **Playtest combat** with the new controls and frustums:
+   - weapon ranges: guns reach about half as far relative to the hulls;
+   - is the 20%-opacity red hatch visible on dark space? Tune it with `FRUSTUM_HATCH_COLOR`.
+3. **Capital selection ring:** the green 24 px `select_radius` circle is hidden under the capital
+   sprite. Existing behaviour; the user said it's fine for now. Fix it by scaling the ring to
+   the hull.
+4. **Known click limitation:** a left click within 24 px of an own ship selects it instead of
+   moving there.
+5. Everything in the two entries below is still open (stations into the game, station
+   follow-ups, ship art re-render, spawn stacking, VFX scale, theme gaps, minor review items).
+   The `_is_surviving` bug in the stations entry is fixed.
+6. **Untracked root files:** `images.jpg`, `images.jpg.import`, `MEMORY.md` and
+   `token-efficient-execution.md`. Leave them alone.
+
+---
+
 # Carry-Forward - SpaceGame 2026-11-04 (Blender kitbash stations) - on main, NOT committed
 
 ## Completed this session

@@ -111,3 +111,31 @@ cd art\blender; New-Item -ItemType Directory -Force "$env:TEMP\ships" | Out-Null
 Then copy the PNGs into `assets\sprites\ships\`. The scene `WeaponMount` and `Engine`
 positions were taken from that render's `.mounts.json` at these sizes. If the art or
 `--res` changes, re-check them in `scenes\ship\ship_*.tscn`.
+
+## Blender holo UI
+
+The theme's button and panel textures (`assets\sprites\ui\button_{normal,hover,pressed,disabled}.png`
+and `panel_frame.png`) are cobalt holo glass rendered by `art\blender\holo_ui.py`. It
+draws flat emissive quads under a 1 unit = 1 px orthographic camera, with glow built from
+falloff strips rather than the compositor. `art\src\ui_chrome.px.js` is retired: it no
+longer produces the shipped UI PNGs. The commodity icons are still pxl.
+
+```powershell
+cd art\blender; New-Item -ItemType Directory -Force "$env:TEMP\holo_ui" | Out-Null
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python holo_ui.py -- --out-dir "$env:TEMP\holo_ui"
+```
+
+Then copy the five PNGs into `assets\sprites\ui\`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--out-dir` | (required) | Where the five PNGs are written |
+| `--panel-alpha` | `0.8` | Panel glass opacity; raise it if text is hard to read over the map |
+| `--pressed-color` | `#eaf6ff` | Pressed fill, outline and glow colour |
+| `--samples` | `16` | Cycles samples |
+| `--verbose` | off | Per-texture timing and object counts |
+
+The 9-slice margins in `assets\ui\theme.tres` must match the script: `texture_margin` 6
+for the 24x24 buttons and 15 for the 66x66 panel. Everything that isn't a straight run
+(corners, brackets, glow) stays inside those margins, and the tiled centre is a whole
+number of pattern periods (6 px dashes, 3 px scanlines), so tiling never seams.

@@ -8,38 +8,68 @@
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_panel"]
 texture = ExtResource("1")
-texture_margin_left = 7.0
-texture_margin_top = 7.0
-texture_margin_right = 7.0
-texture_margin_bottom = 7.0
+texture_margin_left = 15.0
+texture_margin_top = 15.0
+texture_margin_right = 15.0
+texture_margin_bottom = 15.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_btn_normal"]
 texture = ExtResource("2")
-texture_margin_left = 10.0
-texture_margin_top = 8.0
-texture_margin_right = 10.0
-texture_margin_bottom = 8.0
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_btn_hover"]
 texture = ExtResource("3")
-texture_margin_left = 10.0
-texture_margin_top = 8.0
-texture_margin_right = 10.0
-texture_margin_bottom = 8.0
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_btn_pressed"]
 texture = ExtResource("4")
-texture_margin_left = 10.0
-texture_margin_top = 8.0
-texture_margin_right = 10.0
-texture_margin_bottom = 8.0
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_btn_disabled"]
 texture = ExtResource("5")
-texture_margin_left = 10.0
-texture_margin_top = 8.0
-texture_margin_right = 10.0
-texture_margin_bottom = 8.0
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
 
 [resource]
 Panel/styles/panel = SubResource("StyleBoxTexture_panel")
@@ -49,9 +79,9 @@ Button/styles/pressed = SubResource("StyleBoxTexture_btn_pressed")
 Button/styles/hover_pressed = SubResource("StyleBoxTexture_btn_pressed")
 Button/styles/disabled = SubResource("StyleBoxTexture_btn_disabled")
 Button/styles/focus = SubResource("StyleBoxTexture_btn_hover")
-Button/colors/font_color = Color(0.847059, 0.854902, 0.858824, 1)
-Button/colors/font_hover_color = Color(1, 0.231373, 0.231373, 1)
-Button/colors/font_pressed_color = Color(1, 0.231373, 0.231373, 1)
-Button/colors/font_hover_pressed_color = Color(1, 0.231373, 0.231373, 1)
-Button/colors/font_disabled_color = Color(0.345098, 0.337255, 0.286275, 1)
-Label/colors/font_color = Color(0.847059, 0.854902, 0.858824, 1)
+Button/colors/font_color = Color(0.623529, 0.815686, 1, 1)
+Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_pressed_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+Button/colors/font_disabled_color = Color(0.101961, 0.305882, 0.541176, 1)
+Label/colors/font_color = Color(0.623529, 0.815686, 1, 1)

@@ -1,3 +1,200 @@
+# Carry-Forward - SpaceGame 2026-11-04 (Blender kitbash stations) - on main, NOT committed
+
+## Completed this session
+- New `art\blender\kitbash_station.py` (imports `kitbash_corvette.py`). `--type`
+  arcs/cross/ring/spoke/truss, `--seed` (RNG seeded on `"<type>-<seed>"`), `--accent`
+  (blue/cyan/green/orange/red/violet/yellow), `--res` = longer side; the image is cropped to
+  the station's footprint. Flat faceted frustum blocks with a plate skin from
+  `kb.organic_partition`, neon strips and nav lights.
+- The user picked 16 seeds in the visual companion
+  (`.superpowers\brainstorm\1657-1793810235\`). Rendered at 72 px, cyan, transparent, into
+  `assets\sprites\stations\<type>_<seed>.png`, with `.import` files generated:
+  - arcs 1-3, cross 1-3, ring 2-4, spoke 2-4;
+  - truss 1, 3, 5 and 6.
+- `art\README.md` gains a "Stations" section with the pool re-render command.
+- Memory `station-art-direction.md` records the taste rules and the picks.
+
+## Rules / conventions established
+- Stations must read as habitable: blunt ends, no points. The `blade` pinwheel was dropped
+  as "way too sharp".
+- Every station part visibly connects to the frame (struts, collars, crossbeams or
+  overlap), and nav lights sit on solid metal.
+- Tile mixed-size renders with Blender's numpy: there's no PIL. The script was
+  `scratchpad\sheet.py` and isn't in the repo.
+
+## Next steps
+1. **Commit** `art\blender\kitbash_station.py`, `art\README.md` and
+   `assets\sprites\stations\` (PNGs and `.import` files). Awaiting the user's OK. Exclude the
+   `.import` churn on other sprites and the untracked root files.
+2. **Bug (user-reported, below):** `_is_surviving` in `combat_scene.gd` gets a freed ship.
+   The user thinks all their combat ships die.
+3. **Unrelated compile error:** `ESCAPE_SPEED_WEIGHT` isn't declared in
+   `scripts\combat\battle_resolution.gd:12`, which breaks `campaign_state.gd`. That file was
+   modified outside this session's work. Ask the user before touching it.
+4. **Stations into the game:** nothing uses the pool yet, and the three bases still use the
+   pxl sprites. The user deferred this until more bases exist.
+5. **Station follow-ups, when asked:**
+   - per-faction accent re-renders;
+   - more variety within a type (truss always puts the habitat at -X and the pier at +X);
+   - larger renders if stations are ever shown above ~72 px.
+6. Everything in the entry below is still open.
+
+---
+
+# Carry-Forward - SpaceGame 2026-11-04 (holo UI chrome implemented) - on main, committed, not pushed
+
+## bug Invalid type in function '_is_surviving' in base 'Node2D (combat_scene.gd)'. The Object-derived class of argument 1
+  (previously freed) is not a subclass of the expected argument class... I think all my combat ships die
+
+## Completed this session
+- `a78880a` click fix committed on its own (user approved).
+- `af0164c` `art\blender\holo_ui.py` renders the five 9-slice textures (24x24 buttons, margin 6;
+  66x66 panel, margin 15). `theme.tres` tiles them (`axis_stretch_* = 1`) with cobalt font
+  colours. New `tests\test_theme.gd` pins margins, tile modes and colours.
+- `485bc91` speed bar is one row `[||][1x][3x][5x]`, 150x37 at the same top-right corner. Pause
+  lights while paused; the resume speed gets the hover stylebox as a `normal` override.
+  `PausedLabel` and the `ButtonGroup` are gone.
+- `6b44e73` then `411b214`: scanlines halved, then removed entirely at the user's request.
+  Panels are plain dark glass.
+- Final whole-change review (Fable): no Critical/Important. Screenshots checked (combat
+  running/paused, campaign trade panel).
+
+## Rules / conventions established
+- Cycles composites stacked partial-alpha layers in linear light, so they come out brighter
+  than the sRGB CSS mockups. Single layers match the hex exactly.
+- 9-slice textures: only straight runs may cross into the tiled centre or edges. Keep glow
+  rings and brackets inside `texture_margin`.
+- Re-rendering in Blender changes PNG metadata bytes even when the pixels are identical.
+  Compare pixels (Godot `Image.get_data()`) and `git checkout` unchanged files before
+  committing.
+- A SCRIPT ERROR inside an async test aborts it without a FAIL line. The suite check must
+  also grep for `SCRIPT ERROR`.
+
+## Next steps
+1. **Minor review items, deferred:**
+   - `_show_speed` in `speed_controls.gd` sets or clears the stylebox override every frame.
+     Only touch it on a state change.
+   - Disabled-button dashes can show a partial dash when the tiled width isn't a multiple of
+     6 px. The README "never seams" wording overstates this.
+   - `test_speed_controls.gd` emits `pressed` without flipping `button_pressed` the way a real
+     toggle click does.
+   - Open question: should the resume-speed text go white while paused? Currently #9fd0ff.
+     The user said things seem OK for now.
+2. **Playtest combat:** weapon ranges haven't changed, so guns reach about half as far
+   relative to the hulls. Retune after the user plays a fight.
+3. **The user is updating the ship art** to match mount counts (capital 3 plates, freighter 0,
+   corvette 1). Re-render with the README `--res` values and re-place the mounts.
+4. **Spawn stacking:** fleets with more than 3 ships reuse the 3 spawn points
+   (`points[k % size]` in `_spawn_fleet_from_data`).
+5. **VFX scale:** `HitSpark`, `SmokeTrail` and `EngineTrail` particles are still the old size.
+6. **Theme gaps:** LineEdit (debug console), OptionButton and SpinBox still use the Godot
+   defaults.
+7. **Carried over from older entries:** shared module, freighter variants, neon glow,
+   background art, the Blender pipeline spec.
+8. **Unpushed:** `03e243d`..`411b214` (10 commits). Push only when asked.
+9. **Untracked root files:** `images.jpg`, `MEMORY.md` and `token-efficient-execution.md`.
+   Ask before deleting or committing them. Never commit the `.import` churn or the CRLF
+   noise in `project.godot` and `tests\test_campaign_scene_fleet_panel.gd`.
+
+---
+
+# Carry-Forward - SpaceGame 2026-11-04 (holo UI chrome: design + plan) - on main, plan ready
+
+## Completed this session
+- Brainstormed the UI redo in the visual companion
+  (`.superpowers\brainstorm\1387-1793804817\content\`). The user picked:
+  - **holo glass** (over the kitbash plate, heavy industrial and sleek tactical styles);
+  - **cobalt** lines (`#3f9fff` / `#1a4e8a`, text `#9fd0ff`);
+  - **white-hot** pressed (`#eaf6ff`) as the default, settable with the `--pressed-color`
+    flag. No magenta;
+  - speed bar **layout A**: one row `[||][1x][3x][5x]`, the pause button lights while
+    paused, the resume speed shows the hover look, and there's no PAUSED label.
+- **`d488681`:** the spec, `docs\superpowers\specs\2026-11-04-holo-ui-chrome-design.md`.
+  The builder check found nothing important.
+- **The plan:** `docs\superpowers\plans\2026-11-04-holo-ui-chrome.md`, two tasks:
+  - textures, theme and `test_theme.gd`;
+  - the compact speed bar.
+
+## Rules / conventions established
+- Blender UI renders: use the `Standard` view transform (AgX shifts the palette hex). Build
+  the glow from geometry, not the compositor Glare node, which drops the glow on a
+  transparent film. Turn denoising off and snap geometry to whole px.
+- 9-slice textures with patterns (scanlines, dashes) tile instead of stretching. The tiled
+  centre must be divisible by the pattern period.
+
+## Next steps (superseded by the entry above)
+1. **The user chose: implement the plan on main in a NEW session, natively,** with one
+   final whole-change review on the most capable model.
+2. **Before plan Task 2:** ask the user to approve committing the click fix
+   (`fleet_commander.gd`, `speed_controls.tscn`, `test_fleet_commander.gd`,
+   `test_speed_controls.gd`) on its own. Task 2 edits two of the same files.
+3. **Playtest combat ranges, ship art mount counts, spawn stacking, VFX scale and the
+   older carried items:** see items 4-10 of the entry below.
+
+---
+
+# Carry-Forward - SpaceGame 2026-11-04 (combat click fall-through fix) - on main, uncommitted
+
+## Completed this session
+- **Bug:** in combat, clicking the speed-controls panel over a ship raised
+  `ship_at_point: Left operand of 'is' is a previously freed instance`
+  (`fleet_commander.gd:112`). There were two causes:
+  - `FleetCommander.ship_at_point` evaluated `c is Ship` before `is_instance_valid(c)`.
+    `player_ships` deliberately keeps dead entries, because indices stay aligned with
+    `_player_spawned_indices` for survivor data. The guard order is now swapped.
+    `ships_in_rect` already checked validity first.
+  - The `Background` Panel in `scenes\ui\speed_controls.tscn` had `mouse_filter = 2`
+    (IGNORE), so clicks between the buttons fell through to `_unhandled_input` (fleet
+    selection in combat, the map in campaign). The override was removed, so the panel
+    now uses the Panel default, STOP.
+- **Tests:** added a freed-candidate case to `tests\test_fleet_commander.gd` and a
+  Background `MOUSE_FILTER_STOP` check to `tests\test_speed_controls.gd`. Both failed
+  before the fix and pass after it. The suite shows only the known `long_run_sim` flake
+  (6).
+- **Not committed:** the four files above are modified in the working tree.
+
+## Rules / conventions established
+- Call `is_instance_valid(x)` before `x is T` or any member access on a roster that can
+  hold freed nodes. In Godot 4, `is` on a freed instance is a script error, not `false`.
+- Any HUD panel drawn over the play area needs its background on `MOUSE_FILTER_STOP`, or
+  clicks fall through to world input.
+- In Git Bash, `sed -i` strips CRLF from the `.gd` files. Use a Python
+  `newline=''` patch instead, or restore CRLF afterwards.
+
+## Next steps (superseded by the entry above)
+1. **Commit the click fix** when asked (four files: `fleet_commander.gd`,
+   `speed_controls.tscn` and the two tests).
+2. **Requested by the user: redo the UI buttons and art in Blender.**
+   - The current chrome is pxl pixel art (`art\src\ui_chrome.px.js` and
+     `commodity_icons.px.js`, from `72fa583`). Its outputs are
+     `assets\sprites\ui\button_*.png`, `panel_frame.png` and
+     `assets\sprites\commodities\*.png`, wired through `assets\ui\theme.tres`
+     (project-wide `theme/custom`).
+   - Match the kitbash look: gunmetal, angled plates, neon accent.
+   - Likely a new `art\blender\` script that renders the 9-slice button and panel textures.
+     Keep the `theme.tres` margins in sync.
+3. **Requested by the user: make the speed controls smaller.** The panel is currently
+   165x121 at (950, 10), with a 1x/3x/5x row, a "Pause (Space)" button and a PAUSED label.
+   One option is a single compact row of icon buttons with pause folded in. Do this
+   together with item 2, so the new button art is sized for it.
+4. **Playtest combat:** weapon ranges and speeds haven't changed, so guns now reach about
+   half as far relative to the hulls. Retune after the user plays a fight.
+5. **The user is updating the ship art** to match mount counts (capital 3 plates,
+   freighter 0, corvette 1). Re-render with the README `--res` values and re-place the
+   mounts.
+6. **Spawn stacking:** fleets with more than 3 ships reuse the 3 spawn points
+   (`points[k % size]` in `_spawn_fleet_from_data`).
+7. **VFX scale:** `HitSpark`, `SmokeTrail` and `EngineTrail` particles are still the old
+   size.
+8. **Shared module, freighter variants, neon glow, background art, Blender pipeline
+   spec:** carried over from the older entries.
+9. **Unpushed:** `03e243d`, `7874f6d` and `b4e8893`. Push only when asked.
+10. **Untracked root files:** `images.jpg`, `MEMORY.md` and `token-efficient-execution.md`.
+    Ask before deleting or committing them. Never commit the `.import` churn or the CRLF
+    noise in `project.godot` and `tests\test_campaign_scene_fleet_panel.gd`.
+
+---
+
 # Carry-Forward - SpaceGame 2026-11-04 (kitbash ships in game + combat camera) - on main, committed, not pushed
 
 ## Completed this session
@@ -42,7 +239,7 @@
 - Warm passes create `images.jpg.import` for the untracked root reference. Delete it after
   each warm pass.
 
-## Next steps
+## Next steps (superseded by the entry above)
 1. **Playtest combat:** weapon ranges and speeds haven't changed, so guns now reach about
    half as far relative to the hulls. Retune after the user plays a fight.
 2. **The user is updating the art** to match mount counts (capital 3 plates, freighter 0,

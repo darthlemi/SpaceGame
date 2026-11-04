@@ -112,6 +112,35 @@ Then copy the PNGs into `assets\sprites\ships\`. The scene `WeaponMount` and `En
 positions were taken from that render's `.mounts.json` at these sizes. If the art or
 `--res` changes, re-check them in `scenes\ship\ship_*.tscn`.
 
+### Stations
+
+`art/blender/kitbash_station.py` generates space stations in the same gunmetal plate
+style. It imports `kitbash_corvette.py`. `--type` picks the archetype and `--seed`
+reshuffles counts, lengths and optional parts:
+
+- `arcs` — a broken ring of 3-4 arc segments on single spokes, with a lit halo inside;
+- `cross` — four arms of modules ending in radiator T-bars or docking heads;
+- `ring` — a faceted ring on single or twin spokes, an optional inner ring and docking
+  piers on the rim;
+- `spoke` — a big hub with 5-8 arms ending in hex pods and an optional tie ring;
+- `truss` — an asymmetric industrial rig: a twin-rail truss carrying a habitat, modules,
+  silos and cranes.
+
+`--accent` sets the neon colour (`blue`, `cyan` (default), `green`, `orange`, `red`,
+`violet` or `yellow`). It stands for the faction, so any type can wear any colour.
+`--res` is the longer image side, and the image is cropped to the station's footprint.
+There are no mounts and no `--preview` flames, and `--seed` defaults to 1.
+
+The station pool in `assets\sprites\stations\<type>_<seed>.png` is the 16 seeds picked
+on 2026-11-04: `arcs` 1-3, `cross` 1-3, `ring` 2-4, `spoke` 2-4 and `truss` 1, 3, 5 and 6.
+They are cyan and 72 px on the longer side, about the size of the current ~60 px bases
+at `Sprite2D` scale 1. To re-render the pool, run this from the project root:
+
+```powershell
+cd art\blender
+$pool = @{arcs = 1, 2, 3; cross = 1, 2, 3; ring = 2, 3, 4; spoke = 2, 3, 4; truss = 1, 3, 5, 6}; foreach ($t in $pool.Keys) { foreach ($s in $pool[$t]) { & "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python kitbash_station.py -- --out "$PWD\..\..\assets\sprites\stations\${t}_$s.png" --type $t --seed $s --res 72 } }
+```
+
 ## Blender holo UI
 
 The theme's button and panel textures (`assets\sprites\ui\button_{normal,hover,pressed,disabled}.png`

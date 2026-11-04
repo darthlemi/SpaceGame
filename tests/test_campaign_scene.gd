@@ -323,16 +323,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			await tree.process_frame
 
 	# Fix 4 coverage: CampaignScene._ready()'s loot-panel wiring -- when
-	# CampaignState.pending_loot_fleet is set before the scene loads, _ready()
+	# CampaignState.pending_loot is set before the scene loads, _ready()
 	# must open the LootPanel for it and clear the pending flag. Existing
-	# tests cover LootPanel.open_for and CampaignState.pending_loot_fleet in
+	# tests cover LootPanel.open_for and CampaignState.pending_loot in
 	# isolation, but not this specific wiring seam between them.
 	campaign_state.reset()
-	var loot_fleet := CampaignFleet.new()
-	loot_fleet.faction = CampaignFleet.Faction.DOMINION
-	loot_fleet.ship_compositions = [{"max_hp": 100.0, "current_hp": 0.0, "max_shield": 50.0, "current_shield": 0.0}]
-	loot_fleet.cargo = {Commodity.Type.ORE: 5.0}
-	campaign_state.pending_loot_fleet = loot_fleet
+	var loot_offer := LootOffer.new()
+	loot_offer.cargo = {Commodity.Type.ORE: 5.0}
+	campaign_state.pending_loot = loot_offer
 
 	var loot_scene: Node2D = CampaignSceneScene.instantiate()
 	tree.root.add_child(loot_scene)
@@ -340,9 +338,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.paused = false
 
 	if not loot_scene.loot_panel.visible:
-		failures.append("expected CampaignScene._ready() to open the LootPanel for a pending_loot_fleet set before the scene loaded")
-	if campaign_state.pending_loot_fleet != null:
-		failures.append("expected CampaignScene._ready() to clear pending_loot_fleet after opening the LootPanel for it")
+		failures.append("expected CampaignScene._ready() to open the LootPanel for a pending_loot set before the scene loaded")
+	if campaign_state.pending_loot != null:
+		failures.append("expected CampaignScene._ready() to clear pending_loot after opening the LootPanel for it")
 
 	campaign_state.reset()
 	loot_scene.queue_free()

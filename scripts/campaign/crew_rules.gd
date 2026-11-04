@@ -5,7 +5,6 @@ extends RefCounted
 const DEPLOY_MIN_CREW_FRACTION := 0.3
 const MIN_CREW_EFFICIENCY := 0.5
 const NPC_CREW_FLOOR := 1
-const CAPTURED_CREW_FRACTION := 0.2
 
 # Guards fraction * complement float noise (0.3 * 40 is 12.000000000000002) before rounding up.
 const ROUND_EPSILON := 0.0001

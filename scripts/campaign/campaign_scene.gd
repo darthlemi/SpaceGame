@@ -77,10 +77,9 @@ func _ready() -> void:
 		respawn_panel.open_for()
 		get_tree().paused = true
 
-	if CampaignState.pending_loot_fleet != null:
-		loot_panel.open_for(CampaignState.pending_loot_fleet, CampaignState.player_fleet, CampaignState.pending_captured_crew)
-		CampaignState.pending_captured_crew = 0
-		CampaignState.pending_loot_fleet = null
+	if CampaignState.pending_loot != null and not CampaignState.pending_loot.is_empty():
+		loot_panel.open_for(CampaignState.pending_loot, CampaignState.player_fleet)
+	CampaignState.pending_loot = null
 
 # The new ship appears docked at home base, exactly as on arrival (overview open, paused).
 func _on_respawn_finished() -> void:

@@ -308,8 +308,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		deploy_scene.queue_free()
 
 	# Destroyed ending: destroying every deployed enemy ship is a Victory; the enemy fleet is
-	# defeated and a share of its held-back crew is captured.
-	# TODO: Task 4 reworks the battle end and this crew capture.
+	# defeated.
+	# TODO: Task 4 reworks the battle end and adds captured ships to the loot.
 	campaign_state.reset()
 	var disable_player := CampaignFleet.new()
 	disable_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
@@ -328,20 +328,18 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if disable_scene.enemy_ships.size() != 2:
 		failures.append("destroyed ending: expected the 2 crewed capitals deployed and the reserve held back, got %d enemy ships" % disable_scene.enemy_ships.size())
-	# Only the held-back reserve (8 crew) is captured now that no ship is left alive.
-	var expected_captured := floori(CrewRules.CAPTURED_CREW_FRACTION * 8)
 	for ship in disable_scene.enemy_ships.duplicate():
 		ship.hull.apply_damage(ship.hull.max_hp)
 	if disable_scene.result_label.text != "Victory":
 		failures.append("destroyed ending: expected 'Victory' once every enemy ship is destroyed, got '%s'" % disable_scene.result_label.text)
-	# The returned campaign scene's _ready hands pending_captured_crew to its loot panel and
-	# resets it, so read the captured count from the panel instead.
-	var pending_captured_crew := -1
+	# The returned campaign scene's _ready opens its loot panel from pending_loot and clears it,
+	# so read the panel. This enemy carries no cargo or parts, so there is nothing to loot.
+	var loot_panel_visible := true
 	for i in 10:
 		await tree.process_frame
 		var returned_scene: Node = tree.current_scene
 		if returned_scene != null and returned_scene != disable_scene:
-			pending_captured_crew = returned_scene.loot_panel._captured_crew
+			loot_panel_visible = returned_scene.loot_panel.visible
 			tree.current_scene = null
 			if is_instance_valid(returned_scene) and not returned_scene.is_queued_for_deletion():
 				returned_scene.queue_free()
@@ -349,8 +347,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if campaign_state.enemy_fleets.has(disable_enemy):
 		failures.append("destroyed ending: expected the defeated enemy fleet removed from enemy_fleets")
-	if pending_captured_crew != expected_captured:
-		failures.append("destroyed ending: expected pending_captured_crew %d, got %d" % [expected_captured, pending_captured_crew])
+	if loot_panel_visible:
+		failures.append("destroyed ending: expected no loot window for an enemy with nothing to loot")
 	campaign_state.reset()
 	if is_instance_valid(disable_scene) and not disable_scene.is_queued_for_deletion():
 		disable_scene.queue_free()
@@ -496,7 +494,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("stalemate: expected both fleets intact, got %d player / %d enemy comps" % [campaign_state.player_fleet.ship_compositions.size(), stale_enemy.ship_compositions.size()])
 	if not campaign_state.enemy_fleets.has(stale_enemy):
 		failures.append("stalemate: expected the enemy fleet kept in enemy_fleets")
-	if campaign_state.pending_loot_fleet != null or campaign_state.pending_respawn:
+	if campaign_state.pending_loot != null or campaign_state.pending_respawn:
 		failures.append("stalemate: expected no loot and no respawn")
 	tree.paused = false
 	campaign_state.reset()

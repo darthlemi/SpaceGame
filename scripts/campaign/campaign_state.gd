@@ -21,8 +21,7 @@ const PIRATE_CREW_REGEN := 1
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
 var active_enemy_fleet: CampaignFleet
-var pending_loot_fleet: CampaignFleet = null
-var pending_captured_crew: int = 0
+var pending_loot: LootOffer = null
 var pending_respawn: bool = false
 var factions: Array[PowerFaction] = []
 var factions_at_war: bool = true
@@ -41,7 +40,7 @@ func start_engagement(enemy_fleet: CampaignFleet) -> void:
 	active_enemy_fleet = enemy_fleet
 
 # player_won defeats the enemy even when it keeps disabled or held-back ships.
-func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary], player_won: bool = false, captured_crew: int = 0) -> void:
+func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary], player_won: bool = false) -> void:
 	if player_fleet == null:
 		return
 	player_fleet.ship_compositions = player_survivors.duplicate(true)
@@ -52,10 +51,12 @@ func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Ar
 			enemy_fleets.erase(active_enemy_fleet)
 			_apply_reputation_loss(active_enemy_fleet.faction)
 			# A total loss respawns at home base; there is no one left to take the loot.
-			var lootable := active_enemy_fleet.cargo_total() > 0.0 or captured_crew > 0
-			if lootable and not player_fleet.is_destroyed():
-				pending_loot_fleet = active_enemy_fleet
-				pending_captured_crew = captured_crew
+			if not player_fleet.is_destroyed():
+				var offer := LootOffer.new()
+				offer.cargo = active_enemy_fleet.cargo.duplicate()
+				offer.parts.assign(active_enemy_fleet.part_inventory)
+				if not offer.is_empty():
+					pending_loot = offer
 		else:
 			CrewRules.balance(active_enemy_fleet.ship_compositions)
 	active_enemy_fleet = null
@@ -114,8 +115,7 @@ func reset() -> void:
 	player_fleet = null
 	enemy_fleets = []
 	active_enemy_fleet = null
-	pending_loot_fleet = null
-	pending_captured_crew = 0
+	pending_loot = null
 	pending_respawn = false
 	factions = []
 	factions_at_war = true

@@ -216,26 +216,15 @@ func _report_to_campaign() -> void:
 	var enemy_comps: Array[Dictionary] = CampaignState.active_enemy_fleet.ship_compositions
 	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices)
 	var enemy_survivors: Array[Dictionary] = []
-	var captured_crew := 0
-	if _player_won:
-		captured_crew = _captured_crew(enemy_comps)
-	else:
+	if not _player_won:
 		enemy_survivors = _collect_survivor_data(enemy_ships, enemy_comps, _enemy_spawned_indices)
-	CampaignState.resolve_engagement(player_survivors, enemy_survivors, _player_won, captured_crew)
+	CampaignState.resolve_engagement(player_survivors, enemy_survivors, _player_won)
 	if CampaignState.player_fleet == null:
 		return
 	# A total loss respawns at home base instead of ending the game.
 	if CampaignState.player_fleet.is_destroyed():
 		CampaignState.begin_respawn()
 	get_tree().change_scene_to_file("res://scenes/campaign/campaign_scene.tscn")
-
-# Held-back enemy comps are captured with the fleet.
-func _captured_crew(enemy_comps: Array[Dictionary]) -> int:
-	var pool := 0
-	for i in enemy_comps.size():
-		if not _enemy_spawned_indices.has(i):
-			pool += CrewRules.crew_of(enemy_comps[i])
-	return floori(CrewRules.CAPTURED_CREW_FRACTION * pool)
 
 # Keeps comp order: each spawned comp becomes its ship's state (or is dropped if lost)
 # and held-back comps pass through. Debug-spawned extras go last with no orig comp.

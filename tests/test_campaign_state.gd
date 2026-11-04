@@ -404,7 +404,7 @@ static func run() -> Array[String]:
 		failures.append("tick_economy: expected the reallocated fleet's role to now be COMBAT")
 
 	# resolve_engagement: a destroyed enemy fleet carrying cargo sets
-	# pending_loot_fleet; one with no cargo leaves it null.
+	# pending_loot; one with no cargo or parts leaves it null.
 	var loot_state := CampaignState.new()
 	var loot_player := CampaignFleet.new()
 	loot_player.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
@@ -415,8 +415,10 @@ static func run() -> Array[String]:
 	loot_state.enemy_fleets = [looted_enemy]
 	loot_state.start_engagement(looted_enemy)
 	loot_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [])
-	if loot_state.pending_loot_fleet != looted_enemy:
-		failures.append("resolve_engagement: expected pending_loot_fleet set to the destroyed cargo-carrying fleet")
+	if loot_state.pending_loot == null or loot_state.pending_loot.cargo.get(Commodity.Type.ORE, 0.0) != 5.0:
+		failures.append("resolve_engagement: expected pending_loot to carry the destroyed fleet's cargo")
+	elif not loot_state.pending_loot.ships.is_empty():
+		failures.append("resolve_engagement: expected no ships in the loot offer yet")
 
 	var no_loot_state := CampaignState.new()
 	var no_loot_player := CampaignFleet.new()
@@ -427,19 +429,29 @@ static func run() -> Array[String]:
 	no_loot_state.enemy_fleets = [empty_cargo_enemy]
 	no_loot_state.start_engagement(empty_cargo_enemy)
 	no_loot_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [])
-	if no_loot_state.pending_loot_fleet != null:
-		failures.append("resolve_engagement: expected pending_loot_fleet to stay null for a fleet with no cargo")
+	if no_loot_state.pending_loot != null:
+		failures.append("resolve_engagement: expected pending_loot to stay null for a fleet with no cargo")
 
-	loot_state.pending_loot_fleet = looted_enemy
-	loot_state.pending_captured_crew = 4
+	# Parts alone make an offer too.
+	var parts_state := CampaignState.new()
+	var parts_player := CampaignFleet.new()
+	parts_player.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	parts_state.player_fleet = parts_player
+	var parts_enemy := CampaignFleet.new()
+	parts_enemy.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
+	parts_enemy.part_inventory.assign(["res://resources/weapons/railgun.tres"])
+	parts_state.enemy_fleets = [parts_enemy]
+	parts_state.start_engagement(parts_enemy)
+	parts_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [])
+	if parts_state.pending_loot == null or parts_state.pending_loot.parts != ["res://resources/weapons/railgun.tres"]:
+		failures.append("resolve_engagement: expected pending_loot to carry the destroyed fleet's parts")
+
 	loot_state.reset()
-	if loot_state.pending_loot_fleet != null:
-		failures.append("reset: expected pending_loot_fleet cleared to null")
-	if loot_state.pending_captured_crew != 0:
-		failures.append("reset: expected pending_captured_crew cleared to 0, got %d" % loot_state.pending_captured_crew)
+	if loot_state.pending_loot != null:
+		failures.append("reset: expected pending_loot cleared to null")
 
 	# resolve_engagement player_won: the enemy is defeated even with ships left
-	# (disabled/held back), and captured crew alone makes it lootable.
+	# (disabled/held back); with nothing to carry it leaves no loot.
 	var won_state := CampaignState.new()
 	var won_player := CampaignFleet.new()
 	won_player.ship_compositions.assign([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}])
@@ -448,13 +460,11 @@ static func run() -> Array[String]:
 	won_enemy.ship_compositions.assign([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}])
 	won_state.enemy_fleets.assign([won_enemy])
 	won_state.start_engagement(won_enemy)
-	won_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [{"max_hp": 100.0, "current_hp": 40.0, "max_shield": 50.0, "current_shield": 0.0}], true, 3)
+	won_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [{"max_hp": 100.0, "current_hp": 40.0, "max_shield": 50.0, "current_shield": 0.0}], true)
 	if won_state.enemy_fleets.has(won_enemy):
 		failures.append("resolve_engagement(player_won): expected the enemy removed from enemy_fleets despite surviving ships")
-	if won_state.pending_loot_fleet != won_enemy:
-		failures.append("resolve_engagement(player_won): expected pending_loot_fleet set by captured crew alone")
-	if won_state.pending_captured_crew != 3:
-		failures.append("resolve_engagement(player_won): expected pending_captured_crew 3, got %d" % won_state.pending_captured_crew)
+	if won_state.pending_loot != null:
+		failures.append("resolve_engagement(player_won): expected no loot for an enemy with no cargo or parts")
 	if won_player.flagship_index() == -1:
 		failures.append("resolve_engagement: expected ensure_flagship to assign a flagship to the player fleet")
 
@@ -471,12 +481,12 @@ static func run() -> Array[String]:
 		{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0, "crew": 2},
 		{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0, "crew": 10},
 	]
-	lost_state.resolve_engagement(lost_player.ship_compositions, lost_enemy_survivors, false, 0)
+	lost_state.resolve_engagement(lost_player.ship_compositions, lost_enemy_survivors, false)
 	if not lost_state.enemy_fleets.has(lost_enemy):
 		failures.append("resolve_engagement(player loss): expected the surviving enemy fleet kept")
 	elif CrewRules.crew_of(lost_enemy.ship_compositions[0]) != 6 or CrewRules.crew_of(lost_enemy.ship_compositions[1]) != 6:
 		failures.append("resolve_engagement(player loss): expected enemy crew balanced to 6/6, got %s" % [lost_enemy.ship_compositions])
-	if lost_state.pending_loot_fleet != null or lost_state.pending_captured_crew != 0:
+	if lost_state.pending_loot != null:
 		failures.append("resolve_engagement(player loss): expected no loot pending")
 
 	# resolve_engagement mutual wipe: a total loss (respawn) never offers loot, even from a destroyed enemy.
@@ -490,7 +500,7 @@ static func run() -> Array[String]:
 	wipe_state.enemy_fleets.assign([wipe_enemy])
 	wipe_state.start_engagement(wipe_enemy)
 	wipe_state.resolve_engagement([], [])
-	if wipe_state.pending_loot_fleet != null or wipe_state.pending_captured_crew != 0:
+	if wipe_state.pending_loot != null:
 		failures.append("resolve_engagement(mutual wipe): expected no loot pending after a total loss")
 
 	# Station repair: is_damaged/repair_cost_for/repair_ship.

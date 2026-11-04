@@ -28,7 +28,26 @@ size_flags_vertical = 3
 [node name="RowsContainer" type="VBoxContainer" parent="Layout/RowsScroll"]
 size_flags_horizontal = 3
 
-[node name="CloseButton" type="Button" parent="Layout"]
+[node name="CrewRow" type="HBoxContainer" parent="Layout"]
+visible = false
+
+[node name="CrewLabel" type="Label" parent="Layout/CrewRow"]
+size_flags_horizontal = 3
+
+[node name="CrewSlider" type="HSlider" parent="Layout/CrewRow"]
+custom_minimum_size = Vector2(160, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 0.0
+step = 1.0
+
+[node name="ButtonsRow" type="HBoxContainer" parent="Layout"]
+
+[node name="TakeButton" type="Button" parent="Layout/ButtonsRow"]
+visible = false
 custom_minimum_size = Vector2(100, 0)
-size_flags_horizontal = 0
-text = "Close"
+text = "Take"
+
+[node name="CloseButton" type="Button" parent="Layout/ButtonsRow"]
+custom_minimum_size = Vector2(100, 0)
+text = "Leave"

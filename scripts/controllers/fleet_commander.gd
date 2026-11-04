@@ -78,7 +78,10 @@ func _issue_order(world_pos: Vector2) -> void:
 # own ship selects it, and any other click orders the selection there.
 func _on_left_release(start: Vector2, end: Vector2) -> void:
 	if start.distance_to(end) >= drag_threshold:
-		selected_ships = FleetCommander.ships_in_rect(ships, Rect2(start, Vector2.ZERO).expand(end))
+		# An empty box keeps the current selection rather than dropping it.
+		var boxed := FleetCommander.ships_in_rect(ships, Rect2(start, Vector2.ZERO).expand(end))
+		if not boxed.is_empty():
+			selected_ships = boxed
 	else:
 		var picked := FleetCommander.ship_at_point(ships, end, select_radius)
 		if picked != null:

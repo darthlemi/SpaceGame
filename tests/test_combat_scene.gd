@@ -343,6 +343,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	commander._on_left_release(second.global_position, second.global_position)
 	if commander.selected_ships != [second]:
 		failures.append("left click: expected clicking an own ship to select only it, got %s" % [commander.selected_ships])
+	commander._on_left_release(Vector2(900, 1000), Vector2(1000, 1100))
+	if commander.selected_ships != [second]:
+		failures.append("drag: expected an empty box to keep the current selection, got %s" % [commander.selected_ships])
 	var empty_point := Vector2(1000, 1100)
 	commander._on_left_release(empty_point, empty_point)
 	if commander.selected_ships != [second] or second.current_order == null or second.current_order.type != Order.Type.MOVE_TO or second.current_order.target_position != empty_point:

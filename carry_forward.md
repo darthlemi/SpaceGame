@@ -1,3 +1,67 @@
+# Carry-Forward - SpaceGame 2026-11-03 (art direction: Blender kitbash corvette) - on main, committed, not pushed
+
+## Completed this session
+- **Art direction:** neon on dark space ("Blade Runner meets FTL meets Cyberpunk 2077").
+  - The user rejected the pxl pixel ships because they had too little detail.
+  - Their reference is `images.jpg` in the project root (untracked): a dense, top-down
+    kitbash ship with a rendered look.
+- **Ship art source is now Blender 5.2** at
+  `C:\Program Files\Blender Foundation\Blender 5.2\`. It renders a procedural 3D kitbash
+  top-down in Cycles, in about 4s per ship.
+- **`e6bcd68`** adds `art\blender\kitbash_corvette.py` and a "Blender kitbash ships" section
+  in `art\README.md` (the run command and flags).
+  - The approved corvette is v9, seed 2, which is the default seed.
+  - A re-render was verified pixel-identical to the approved image. PNG hashes differ run
+    to run because of metadata only.
+  - `Loft`: hull sections swept along X through PCHIP stations, with the cross-section
+    profile `z = h(1-|t|^p)^q`. `q > 1` gives the SR-71-style chine.
+  - `organic_partition` plus `loft_quad`: the plates are the hull skin. Strips get slanted
+    cuts and a per-strip split across the width that follows the real width, so plates stay
+    between 1:1 and 2:1. Plate thickness tapers to nothing at the chine edge.
+  - A few stacked kitbash pieces (`armour` layer 1), plus turrets, vents and tanks.
+    Emissive neon trim and lights.
+  - No side boosters.
+- **Memory:** `ship-art-direction` records the taste rules learned over about nine rounds:
+  - what was rejected;
+  - one base color with small accents;
+  - plates that make up the hull;
+  - sparse detail;
+  - sleek tapers.
+- **Mockups** are in `.superpowers\brainstorm\1664-1793757329\content\` (gitignored):
+  - UI style options: pixel, neon vector, illustrated;
+  - corvette iterations v1-v9.
+
+## Rules / conventions established
+- Run Blender from PowerShell with `&`, not `start`. `start` is `Start-Process`, which
+  rejects `-b`.
+- Follow `ship-art-direction` for every new hull. Show seeds side by side in the visual
+  companion and let the user pick.
+
+## Next steps
+1. **Put the corvette in the game.**
+   - Pick the in-game sprite size and camera zoom: the current sprite is 42px, and the
+     detail needs about 150-300px.
+   - Render the transparent sprite (no `--preview`) over
+     `assets\sprites\ships\corvette.png`.
+   - Check the ship scene's scale and collision against the new silhouette.
+2. **Neon glow:** use Godot 2D glow (WorldEnvironment with HDR 2D). Engine flames become a
+   VFX; the flames in `--preview` are review-only.
+3. **Remaining hulls:** freighter (plus its cargo/fuel variants) and capital, each needing
+   its own hull recipe. When the second ship lands, move the shared
+   `Loft`/`Kit`/materials into a module and import it via `sys.path`.
+4. **Background art:** none exists yet (starfield, nebula).
+5. **Cyberpunk UI:** this was the original request (`assets\ui\theme.tres`) and is not
+   started. Style mockups were shown, but no direction was chosen.
+6. **Spec:** `docs\superpowers\specs\2026-10-31-pxl-art-pipeline-design.md` is superseded
+   for ships. Write a spec update once the Blender pipeline is formalized.
+7. **Unpushed commits:** `main` is 12 commits ahead of origin, including this entry. Push only when asked.
+8. **Untracked root files:** `images.jpg` (the reference), plus `MEMORY.md` and
+   `token-efficient-execution.md`, which look like misplaced copies of auto-memory. Ask
+   the user before deleting or committing them. Never commit the CRLF noise in
+   `project.godot` and `tests\test_campaign_scene_fleet_panel.gd`, or the `.import` churn.
+
+---
+
 # Carry-Forward - SpaceGame 2026-11-03 (combat AI: hunting idle ships + weapon-aware standoff) - on main, committed, not pushed
 
 ## Done (awaiting user playtest)

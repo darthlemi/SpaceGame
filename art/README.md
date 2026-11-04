@@ -49,5 +49,19 @@ Flags (after `--`):
 - `--seed` — default 2.
 - `--verbose` — prints build timing and part counts.
 
+Weapons are not rendered, because the game attaches them. Each mount shows as a bare grey
+plate, and the script writes `<out>.mounts.json` next to the PNG
+(`corvette.png` gives `corvette.mounts.json`). Each mount has these fields:
+
+- `id` — `dorsal`, `port_fore`, `port_aft`, `starboard_fore` or `starboard_aft`.
+- `x`, `y` — the position in Godot `Sprite2D`-local pixels, measured from the image centre,
+  with +x toward the nose and +y down. Multiply by the `Sprite2D` scale to get a
+  `WeaponMount` node's `position`.
+- `radius` — the plate radius in px.
+- `facing_deg` — 0 means the mount faces the nose.
+
+The JSON matches the image it was rendered with: `--res` and `--preview` change the framing,
+so a mounts file only applies to its own PNG.
+
 Use `&`, not `start`: in PowerShell `start` is `Start-Process`, which rejects
 Blender's `-b` flag.

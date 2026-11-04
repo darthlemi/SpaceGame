@@ -11,17 +11,21 @@ only; in-game those are VFX).
 Nose points +X (right) to match Ship.gd's rotation convention.
 """
 import argparse
+import json
 import logging
 import math
+import os
 import random
 import sys
 import time
 
 import bmesh
 import bpy
+from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
 LOG = logging.getLogger("kitbash")
+MOUNT_RADIUS = 0.34  # weapon attach plate, Blender units
 
 
 def parse_args():
@@ -518,16 +522,14 @@ def build_corvette(kit, rng, mats, preview):
         kit.cyl(-5.25, y, 0.5, 0.7, 0.3, m["bright"], r2=0.34)
         kit.cyl(-5.27, y, 0.5, 0.03, 0.22, m["engine"], bevel=0.0)
 
-    turrets = [(1.0, 0.0, top_z(dorsal, 1.0), m["red"])]
-    for side, sp in zip((1, -1), spon):
-        for tx, light in ((-0.8, m["yellow"]), (-2.8, m["magenta"])):
-            turrets.append((tx, sp.params(tx)[2], top_z(sp, tx), light))
-    for tx, ty, tz, light in turrets:
-        kit.cyl(tx, ty, tz - 0.06, 0.14, 0.34, m["dark"], axis="Z", bevel=0.02)
-        kit.box(tx + 0.05, ty, tz + 0.08, 0.55, 0.42, 0.22, m["hull"], bevel=0.04)
-        for by in (-0.09, 0.09):
-            kit.cyl(tx + 0.25, ty + by, tz + 0.2, 0.6, 0.045, m["bright"], segs=12, bevel=0.0)
-        kit.box(tx - 0.12, ty, tz + 0.3, 0.1, 0.1, 0.04, light, bevel=0.0)
+    # Weapon attach points: bare mount plates only. Weapons are attached in game, at the
+    # positions written to the mounts sidecar. +Y is port (left of the nose).
+    mounts = [("dorsal", 1.0, 0.0, top_z(dorsal, 1.0))]
+    for side, sp in zip(("port", "starboard"), spon):
+        for name, tx in (("fore", -0.8), ("aft", -2.8)):
+            mounts.append(("%s_%s" % (side, name), tx, sp.params(tx)[2], top_z(sp, tx)))
+    for _, tx, ty, tz in mounts:
+        kit.cyl(tx, ty, tz - 0.06, 0.14, MOUNT_RADIUS, m["dark"], axis="Z", bevel=0.02)
 
     # A few hardware modules on the flat crown of the sponsons, mirrored.
     for tx in rng.sample([-3.8, -3.4, -1.9, -1.5, 0.2], 3):
@@ -546,7 +548,38 @@ def build_corvette(kit, rng, mats, preview):
     if preview:
         for y in (0.0, 0.55, -0.55):
             kit.cyl(-7.6, y, 0.5, 2.35, 0.0, m["flame"], r2=0.22, bevel=0.0)
-    return plates
+    return plates, mounts
+
+
+def write_mounts(scene, mounts, image_path, json_path, seed):
+    """Write mount positions in Godot Sprite2D-local pixels: origin at the image centre,
+    +x toward the nose, +y down. Multiply by the Sprite2D's scale to get node positions."""
+    cam = scene.camera
+    w, h = scene.render.resolution_x, scene.render.resolution_y
+
+    def to_px(co):
+        ndc = world_to_camera_view(scene, cam, co)  # (0,0) = bottom-left of frame
+        return Vector((ndc.x * w - w / 2.0, (1.0 - ndc.y) * h - h / 2.0))
+
+    out = []
+    for name, x, y, z in mounts:
+        centre = to_px(Vector((x, y, z)))
+        edge = to_px(Vector((x + MOUNT_RADIUS, y, z)))
+        out.append({"id": name, "x": round(centre.x, 1), "y": round(centre.y, 1),
+                    "radius": round((edge - centre).length, 1), "facing_deg": 0.0})
+    data = {
+        "ship": "corvette",
+        "seed": seed,
+        "image": os.path.basename(image_path),
+        "width": w,
+        "height": h,
+        "coords": "pixels from image centre; +x = nose, +y = down (Godot Sprite2D local)",
+        "mounts": out,
+    }
+    with open(json_path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    LOG.info("wrote %s (%d mounts)", json_path, len(out))
 
 
 # ---------------------------------------------------------------- scene
@@ -620,14 +653,13 @@ def main():
         "dark": metal_mat("dark", "#34353a", rough=0.5),
         "bright": metal_mat("bright", "#b8bcc4", metal=0.9, rough=0.22, grime=0.9),
         "cyan": emit_mat("cyan", "#3ff2ff", 6.0),
-        "magenta": emit_mat("magenta", "#ff2bd6", 12.0),
         "red": emit_mat("red", "#ff3b3b", 14.0),
         "yellow": emit_mat("yellow", "#ffd23a", 10.0),
         "engine": emit_mat("engine", "#9ff8ff", 25.0),
         "flame": flame_mat("flame", "#ff9a3c", 14.0),
     }
     kit = Kit()
-    plates = build_corvette(kit, random.Random(args.seed), mats, args.preview)
+    plates, mounts = build_corvette(kit, random.Random(args.seed), mats, args.preview)
     if args.preview:
         bd = bpy.data.objects.new("backdrop", bpy.data.meshes.new("backdrop"))
         bm = bmesh.new()
@@ -642,6 +674,8 @@ def main():
     scene.render.filepath = args.out
     bpy.ops.render.render(write_still=True)
     LOG.info("wrote %s (render %.1fs)", args.out, time.perf_counter() - t1)
+    write_mounts(scene, mounts, args.out, os.path.splitext(args.out)[0] + ".mounts.json",
+                 args.seed)
 
 
 main()

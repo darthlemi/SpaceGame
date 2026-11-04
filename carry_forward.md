@@ -1,3 +1,78 @@
+# Carry-Forward - SpaceGame 2026-11-03 (Blender kitbash capital + freighter) - on main, committed, not pushed
+
+## Completed this session
+- **`a48c0b2` `art\blender\kitbash_capital.py`:** a low, faceted saucer with a bow slot. The
+  bridge prow wedge sits in the slot between two mandibles.
+  - Approved: `--hull slot`, seed 1 (both defaults). `bay` and `oval` are the rejected
+    alternatives, kept for comparison.
+  - 6 mounts, `MOUNT_RADIUS` 0.5: `port_` and `starboard_` × `fore` (mandibles), `mid`
+    (broadside) and `aft`.
+  - Mount z comes from `surface_z`, the highest skin across all lofts. Using only the body
+    surface buried the mounts under the mandibles.
+  - The outline is piecewise-linear (`OUTLINE`). `stations()` samples it densely, so the
+    PCHIP loft stays straight along each facet.
+  - Rounds: an ellipse was rejected as "balloon"; v3 added a faceted outline and half
+    height; v4 fixed the "bulbous" middle with a lower crown, a straight prow wedge and a
+    flat-topped (p=4) dorsal deck.
+- **`c9a2c05` `art\blender\kitbash_freighter.py`:** the reference is a container-ship
+  freighter (the user's `Downloads\images (1).jpg`, copied into the companion folder).
+  - Container bay on both sides of a flat keel, a faceted bow module (via `facet_loft`) and
+    a wider stern engine block. Cyan trim frames the bay.
+  - Approved: `--cargo muted`, seed 1 (both defaults). `--cargo mono` gives gunmetal
+    containers with the same layout, because paint uses its own `paint_rng`.
+  - `container()` builds one mesh per box: a flat-shaded triangle-wave ribbed roof
+    (`RIB_PITCH` 0.11; anything finer aliases away), top rails, end frames and dark corner
+    castings. 35% of slots hold a pair of 20ft boxes.
+  - 2 light-turret mounts (`dorsal_fore`, `dorsal_aft`, radius 0.3). This was my call,
+    since the old scene has no mounts; the user didn't object.
+- **Shared code:** both scripts `import kitbash_corvette as kb` via `sys.path`.
+  - `kitbash_corvette.py` now runs `main()` only under `__main__`.
+  - `write_mounts` now takes `ship=` and `radius=`.
+  - A corvette re-render is pixel-identical to the approved v15.
+- **`cc32472`:** added `__pycache__/` to `.gitignore`; the import creates one.
+- **`art\README.md`:** documents all three scripts, `--hull`/`--cargo`, and the per-ship
+  seed defaults.
+- **Memory:** `ship-art-direction` now covers the capital lesson: big hulls should be flat
+  and faceted, not round or tall.
+
+## Rules / conventions established
+- Show the user preview renders in the companion
+  (`.superpowers\brainstorm\1664-1793757329\content\`, server on port 64261) as
+  side-by-side options with mount overlays.
+- New hull blocks use faceted outlines with dense stations. A plain `Loft` with a few
+  stations and `p >= 2` comes out domed, and the user rejects that.
+- Detail has to read at sprite size: use geometry, not bump maps.
+
+## Next steps
+1. **Put the 3 ships in the game:** render transparent sprites over
+   `assets\sprites\ships\{corvette,capital,freighter}.png`.
+   - For each scene in `scenes\ship\ship_*.tscn`: set the `Sprite2D` scale for the size and
+     zoom, then the collision and hit radius (capital 34, freighter 22 today).
+   - Replace the `WeaponMount` nodes with the `.mounts.json` positions × the sprite scale.
+     Today the corvette has 1 mount, the capital 3 and the freighter 0.
+   - Still open: copy the mount values into the `.tscn` files or load the JSON at runtime.
+   - I asked the user at the end of this session; no answer yet.
+2. **Shared module:** move `Loft`, `Kit`, the materials, `organic_partition`/`shrink_quad`,
+   `setup_scene`, `write_mounts`, the backdrop, the `skin` closure (duplicated in the
+   capital and freighter), the `mats` dict and `lerp_table`/`facet_loft` into
+   `kitbash_common.py`.
+   - Verify all three scripts still render pixel-identical at their defaults.
+3. **Freighter variants:** `freighter_cargo` and `freighter_fuel` (sprites exist but
+   nothing uses them yet). Fuel could swap the containers for tanks. Ask the user whether
+   they're still wanted.
+4. **Neon glow:** Godot 2D glow (WorldEnvironment with HDR 2D). Engine flames become a VFX.
+5. **Background art** (starfield, nebula) and the **cyberpunk UI**
+   (`assets\ui\theme.tres`) haven't been started.
+6. **Spec:** `docs\superpowers\specs\2026-10-31-pxl-art-pipeline-design.md` is superseded
+   for ships. Write a Blender pipeline spec.
+7. **Unpushed commits:** `main` is 17 commits ahead of origin, plus this entry. Push only
+   when asked.
+8. **Untracked root files:** `images.jpg`, `MEMORY.md` and `token-efficient-execution.md`.
+   Ask the user before deleting or committing them. Never commit the `.import` churn or
+   the CRLF noise in `project.godot` and `tests\test_campaign_scene_fleet_panel.gd`.
+
+---
+
 # Carry-Forward - SpaceGame 2026-11-03 (art direction: Blender kitbash corvette) - on main, committed, not pushed
 
 ## Completed this session
@@ -50,7 +125,7 @@
   `.mounts.json`. A mounts file only matches the PNG it was rendered with, because
   `--res` and `--preview` change the framing.
 
-## Next steps
+## Next steps (superseded by the entry above)
 1. **Put the corvette in the game.**
    - Pick the in-game sprite size and camera zoom: the current sprite is 42px, and the
      detail needs about 150-300px.

@@ -147,6 +147,15 @@ static func _check_respawn(failures: Array[String]) -> void:
 		failures.append("respawn: expected 2 combat fleets back after the delay, got %d" % back.size())
 	elif back[0].system_id != "southdeep" or back[0].faction != CampaignFleet.Faction.PIRATE:
 		failures.append("respawn: expected a pirate fleet in southdeep")
+	# The timer restarts after a respawn: a fleet lost later waits a full delay again.
+	if not back.is_empty():
+		state.enemy_fleets.erase(back[0])
+		state.tick_economy(CampaignStateScript.ECONOMY_TICK_INTERVAL)
+		if state.station_fleets(den, COMBAT).size() != 1:
+			failures.append("respawn: expected a fleet lost after a respawn to stay gone one tick later, got %d" % state.station_fleets(den, COMBAT).size())
+		state.tick_economy(CampaignStateScript.FLEET_RESPAWN_DELAY)
+		if state.station_fleets(den, COMBAT).size() != 2:
+			failures.append("respawn: expected the lost fleet back after another full delay, got %d" % state.station_fleets(den, COMBAT).size())
 	state.free()
 
 static func _check_threat(failures: Array[String]) -> void:
@@ -187,6 +196,24 @@ static func _check_growth(failures: Array[String]) -> void:
 	state._apply_station_allocation(bastion)
 	if state.enemy_fleets.size() != fleets_before or combat.any(func(f): return f.ship_compositions.size() > FleetAllocationPolicy.MAX_SHIPS_PER_FLEET):
 		failures.append("growth: expected capped fleets to stay at %d ships with no new fleet" % FleetAllocationPolicy.MAX_SHIPS_PER_FLEET)
+	state.free()
+
+	# No combat fleets: a pirate next door must not block trade growth.
+	state = _fresh_state()
+	bastion = state.galaxy.station("bastion")
+	for fleet in state.station_fleets(bastion, COMBAT):
+		state.enemy_fleets.erase(fleet)
+	state.enemy_fleets.append(_strong_pirate("bastion"))
+	bastion.economy.deficit_streaks = {}
+	bastion.economy.surplus_streak = BaseEconomy.SURPLUS_STREAK_THRESHOLD
+	var trade_fleets: Array[CampaignFleet] = state.station_fleets(bastion, TRADER)
+	if trade_fleets.is_empty() or trade_fleets[0].ship_compositions.size() >= FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
+		failures.append("growth: test setup expected a Bastion trader under the ship cap")
+	else:
+		var trade_ships_before := trade_fleets[0].ship_compositions.size()
+		state._apply_station_allocation(bastion)
+		if trade_fleets[0].ship_compositions.size() != trade_ships_before + 1:
+			failures.append("growth: expected a combat-less station to grow trade despite pirates, %d -> %d ships" % [trade_ships_before, trade_fleets[0].ship_compositions.size()])
 	state.free()
 
 static func _check_trade_at(failures: Array[String]) -> void:
@@ -254,7 +281,7 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	if state.next_trade_destination(gr_trader) != "greenreach_fields":
 		failures.append("next_trade_destination: expected greenreach_fields from greenreach, got '%s'" % state.next_trade_destination(gr_trader))
 	# All scores 0 (Greenreach needs nothing): the nearest candidate wins.
-	state.galaxy.stations.append(_extra_station("near_post", "greenreach", CampaignFleet.Faction.NEUTRAL, greenreach.position + Vector2(20, 0), {}))
+	state.galaxy.add_station(_extra_station("near_post", "greenreach", CampaignFleet.Faction.NEUTRAL, greenreach.position + Vector2(20, 0), {}))
 	if state.next_trade_destination(gr_trader) != "near_post":
 		failures.append("next_trade_destination: expected the nearest candidate when every score is 0, got '%s'" % state.next_trade_destination(gr_trader))
 
@@ -269,9 +296,9 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	var b_trader: CampaignFleet = state.station_fleets(bastion, TRADER)[0]
 	b_trader.dest_station_id = "bastion"
 	var far_rich := _extra_station("far_rich", "bastion", CampaignFleet.Faction.NEUTRAL, bastion.position + Vector2(900, 900), {Commodity.Type.ORE: 1000.0})
-	state.galaxy.stations.append(far_rich)
-	state.galaxy.stations.append(_extra_station("pirate_hoard", "bastion", CampaignFleet.Faction.PIRATE, bastion.position, {Commodity.Type.ORE: 9000.0}))
-	state.galaxy.stations.append(_extra_station("enemy_hoard", "bastion", CampaignFleet.Faction.FREEHOLD, bastion.position, {Commodity.Type.ORE: 5000.0}))
+	state.galaxy.add_station(far_rich)
+	state.galaxy.add_station(_extra_station("pirate_hoard", "bastion", CampaignFleet.Faction.PIRATE, bastion.position, {Commodity.Type.ORE: 9000.0}))
+	state.galaxy.add_station(_extra_station("enemy_hoard", "bastion", CampaignFleet.Faction.FREEHOLD, bastion.position, {Commodity.Type.ORE: 5000.0}))
 	if state.next_trade_destination(b_trader) != "far_rich":
 		failures.append("next_trade_destination: expected the best-stocked friendly station, got '%s'" % state.next_trade_destination(b_trader))
 	state.factions_at_war = false
@@ -281,6 +308,22 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	far_rich.economy.stock = {}
 	if state.next_trade_destination(b_trader) != "bastion_yards":
 		failures.append("next_trade_destination: expected bastion_yards once far_rich is empty, got '%s'" % state.next_trade_destination(b_trader))
+
+	# A neutral trader (TRADER faction) only targets neutral stations, however rich the others are.
+	var bazaar: StationData = state.galaxy.station("aurum_bazaar")
+	var n_trader: CampaignFleet = state.station_fleets(bazaar, TRADER)[0]
+	n_trader.dest_station_id = "aurum_bazaar"
+	var rich: Dictionary = {}
+	for commodity in Commodity.Type.values():
+		rich[commodity] = 9000.0
+	state.galaxy.add_station(_extra_station("bazaar_player", bazaar.system_id, CampaignFleet.Faction.PLAYER, bazaar.position, rich.duplicate()))
+	state.galaxy.add_station(_extra_station("bazaar_freehold", bazaar.system_id, CampaignFleet.Faction.FREEHOLD, bazaar.position, rich.duplicate()))
+	state.galaxy.add_station(_extra_station("bazaar_dominion", bazaar.system_id, CampaignFleet.Faction.DOMINION, bazaar.position, rich.duplicate()))
+	state.galaxy.add_station(_extra_station("bazaar_post", bazaar.system_id, CampaignFleet.Faction.NEUTRAL, bazaar.position + Vector2(500, 500), {}))
+	state.factions_at_war = false
+	var neutral_target: StationData = state.galaxy.station(state.next_trade_destination(n_trader))
+	if neutral_target == null or neutral_target.owner != CampaignFleet.Faction.NEUTRAL:
+		failures.append("next_trade_destination: expected a neutral trader to pick a neutral station over richer ones, got '%s'" % (neutral_target.id if neutral_target != null else ""))
 	state.free()
 
 static func _check_crew_refill(failures: Array[String]) -> void:

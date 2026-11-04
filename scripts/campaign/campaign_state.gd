@@ -235,15 +235,18 @@ func _tier_of(station: StationData) -> int:
 	var sys: StarSystem = galaxy.system(station.system_id) if galaxy != null else null
 	return sys.tier if sys != null else DangerTier.MIN_TIER
 
-# Each tick past the delay brings back one fleet; the timer resets once the role is at quota.
+# A role under quota accumulates time; at the delay the whole deficit returns and the timer restarts.
 func _tick_station_respawns(station: StationData, elapsed: float) -> void:
 	for role in station.fleet_quota:
-		if station_fleets(station, role).size() >= station.fleet_quota[role]:
+		var deficit: int = station.fleet_quota[role] - station_fleets(station, role).size()
+		if deficit <= 0:
 			station.respawn_timers[role] = 0.0
 			continue
 		station.respawn_timers[role] = station.respawn_timers.get(role, 0.0) + elapsed
 		if station.respawn_timers[role] >= FLEET_RESPAWN_DELAY:
-			spawn_station_fleet(station, role)
+			for _i in deficit:
+				spawn_station_fleet(station, role)
+			station.respawn_timers[role] = 0.0
 
 # The flagship's deploy minimum is never billed or deserted, so the player can't be stranded.
 func flagship_floor(fleet: CampaignFleet) -> int:
@@ -620,8 +623,12 @@ func next_trade_destination(fleet: CampaignFleet) -> String:
 	var best_score := 0.0
 	var best_jumps := 0
 	var best_dist := 0.0
+	var neutral_trader := fleet.faction == CampaignFleet.Faction.TRADER
 	for station in galaxy.stations:
 		if station == home or not _is_trade_partner(fleet.faction, station.owner):
+			continue
+		# Neutral traders haul between neutral stations only.
+		if neutral_trader and station.owner != CampaignFleet.Faction.NEUTRAL:
 			continue
 		var jumps := galaxy.jump_distance(home.system_id, station.system_id)
 		if jumps < 0 or jumps > TRADE_RANGE_JUMPS:
@@ -658,7 +665,9 @@ func _is_trade_partner(fleet_faction: CampaignFleet.Faction, owner: CampaignFlee
 func _apply_station_allocation(station: StationData) -> void:
 	var combat_fleets := station_fleets(station, CampaignFleet.Role.COMBAT)
 	var trader_fleets := station_fleets(station, CampaignFleet.Role.TRADER)
-	var action := FleetAllocationPolicy.decide(_economic_health(station.economy), _threat_ratio_for(station), trader_fleets.size())
+	# No combat fleets means nothing to grow or reallocate into; skip the danger branch so trade can still grow.
+	var threat := _threat_ratio_for(station) if not combat_fleets.is_empty() else 0.0
+	var action := FleetAllocationPolicy.decide(_economic_health(station.economy), threat, trader_fleets.size())
 	match action:
 		FleetAllocationPolicy.Action.GROW_COMBAT:
 			_grow_station_fleet(combat_fleets, ShipType.Kind.CORVETTE)

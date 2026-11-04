@@ -199,7 +199,7 @@ static func run() -> Array[String]:
 	# away station's stock.
 	var dominion_home := _test_station("dominion_home", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
 	dominion_home.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
-	trade_route_state.galaxy.stations.append(dominion_home)
+	trade_route_state.galaxy.add_station(dominion_home)
 	player_home.economy.stock[Commodity.Type.ORE] = 30.0
 
 	var deficit_hauler := CampaignFleet.new()
@@ -276,7 +276,7 @@ static func run() -> Array[String]:
 		failures.append("run_npc_trade_at: expected no-op for a fleet with no known home station")
 
 	var null_economy_station := _test_station("null_economy", CampaignFleet.Faction.NEUTRAL, null)
-	trade_route_state.galaxy.stations.append(null_economy_station)
+	trade_route_state.galaxy.add_station(null_economy_station)
 	var null_economy_hauler := CampaignFleet.new()
 	null_economy_hauler.faction = CampaignFleet.Faction.TRADER
 	null_economy_hauler.role = CampaignFleet.Role.TRADER
@@ -1244,7 +1244,8 @@ static func _test_galaxy(stations: Array) -> Galaxy:
 	var sys := StarSystem.new()
 	sys.id = "test"
 	galaxy.systems[sys.id] = sys
-	galaxy.stations.assign(stations)
+	for st in stations:
+		galaxy.add_station(st)
 	return galaxy
 
 static func _test_station(id: String, owner: CampaignFleet.Faction, economy: BaseEconomy) -> StationData:

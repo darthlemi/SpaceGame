@@ -1,20 +1,21 @@
 class_name Galaxy
 extends RefCounted
 
-const MAX_TIER := 5
-
 var systems: Dictionary = {}
+# Read-only to callers: add through add_station so the id index stays in sync.
 var stations: Array[StationData] = []
 var start_system_id: String = ""
+var _stations_by_id: Dictionary = {}
 
 func system(id: String) -> StarSystem:
 	return systems.get(id)
 
+func add_station(st: StationData) -> void:
+	stations.append(st)
+	_stations_by_id[st.id] = st
+
 func station(id: String) -> StationData:
-	for st in stations:
-		if st.id == id:
-			return st
-	return null
+	return _stations_by_id.get(id)
 
 func stations_in(system_id: String) -> Array[StationData]:
 	var result: Array[StationData] = []
@@ -89,4 +90,4 @@ func assign_tiers() -> void:
 		if sys.tier_override > 0:
 			sys.tier = sys.tier_override
 		else:
-			sys.tier = clampi(jump_distance(start_system_id, id), 1, MAX_TIER)
+			sys.tier = clampi(jump_distance(start_system_id, id), DangerTier.MIN_TIER, DangerTier.MAX_TIER)

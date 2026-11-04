@@ -56,7 +56,8 @@ static func run() -> Array[String]:
 	var home := _station("home", "a", CampaignFleet.Faction.PLAYER)
 	var other := _station("other", "b", CampaignFleet.Faction.PIRATE)
 	var second := _station("second", "a", CampaignFleet.Faction.NEUTRAL)
-	galaxy.stations = [home, other, second]
+	for st in [home, other, second]:
+		galaxy.add_station(st)
 	var in_a := galaxy.stations_in("a")
 	if in_a.size() != 2 or not in_a.has(home) or not in_a.has(second):
 		failures.append("stations_in a: expected [home, second], got %d entries" % in_a.size())

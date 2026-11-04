@@ -112,7 +112,7 @@ static func build() -> Galaxy:
 		sys.map_position = entry["map"]
 		galaxy.systems[sys.id] = sys
 	for entry in STATIONS:
-		galaxy.stations.append(_make_station(entry))
+		galaxy.add_station(_make_station(entry))
 	for pair in LINKS:
 		galaxy.link(pair[0], pair[1])
 	galaxy.assign_tiers()

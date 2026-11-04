@@ -48,6 +48,12 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
    `docs\superpowers\specs\2026-11-04-<topic>-design.md`, run the builder check, then the plan.
 3. Confirm the guesses marked above when brainstorming sub-project 2.
 
+## Open ideas
+- **Neutral vs pirate station services:** what makes them different to visit (black-market
+  parts, bounties, smuggling, ...). User wants to revisit; v1 gives every base the same services.
+- **Off-screen simulation:** v1 simulates every system in full. May need abstract off-screen
+  simulation if the frame-time check fails or the galaxy grows.
+
 ## Repo state
 - **Unpushed:** `main` is 19 commits ahead of origin (`03e243d` onward). Push only when asked.
 - **Untracked root files:** `images.jpg` (the kitbash reference), `images.jpg.import`,

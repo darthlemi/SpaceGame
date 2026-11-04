@@ -1,3 +1,54 @@
+# Carry-Forward - SpaceGame 2026-11-04 (bigger fleets / bigger world: brainstorm) - mid-brainstorm, no spec yet
+
+## Completed this session
+- Brainstormed why combat feels underwhelming. The user brings 3 ships and enemies bring 1-2.
+  No code changed.
+- Findings in the current code:
+  - `FleetAllocationPolicy`: `MAX_FLEETS = 4` per faction, `MAX_SHIPS_PER_FLEET = 3`. Ships are
+    added one at a time, free, only on `GROW_COMBAT` (pirate threat) or `GROW_TRADE` (wealthy).
+  - New trade fleets start as one freighter (`CampaignState._grow_fleet`).
+  - Pirates never add ships, only crew (`PIRATE_CREW_REGEN`). No pirate base or economy.
+  - Factions have no credits: just a `BaseEconomy` stockpile and crew pool.
+  - The player has no hard ship cap. The 3 cap only applies in `_settle_player_defeat` captures.
+  - The campaign has no camera: a fixed 1152x648 view, fleets clamped to 4000x2400
+    (`campaign_fleet_icon.gd` `MAP_MIN`/`MAP_MAX`). Bases are hand-placed in `campaign_scene.gd`.
+  - Combat has 3 spawn points per side (`combat_scene.gd` `player_spawn_points` /
+    `enemy_spawn_points`).
+
+## Decisions (user's words, agreed in playbacks)
+- **Fleet size:** 4-10 ships for every faction's fleets (pirates, patrols, convoys).
+- **No hard cap:** a fleet's size is limited by what it can support in credits, crew and fuel.
+  Same rule for the player and the AI.
+- **AI cheats via discount:** AI pays for ships, crew and fuel like the player, but everything
+  costs less. My proposal (not explicitly confirmed): a credit treasury per faction, fed by its
+  economy and trade; one tunable discount (say 50%); crew from the base crew pool; fuel from the
+  base stockpile. Losses must be rebuilt by saving up, so fleets visibly shrink and regrow.
+- **Pirates become a full faction** with a base and economy. My guess, unconfirmed: they earn
+  mainly by raiding, and stay hostile to the power factions.
+- **Convoys:** freighters always travel with warship escorts. Bigger escorts on dangerous routes.
+  My guesses, unconfirmed: danger comes from enemy strength near the route; a convoy that can't
+  afford its escort waits in port.
+- **Map:** each faction owns several bases across its own territory, plus neutral stations in
+  between. The play area grows to fit, which needs a pan/zoom campaign camera. The 16-station
+  art pool (`assets\sprites\stations\`) gets used here.
+
+## Next steps
+1. **Open question to the user:** agree the order of the three sub-projects. My recommendation:
+   1. bigger map: campaign camera, multiple bases per faction, neutral stations, pirate base;
+   2. AI economy and fleets: treasuries, discounted costs, 4-10 ship fleets that grow and
+      shrink, escorted convoys;
+   3. big battles: formation spawning for 10 ships per side (replaces the 3 fixed slots;
+      supersedes "spawn stacking" below).
+   The alternative is bigger fights on the current map first.
+2. Continue brainstorming sub-project 1. Still to cover: hand-placed vs generated
+   layout, base count, what neutral stations offer, camera controls. Write
+   `docs\superpowers\specs\2026-11-04-<topic>-design.md`, run the builder check, then write the
+   plan.
+3. Confirm the guesses marked above when brainstorming sub-project 2.
+4. Everything in the entries below is still open.
+
+---
+
 # Carry-Forward - SpaceGame 2026-11-04 (combat crash fix, weapon frustums, click controls) - on main, committed, not pushed
 
 ## Completed this session

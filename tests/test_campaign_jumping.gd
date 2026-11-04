@@ -273,10 +273,13 @@ static func _check_switching_layers(tree: SceneTree, campaign_state, failures: A
 	# NPC arrivals move their icon too, without changing the visible layer.
 	var npc := _first_fleet(campaign_state, "kestrel_picket", CampaignFleet.Role.COMBAT)
 	var npc_icon := _icon_for(scene, npc)
+	scene._travel_target = npc_icon
 	npc.start_warp("bastion")
 	npc.warp_remaining = 0.05
 	for i in 10:
 		await tree.physics_frame
+	if scene._travel_target != null:
+		failures.append("switching layers: expected the player's travel target cleared when that NPC jumped away")
 	if npc.system_id != "bastion" or npc_icon.get_parent() != scene.layer_for("bastion"):
 		failures.append("switching layers: expected the NPC and its icon in bastion, fleet in %s" % npc.system_id)
 	if npc_icon.position.distance_to(npc.position) > 20.0 or not layer.visible:
@@ -340,6 +343,15 @@ static func _check_jump_map_blocked_by_modals(tree: SceneTree, campaign_state, f
 	if scene.jump_map_panel.visible or not tree.paused:
 		failures.append("modals: expected J on the open map to close it and keep the earlier pause")
 	tree.paused = false
+
+	# The Fleet button stays clickable under the map; it must not record the map's pause as its own.
+	scene._open_jump_map()
+	scene.fleet_status_bar.fleet_button.pressed.emit()
+	if scene.fleet_management_panel.visible:
+		failures.append("modals: expected the Fleet button ignored while the jump map is open")
+	scene.jump_map_panel.close_button.pressed.emit()
+	if tree.paused:
+		failures.append("modals: expected closing the map to leave the game unpaused after a Fleet press")
 
 	scene.engage_prompt.visible = true
 	scene._unhandled_input(j)

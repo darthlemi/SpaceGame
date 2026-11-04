@@ -457,6 +457,22 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if held_scene.player_ships.size() != 1:
 		failures.append("held-back defeat: expected 1 player ship deployed, got %d" % held_scene.player_ships.size())
+	# Speeds fed to the escape roll: spawned ships use their live engine, held-back comps the crew-scaled top speed.
+	var held_speeds: Array[float] = []
+	held_scene._collect_survivor_data(held_scene.player_ships, held_player.ship_compositions, held_scene._player_spawned_indices, held_speeds)
+	if held_speeds.size() != 2:
+		failures.append("held-back speeds: expected 2 speeds, got %s" % [held_speeds])
+	else:
+		if not is_equal_approx(held_speeds[0], held_scene.player_ships[0].engine.effective_max_speed()):
+			failures.append("held-back speeds: expected the deployed ship's live engine speed, got %s" % held_speeds[0])
+		if not is_equal_approx(held_speeds[1], ShipType.base_speed_for(ShipType.Kind.CORVETTE) * 0.625):
+			failures.append("held-back speeds: expected the held-back corvette at base * 0.625 (crew 3 of 12), got %s" % held_speeds[1])
+	if held_scene.enemy_ships.size() == 1:
+		if not is_equal_approx(held_scene._pursuer_speed(held_scene.enemy_ships), held_scene.enemy_ships[0].engine.effective_max_speed()):
+			failures.append("pursuer speed: expected the winner ship's live engine speed")
+		var no_pursuers: Array[Ship] = []
+		if held_scene._pursuer_speed(no_pursuers) != 0.0:
+			failures.append("pursuer speed: expected 0 with no winner ships")
 	for ship in held_scene.player_ships.duplicate():
 		ship.hull.apply_damage(ship.hull.max_hp)
 	if held_scene.result_label.text != "Defeat":

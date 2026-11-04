@@ -5,7 +5,7 @@ var _offer: LootOffer
 var _player_fleet: CampaignFleet
 var _rows: Dictionary = {}
 
-# One entry per offered ship, in offer.ships order: {"keep_check": CheckBox, "label": Label}.
+# One entry per offered ship, in offer.ships order: {"box": Control, "keep_check": CheckBox, "label": Label}.
 var ship_rows: Array[Dictionary] = []
 # One entry per offered part still on the table: {"path": String, "box": Control, "take_button": Button}.
 var part_rows: Array[Dictionary] = []
@@ -95,7 +95,7 @@ func _add_ship_row(comp: Dictionary) -> void:
 	row_box.add_child(keep_check)
 	row_box.add_child(label)
 	rows_container.add_child(row_box)
-	ship_rows.append({"keep_check": keep_check, "label": label})
+	ship_rows.append({"box": row_box, "keep_check": keep_check, "label": label})
 
 func _add_part_row(path: String) -> void:
 	var row_box := HBoxContainer.new()
@@ -178,7 +178,8 @@ func _on_take_pressed(commodity: int) -> void:
 	_player_fleet.cargo[commodity] = _player_fleet.cargo.get(commodity, 0.0) + 1.0
 	refresh()
 
-# Captured ships join empty; the slider's crew is then spread over the whole fleet.
+# Captured ships join empty; the slider's crew is then spread over the whole fleet. The panel
+# stays open so untaken cargo and parts can still be taken, now with the new capacity.
 func _on_take_ships_pressed() -> void:
 	var crew := mini(int(crew_slider.value), _crew_cap())
 	for comp in _kept_comps():
@@ -188,4 +189,8 @@ func _on_take_ships_pressed() -> void:
 		_player_fleet.ship_compositions.append(copy)
 	CrewRules.add_crew(_player_fleet.ship_compositions, crew)
 	_player_fleet.ensure_flagship()
-	close()
+	for row in ship_rows:
+		row["box"].visible = false
+	crew_row.visible = false
+	take_button.visible = false
+	refresh()

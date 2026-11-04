@@ -68,8 +68,10 @@ static func balance(comps: Array[Dictionary]) -> void:
 static func comp_top_speed(comp: Dictionary) -> float:
 	var base := ShipType.base_speed_for(ShipType.kind_of(comp))
 	var engine_path: String = comp.get("engine_item", "")
-	if engine_path != "":
-		base = load(engine_path).max_speed
+	if engine_path != "" and ResourceLoader.exists(engine_path):
+		var item: Resource = load(engine_path)
+		if item != null and "max_speed" in item:
+			base = item.max_speed
 	var engine_max: float = comp.get("engine_max_hp", 0.0)
 	var engine_fraction := 1.0
 	if engine_max > 0.0:
@@ -95,6 +97,7 @@ static func deploy_indices(comps: Array[Dictionary]) -> Array[int]:
 		if wants_deploy(comps[i]) and crew_of(comps[i]) >= deploy_min_for(complement(comps[i])):
 			result.append(i)
 	if not result.is_empty():
+		_ensure_armed(comps, result)
 		return result
 	# The fallback prefers an armed ship so the fleet can still fight.
 	var best := _highest_crew_index(comps, true, true)
@@ -186,6 +189,16 @@ static func set_ship_crew(comps: Array[Dictionary], index: int, target: int) -> 
 
 static func wants_deploy(comp: Dictionary) -> bool:
 	return comp.get("deploy", true)
+
+# An unarmed-only deploy set would lose instantly, so the best armed ship joins it.
+static func _ensure_armed(comps: Array[Dictionary], result: Array[int]) -> void:
+	for i in result:
+		if is_armed(comps[i]):
+			return
+	var best := _highest_crew_index(comps, false, true)
+	if best != -1:
+		result.append(best)
+		result.sort()
 
 static func _flagship_index(comps: Array[Dictionary]) -> int:
 	for i in comps.size():

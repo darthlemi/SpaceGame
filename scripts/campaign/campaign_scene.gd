@@ -357,6 +357,8 @@ func _physics_process(delta: float) -> void:
 			_mouse_held = false
 
 func _on_engage_pressed() -> void:
+	if engage_prompt.get_node("EngageButton").disabled:
+		return
 	if _pending_enemy_icon == null:
 		engage_prompt.visible = false
 		return

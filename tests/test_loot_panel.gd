@@ -152,8 +152,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("LootPanel: expected the captured ship not to be a flagship")
 		if ship_player.crew_total() != 17:
 			failures.append("LootPanel: expected 17 total crew after Take, got %d" % ship_player.crew_total())
-		if panel.visible:
-			failures.append("LootPanel: expected the panel closed after Take")
+		if not panel.visible:
+			failures.append("LootPanel: expected the panel to stay open after Take")
 
 	# The slider max is set on open, before any Keep toggle, and follows a reopened offer.
 	var berth_player := _full_player()
@@ -168,6 +168,36 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	panel.open_for(small_offer, berth_player)
 	if panel.crew_slider.max_value != 2.0:
 		failures.append("LootPanel: expected max 2 after reopening with a smaller offer, got %s" % panel.crew_slider.max_value)
+
+	# Fractional loot is not worth opening a panel for.
+	var dust_offer := LootOffer.new()
+	dust_offer.cargo = {Commodity.Type.ORE: 0.5}
+	if not dust_offer.is_empty():
+		failures.append("LootOffer: expected an offer with only 0.5 ore to be empty")
+
+	# Take keeps the panel open: a kept freighter's capacity lets the cargo rows work.
+	var cargo_player := _full_player()
+	cargo_player.cargo[Commodity.Type.ORE] = cargo_player.cargo_capacity()
+	var cargo_offer := LootOffer.new()
+	cargo_offer.ships.assign([_comp(ShipType.Kind.FREIGHTER, 3)])
+	cargo_offer.cargo = {Commodity.Type.ORE: 30.0}
+	panel.open_for(cargo_offer, cargo_player)
+	var cargo_row: Dictionary = panel._rows[Commodity.Type.ORE]
+	if not cargo_row["take_button"].disabled:
+		failures.append("LootPanel: expected the ore Take disabled while the hold is full")
+	panel.ship_rows[0]["keep_check"].button_pressed = true
+	panel.take_button.pressed.emit()
+	if not panel.visible:
+		failures.append("LootPanel: expected the panel to stay open after taking ships")
+	if panel.crew_row.visible or panel.take_button.visible:
+		failures.append("LootPanel: expected the crew row and ship Take hidden after taking ships")
+	if cargo_row["take_button"].disabled:
+		failures.append("LootPanel: expected the ore Take enabled once the kept freighter added capacity")
+	for _i in 30:
+		cargo_row["take_button"].pressed.emit()
+	if cargo_offer.cargo[Commodity.Type.ORE] != 0.0 or cargo_player.cargo[Commodity.Type.ORE] != 50.0:
+		failures.append("LootPanel: expected all 30 ore taken after Take, got offer %s player %s" % [cargo_offer.cargo[Commodity.Type.ORE], cargo_player.cargo[Commodity.Type.ORE]])
+	panel.close()
 
 	# Leave: nothing is taken.
 	var leave_offer := _ship_offer()

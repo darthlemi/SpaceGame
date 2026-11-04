@@ -15,6 +15,6 @@ func crew_pool() -> int:
 
 func is_empty() -> bool:
 	for amount in cargo.values():
-		if amount > 0.0:
+		if amount >= 1.0:
 			return false
 	return parts.is_empty() and ships.is_empty()

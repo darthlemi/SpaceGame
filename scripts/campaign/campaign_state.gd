@@ -435,7 +435,7 @@ func _settle_enemy_defeat(enemy: CampaignFleet, escapers: Array[Dictionary], cap
 	if not offer.is_empty():
 		pending_loot = offer
 
-# Captured comps keep their crew; extras past the fleet cap are scuttled.
+# Captured comps keep their crew and bring their cargo share; extras past the fleet cap are scuttled.
 func _settle_player_defeat(enemy: CampaignFleet, enemy_survivors: Array[Dictionary], captured: Array[Dictionary]) -> void:
 	var comps: Array[Dictionary] = enemy_survivors.duplicate(true)
 	for comp in captured:
@@ -443,11 +443,26 @@ func _settle_player_defeat(enemy: CampaignFleet, enemy_survivors: Array[Dictiona
 			break
 		var taken: Dictionary = comp.duplicate(true)
 		taken["flagship"] = false
+		taken["deploy"] = true
 		comps.append(taken)
 	if comps.is_empty():
 		# Mutual wipe: the enemy is gone too.
 		_settle_enemy_defeat(enemy, comps, [])
 		return
+	# Symmetric to an enemy defeat: the captured ships' share of the player's cargo goes to the enemy.
+	var holdings := CampaignFleet.new()
+	holdings.ship_compositions.assign(player_fleet.ship_compositions + captured)
+	holdings.cargo = player_fleet.cargo
+	holdings.part_inventory = player_fleet.part_inventory
+	var captured_indices: Array[int] = []
+	for i in captured.size():
+		captured_indices.append(player_fleet.ship_compositions.size() + i)
+	var split := BattleResolution.split_cargo(holdings, captured_indices)
+	player_fleet.cargo = split["kept_cargo"]
+	player_fleet.part_inventory.assign(split["kept_parts"])
+	for commodity in split["loot_cargo"]:
+		enemy.cargo[commodity] = enemy.cargo.get(commodity, 0.0) + split["loot_cargo"][commodity]
+	enemy.part_inventory.append_array(split["loot_parts"])
 	enemy.ship_compositions = comps
 	CrewRules.balance(enemy.ship_compositions)
 

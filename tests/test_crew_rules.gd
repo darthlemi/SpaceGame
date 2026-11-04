@@ -102,6 +102,20 @@ static func run() -> Array[String]:
 	if CrewRules.deploy_indices(empty_fleet) != []:
 		failures.append("deploy_indices: expected [] for an empty fleet")
 
+	# An unarmed-only deploy set gains the highest-crew armed ship.
+	var freighter_only: Array[Dictionary] = [_ship(ShipType.Kind.FREIGHTER, 6), _ship(ShipType.Kind.CORVETTE, 3)]
+	if CrewRules.deploy_indices(freighter_only) != [0, 1]:
+		failures.append("deploy_indices: expected [0, 1] (freighter plus the armed corvette added), got %s" % [CrewRules.deploy_indices(freighter_only)])
+	var no_armed: Array[Dictionary] = [_ship(ShipType.Kind.FREIGHTER, 6), _ship(ShipType.Kind.FREIGHTER, 1)]
+	if CrewRules.deploy_indices(no_armed) != [0]:
+		failures.append("deploy_indices: expected [0] unchanged for a fleet with no armed ship, got %s" % [CrewRules.deploy_indices(no_armed)])
+
+	# comp_top_speed: a missing engine resource falls back to the base speed.
+	var bad_engine := _ship(ShipType.Kind.CORVETTE, 12)
+	bad_engine["engine_item"] = "res://does/not/exist.tres"
+	if not is_equal_approx(CrewRules.comp_top_speed(bad_engine), ShipType.base_speed_for(ShipType.Kind.CORVETTE)):
+		failures.append("comp_top_speed: expected the base speed for a missing engine path, got %s" % CrewRules.comp_top_speed(bad_engine))
+
 	# add_crew
 	var add_fleet: Array[Dictionary] = [_ship(ShipType.Kind.CORVETTE, 6), _ship(ShipType.Kind.FREIGHTER, 6)]
 	var added := CrewRules.add_crew(add_fleet, 10)

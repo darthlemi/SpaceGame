@@ -531,6 +531,7 @@ static func run() -> Array[String]:
 	var taken_state := CampaignState.new()
 	var taken_flagship := ShipType.new_composition(ShipType.Kind.CAPITAL)
 	taken_flagship["flagship"] = true
+	taken_flagship["deploy"] = false
 	var taken_corvette := ShipType.new_composition(ShipType.Kind.CORVETTE)
 	var taken_escaper := ShipType.new_composition(ShipType.Kind.FREIGHTER)
 	var taken_player := CampaignFleet.new()
@@ -547,12 +548,35 @@ static func run() -> Array[String]:
 		failures.append("resolve_engagement(player loss): expected the enemy capped at %d ships, got %d" % [FleetAllocationPolicy.MAX_SHIPS_PER_FLEET, taken_enemy.ship_compositions.size()])
 	elif ShipType.kind_of(taken_enemy.ship_compositions[2]) != ShipType.Kind.CAPITAL or CrewRules.is_flagship(taken_enemy.ship_compositions[2]):
 		failures.append("resolve_engagement(player loss): expected the captured capital appended with its flagship flag cleared, got %s" % taken_enemy.ship_compositions[2])
+	if taken_enemy.ship_compositions.size() > 2 and not CrewRules.wants_deploy(taken_enemy.ship_compositions[2]):
+		failures.append("resolve_engagement(player loss): expected the captured capital to deploy for its new fleet")
 	if taken_player.ship_compositions.size() != 1 or ShipType.kind_of(taken_player.ship_compositions[0]) != ShipType.Kind.FREIGHTER:
 		failures.append("resolve_engagement(player loss): expected the player left with the escaped freighter")
 	elif taken_player.flagship_index() != 0:
 		failures.append("resolve_engagement(player loss): expected ensure_flagship to promote the escaped freighter")
 	if taken_state.pending_loot != null:
 		failures.append("resolve_engagement(player loss): expected no loot")
+
+	# Player loss splits the player's cargo by captured capacity: the share goes to the enemy.
+	var split_state := CampaignState.new()
+	var split_capital := ShipType.new_composition(ShipType.Kind.CAPITAL)
+	split_capital["flagship"] = true
+	var split_freighter := ShipType.new_composition(ShipType.Kind.FREIGHTER)
+	var split_player := CampaignFleet.new()
+	split_player.ship_compositions.assign([split_capital, split_freighter])
+	split_player.cargo = {Commodity.Type.ORE: 80.0}
+	split_state.player_fleet = split_player
+	var split_enemy := CampaignFleet.new()
+	split_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	split_state.enemy_fleets.assign([split_enemy])
+	split_state.start_engagement(split_enemy)
+	var split_escapers: Array[Dictionary] = [split_capital]
+	var split_captured: Array[Dictionary] = [split_freighter]
+	split_state.resolve_engagement(split_escapers, split_enemy.ship_compositions.duplicate(true), false, split_captured)
+	if not is_equal_approx(split_enemy.cargo.get(Commodity.Type.ORE, 0.0), 60.0):
+		failures.append("resolve_engagement(player loss): expected the enemy to gain 60 ore, got %s" % split_enemy.cargo.get(Commodity.Type.ORE, 0.0))
+	if not is_equal_approx(split_player.cargo.get(Commodity.Type.ORE, 0.0), 20.0):
+		failures.append("resolve_engagement(player loss): expected the player to keep 20 ore, got %s" % split_player.cargo.get(Commodity.Type.ORE, 0.0))
 
 	# resolve_engagement player loss: a surviving enemy fleet stays and its crew is rebalanced.
 	var lost_state := CampaignState.new()

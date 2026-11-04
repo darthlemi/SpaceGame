@@ -90,6 +90,14 @@ static func run() -> Array[String]:
 	var none_want: Array[Dictionary] = [_ship(ShipType.Kind.CORVETTE, 12, false), _ship(ShipType.Kind.CAPITAL, 40, false, true)]
 	if CrewRules.deploy_indices(none_want) != [1]:
 		failures.append("deploy_indices: expected flagship [1] when none want to deploy, got %s" % [CrewRules.deploy_indices(none_want)])
+	# Neither meets its minimum (freighter 2, corvette 4): the armed corvette goes despite its flag.
+	var unarmed_wanted: Array[Dictionary] = [_ship(ShipType.Kind.FREIGHTER, 1), _ship(ShipType.Kind.CORVETTE, 3, false)]
+	if CrewRules.deploy_indices(unarmed_wanted) != [1]:
+		failures.append("deploy_indices: expected the armed corvette [1] over the unarmed wanted freighter, got %s" % [CrewRules.deploy_indices(unarmed_wanted)])
+	# An armed wanted ship beats a higher-crew armed unwanted one.
+	var armed_wanted: Array[Dictionary] = [_ship(ShipType.Kind.CAPITAL, 11, false), _ship(ShipType.Kind.CORVETTE, 3), _ship(ShipType.Kind.FREIGHTER, 1)]
+	if CrewRules.deploy_indices(armed_wanted) != [1]:
+		failures.append("deploy_indices: expected the armed wanted corvette [1], got %s" % [CrewRules.deploy_indices(armed_wanted)])
 	var empty_fleet: Array[Dictionary] = []
 	if CrewRules.deploy_indices(empty_fleet) != []:
 		failures.append("deploy_indices: expected [] for an empty fleet")

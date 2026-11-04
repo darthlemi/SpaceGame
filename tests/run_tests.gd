@@ -41,6 +41,7 @@ func _run_all() -> void:
 		preload("res://tests/test_shield_generator.gd"),
 		preload("res://tests/test_engine_core.gd"),
 		preload("res://tests/test_skirmish_resolution.gd"),
+		preload("res://tests/test_battle_resolution.gd"),
 		preload("res://tests/test_refit_catalog.gd"),
 	]
 	var total_failures := 0

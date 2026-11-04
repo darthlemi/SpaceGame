@@ -5,6 +5,7 @@ const HomeBaseScene = preload("res://scenes/campaign/home_base.tscn")
 const FactionBaseScene = preload("res://scenes/campaign/faction_base.tscn")
 const CampaignFleet = preload("res://scripts/campaign/campaign_fleet.gd")
 
+const ENGAGE_BLOCKED_TEXT := "Neither fleet can fight"
 const HOME_BASE_POSITION := Vector2(600, 400)
 const PLAYER_STARTING_FUEL := 30.0
 # Bases start below housing capacity so population has room to grow.
@@ -29,6 +30,7 @@ var _travel_target: Area2D = null
 var _docked_base: Area2D = null
 var _home_base: Area2D = null
 var _paused_before_fleet_panel: bool = false
+var _engage_prompt_text: String = ""
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -57,6 +59,7 @@ func _ready() -> void:
 		_setup_enemy_icon(enemy_fleet)
 
 	engage_prompt.visible = false
+	_engage_prompt_text = engage_prompt.get_node("Label").text
 	engage_prompt.get_node("EngageButton").pressed.connect(_on_engage_pressed)
 	engage_prompt.get_node("DisengageButton").pressed.connect(_on_disengage_pressed)
 	# Sub-panel Close buttons only close that panel, returning to the overview.
@@ -289,9 +292,22 @@ func _on_player_area_entered(area: Area2D) -> void:
 		return
 	_trigger_arrival(area)
 
+static func _deploys_armed(fleet: CampaignFleet) -> bool:
+	for i in CrewRules.deploy_indices(fleet.ship_compositions):
+		if CrewRules.is_armed(fleet.ship_compositions[i]):
+			return true
+	return false
+
+# With no armed ship on either side the battle would be an instant Defeat; Disengage stays open.
+func _refresh_engage_block(enemy_fleet: CampaignFleet) -> void:
+	var can_fight := _deploys_armed(CampaignState.player_fleet) or _deploys_armed(enemy_fleet)
+	engage_prompt.get_node("EngageButton").disabled = not can_fight
+	engage_prompt.get_node("Label").text = _engage_prompt_text if can_fight else ENGAGE_BLOCKED_TEXT
+
 func _trigger_arrival(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
 		_pending_enemy_icon = area
+		_refresh_engage_block(area.fleet)
 		engage_prompt.visible = true
 		get_tree().paused = true
 		_travel_target = null

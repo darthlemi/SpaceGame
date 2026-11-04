@@ -39,27 +39,20 @@ func start_engagement(enemy_fleet: CampaignFleet) -> void:
 				other.frozen = false
 	active_enemy_fleet = enemy_fleet
 
-# player_won defeats the enemy even when it keeps disabled or held-back ships.
-func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary], player_won: bool = false) -> void:
+# Survivors are each side's ships left after escape rolls; captured are the losing side's
+# caught comps. The legacy 2-arg call (enemy wiped out) still loots and erases the enemy.
+func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Array[Dictionary], player_won: bool = false, captured: Array[Dictionary] = []) -> void:
 	if player_fleet == null:
 		return
 	player_fleet.ship_compositions = player_survivors.duplicate(true)
-	player_fleet.ensure_flagship()
-	if active_enemy_fleet != null:
-		active_enemy_fleet.ship_compositions = enemy_survivors.duplicate(true)
-		if player_won or active_enemy_fleet.is_destroyed():
-			enemy_fleets.erase(active_enemy_fleet)
-			_apply_reputation_loss(active_enemy_fleet.faction)
-			# A total loss respawns at home base; there is no one left to take the loot.
-			if not player_fleet.is_destroyed():
-				var offer := LootOffer.new()
-				offer.cargo = active_enemy_fleet.cargo.duplicate()
-				offer.parts.assign(active_enemy_fleet.part_inventory)
-				if not offer.is_empty():
-					pending_loot = offer
-		else:
-			CrewRules.balance(active_enemy_fleet.ship_compositions)
+	var enemy := active_enemy_fleet
 	active_enemy_fleet = null
+	if enemy != null:
+		if player_won:
+			_settle_enemy_defeat(enemy, enemy_survivors, captured)
+		else:
+			_settle_player_defeat(enemy, enemy_survivors, captured)
+	player_fleet.ensure_flagship()
 
 static func is_damaged(comp: Dictionary) -> bool:
 	if comp["current_hp"] < comp["max_hp"] or comp["current_shield"] < comp["max_shield"]:
@@ -413,6 +406,50 @@ func _billable_crew(fleet: CampaignFleet) -> int:
 
 func _is_power_faction(faction: CampaignFleet.Faction) -> bool:
 	return faction == CampaignFleet.Faction.DOMINION or faction == CampaignFleet.Faction.FREEHOLD
+
+# escapers stay on the map with the cargo share they carry; captured ships go to the loot.
+func _settle_enemy_defeat(enemy: CampaignFleet, escapers: Array[Dictionary], captured: Array[Dictionary]) -> void:
+	var lost_ships := not captured.is_empty() or escapers.size() < enemy.ship_compositions.size()
+	var survivors := CampaignFleet.new()
+	survivors.ship_compositions.assign(captured + escapers)
+	survivors.cargo = enemy.cargo
+	survivors.part_inventory = enemy.part_inventory
+	var captured_indices: Array[int] = []
+	for i in captured.size():
+		captured_indices.append(i)
+	var split := BattleResolution.split_cargo(survivors, captured_indices)
+	enemy.ship_compositions = escapers.duplicate(true)
+	enemy.cargo = split["kept_cargo"]
+	enemy.part_inventory.assign(split["kept_parts"])
+	if lost_ships:
+		_apply_reputation_loss(enemy.faction)
+	if enemy.ship_compositions.is_empty():
+		enemy_fleets.erase(enemy)
+	# A total loss respawns at home base; there is no one left to take the loot.
+	if player_fleet.is_destroyed():
+		return
+	var offer := LootOffer.new()
+	offer.cargo = split["loot_cargo"]
+	offer.parts.assign(split["loot_parts"])
+	offer.ships.assign(captured.duplicate(true))
+	if not offer.is_empty():
+		pending_loot = offer
+
+# Captured comps keep their crew; extras past the fleet cap are scuttled.
+func _settle_player_defeat(enemy: CampaignFleet, enemy_survivors: Array[Dictionary], captured: Array[Dictionary]) -> void:
+	var comps: Array[Dictionary] = enemy_survivors.duplicate(true)
+	for comp in captured:
+		if comps.size() >= FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
+			break
+		var taken: Dictionary = comp.duplicate(true)
+		taken["flagship"] = false
+		comps.append(taken)
+	if comps.is_empty():
+		# Mutual wipe: the enemy is gone too.
+		_settle_enemy_defeat(enemy, comps, [])
+		return
+	enemy.ship_compositions = comps
+	CrewRules.balance(enemy.ship_compositions)
 
 func _apply_reputation_loss(defeated_faction: CampaignFleet.Faction) -> void:
 	for power_faction in factions:

@@ -345,4 +345,31 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	campaign_state.reset()
 	loot_scene.queue_free()
 
+	# Review Focus 1: Engage is blocked while neither deploy set has an armed ship.
+	campaign_state.reset()
+	var blocked_scene: Node2D = CampaignSceneScene.instantiate()
+	tree.root.add_child(blocked_scene)
+	blocked_scene.player_icon.global_position = Vector2(-9000, -9000)
+	await tree.process_frame
+	tree.paused = false
+	var blocked_prompt: Control = blocked_scene.get_node("UILayer/EngagePrompt")
+	var blocked_button: Button = blocked_prompt.get_node("EngageButton")
+	var blocked_label: Label = blocked_prompt.get_node("Label")
+	var blocked_icon: CampaignFleetIcon = blocked_scene.enemy_icons[0]
+	campaign_state.player_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
+	blocked_icon.fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
+	blocked_scene._trigger_arrival(blocked_icon)
+	if not blocked_prompt.visible or not blocked_button.disabled or blocked_label.text != "Neither fleet can fight":
+		failures.append("unarmed engage: expected the prompt shown with Engage disabled and 'Neither fleet can fight', got visible=%s disabled=%s '%s'" % [blocked_prompt.visible, blocked_button.disabled, blocked_label.text])
+	blocked_prompt.get_node("DisengageButton").pressed.emit()
+	# One armed side is enough to fight; the prompt must not keep the blocked state.
+	blocked_icon.fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	blocked_scene._trigger_arrival(blocked_icon)
+	if not blocked_prompt.visible or blocked_button.disabled or blocked_label.text == "Neither fleet can fight":
+		failures.append("armed engage: expected Engage enabled with the normal prompt, got visible=%s disabled=%s '%s'" % [blocked_prompt.visible, blocked_button.disabled, blocked_label.text])
+	blocked_prompt.get_node("DisengageButton").pressed.emit()
+	tree.paused = false
+	campaign_state.reset()
+	blocked_scene.queue_free()
+
 	return failures

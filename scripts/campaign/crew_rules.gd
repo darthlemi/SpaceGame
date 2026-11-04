@@ -96,7 +96,12 @@ static func deploy_indices(comps: Array[Dictionary]) -> Array[int]:
 			result.append(i)
 	if not result.is_empty():
 		return result
-	var best := _highest_crew_index(comps, true)
+	# The fallback prefers an armed ship so the fleet can still fight.
+	var best := _highest_crew_index(comps, true, true)
+	if best == -1:
+		best = _highest_crew_index(comps, false, true)
+	if best == -1:
+		best = _highest_crew_index(comps, true)
 	if best == -1:
 		best = _flagship_index(comps)
 	if best == -1:
@@ -189,10 +194,12 @@ static func _flagship_index(comps: Array[Dictionary]) -> int:
 	return -1
 
 # Ties go to the lowest index.
-static func _highest_crew_index(comps: Array[Dictionary], only_wanted: bool) -> int:
+static func _highest_crew_index(comps: Array[Dictionary], only_wanted: bool, only_armed: bool = false) -> int:
 	var best := -1
 	for i in comps.size():
 		if only_wanted and not wants_deploy(comps[i]):
+			continue
+		if only_armed and not is_armed(comps[i]):
 			continue
 		if best == -1 or crew_of(comps[i]) > crew_of(comps[best]):
 			best = i

@@ -2,6 +2,11 @@ extends RefCounted
 
 const CombatSceneScene = preload("res://scenes/combat/combat_scene.tscn")
 
+# First randf() of each seed sits outside the [ESCAPE_MIN, ESCAPE_MAX] clamp, so a single
+# roll escapes (0.0125) or is caught (0.996) whatever the speeds.
+const ESCAPE_SEED := 60
+const CAPTURE_SEED := 14
+
 # See tests/test_ship.gd's run_async note: _ready()'s fleet spawning and signal wiring
 # only runs on the next process frame after the scene enters the live SceneTree -- and
 # combat_scene.gd's own _ready() now awaits an *additional* internal frame before wiring
@@ -81,7 +86,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		"engine_item": "res://resources/engines/engine_freehold_racer.tres",
 	}]
 	var enemy_fleet := CampaignFleet.new()
-	enemy_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 20.0, "current_shield": 20.0}]
+	# The armed corvette keeps the battle going; an unarmed enemy alone would be an instant Victory.
+	enemy_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 20.0, "current_shield": 20.0}, ShipType.new_composition(ShipType.Kind.CORVETTE)]
 	campaign_state.player_fleet = player_fleet
 	campaign_state.start_engagement(enemy_fleet)
 
@@ -92,9 +98,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	if campaign_scene.player_ships.size() != 1:
 		failures.append("campaign battle: expected 1 player ship spawned from fleet data, got %d" % campaign_scene.player_ships.size())
-	if campaign_scene.enemy_ships.size() != 1:
-		failures.append("campaign battle: expected 1 enemy ship spawned from fleet data, got %d" % campaign_scene.enemy_ships.size())
-	if campaign_scene.enemy_ships.size() == 1:
+	if campaign_scene.enemy_ships.size() != 2:
+		failures.append("campaign battle: expected 2 enemy ships spawned from fleet data, got %d" % campaign_scene.enemy_ships.size())
+	if campaign_scene.enemy_ships.size() == 2:
 		var spawned_enemy: Ship = campaign_scene.enemy_ships[0]
 		if spawned_enemy.ship_type != ShipType.Kind.FREIGHTER:
 			failures.append("campaign battle: expected the FREIGHTER-tagged composition to spawn a ship_type FREIGHTER, got %s" % spawned_enemy.ship_type)
@@ -116,7 +122,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	for ship in campaign_scene.enemy_ships.duplicate():
 		ship.hull.apply_damage(ship.hull.max_hp)
-	# After the Victory: disarming first would end the battle as an unarmed Stalemate.
+	# After the Victory: disarming first would end the battle as a Defeat.
 	# The report is deferred, so this damage still reaches the survivor comp.
 	if campaign_scene.player_ships.size() == 1:
 		campaign_scene.player_ships[0].engine.apply_damage(1000.0)
@@ -165,7 +171,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		"weapon_mount_items": ["res://resources/weapons/railgun.tres", "", ""],
 	}]
 	var randomize_enemy_fleet := CampaignFleet.new()
-	randomize_enemy_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 20.0, "current_shield": 20.0}]
+	randomize_enemy_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CORVETTE)]
 	randomize_state.player_fleet = randomize_player_fleet
 	randomize_state.start_engagement(randomize_enemy_fleet)
 
@@ -209,11 +215,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var extra_ship_player_fleet := CampaignFleet.new()
 	extra_ship_player_fleet.ship_compositions = [{"ship_type": ShipType.Kind.CORVETTE, "max_hp": 60.0, "current_hp": 60.0, "max_shield": 20.0, "current_shield": 20.0}]
 	var extra_ship_enemy_fleet := CampaignFleet.new()
-	extra_ship_enemy_fleet.ship_compositions = [{"ship_type": ShipType.Kind.FREIGHTER, "max_hp": 80.0, "current_hp": 80.0, "max_shield": 20.0, "current_shield": 20.0}]
+	extra_ship_enemy_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CORVETTE)]
+	extra_ship_state.enemy_fleets.assign([extra_ship_enemy_fleet])
 	extra_ship_state.player_fleet = extra_ship_player_fleet
 	extra_ship_state.start_engagement(extra_ship_enemy_fleet)
 
 	var extra_ship_scene: Node2D = CombatSceneScene.instantiate()
+	extra_ship_scene.escape_rng = _seeded_rng(CAPTURE_SEED)
 	tree.root.add_child(extra_ship_scene)
 	await tree.process_frame
 	await tree.process_frame
@@ -221,13 +229,22 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await extra_ship_scene._spawn_extra_ship(extra_ship_scene.PLAYER_GROUP, extra_ship_scene.ENEMY_GROUP, 0.0, extra_ship_scene.player_ships)
 	if extra_ship_scene.player_ships.size() != 2:
 		failures.append("debug-spawn regression: expected _spawn_extra_ship to append a second player ship, got %d" % extra_ship_scene.player_ships.size())
-
-	for ship in extra_ship_scene.enemy_ships.duplicate():
-		ship.hull.apply_damage(ship.hull.max_hp)
+	# An enemy extra also has no comp; disarmed rather than destroyed, it rolls to escape and is caught.
+	await extra_ship_scene._spawn_extra_ship(extra_ship_scene.ENEMY_GROUP, extra_ship_scene.PLAYER_GROUP, PI, extra_ship_scene.enemy_ships)
+	if extra_ship_scene.enemy_ships.size() != 2:
+		failures.append("debug-spawn regression: expected _spawn_extra_ship to append a second enemy ship, got %d" % extra_ship_scene.enemy_ships.size())
+	else:
+		extra_ship_scene.enemy_ships[0].hull.apply_damage(extra_ship_scene.enemy_ships[0].hull.max_hp)
+		for mount in extra_ship_scene.enemy_ships[1].weapon_mounts:
+			mount.apply_damage(mount.max_hp)
+	if extra_ship_scene.result_label.text != "Victory":
+		failures.append("debug-spawn regression: expected 'Victory' once the enemy extra is disarmed, got '%s'" % extra_ship_scene.result_label.text)
 	await tree.process_frame
 
 	if extra_ship_state.player_fleet == null or extra_ship_state.player_fleet.ship_compositions.size() != 2:
 		failures.append("debug-spawn regression: expected _report_to_campaign to complete without crashing and carry both ships' compositions back")
+	if extra_ship_state.enemy_fleets.has(extra_ship_enemy_fleet):
+		failures.append("debug-spawn regression: expected the enemy erased once its extra was captured")
 
 	extra_ship_state.reset()
 	if is_instance_valid(extra_ship_scene) and not extra_ship_scene.is_queued_for_deletion():
@@ -265,7 +282,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var deploy_short_before: Dictionary = deploy_short.duplicate(true)
 	var deploy_held_before: Dictionary = deploy_held.duplicate(true)
 	var deploy_enemy := CampaignFleet.new()
-	deploy_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
+	deploy_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	campaign_state.player_fleet = deploy_player
 	campaign_state.start_engagement(deploy_enemy)
 
@@ -307,51 +324,75 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(deploy_scene) and not deploy_scene.is_queued_for_deletion():
 		deploy_scene.queue_free()
 
-	# Destroyed ending: destroying every deployed enemy ship is a Victory; the enemy fleet is
-	# defeated.
-	# TODO: Task 4 reworks the battle end and adds captured ships to the loot.
+	# Victory with an enemy held-back corvette: it rolls to escape against the player's top speed.
+	# Escaping, it keeps the enemy fleet (and its cargo) on the map with nothing looted.
 	campaign_state.reset()
-	var disable_player := CampaignFleet.new()
-	disable_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
-	var disable_reserve := ShipType.new_composition(ShipType.Kind.CAPITAL)
-	disable_reserve["crew"] = 8  # Under the capital deploy minimum (12): held back.
-	var disable_enemy := CampaignFleet.new()
-	disable_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL), ShipType.new_composition(ShipType.Kind.CAPITAL), disable_reserve])
-	campaign_state.enemy_fleets.assign([disable_enemy])
-	campaign_state.player_fleet = disable_player
-	campaign_state.start_engagement(disable_enemy)
+	var fled_reserve := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	fled_reserve["crew"] = 3  # Under the corvette deploy minimum (4): held back.
+	var fled_enemy := CampaignFleet.new()
+	fled_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), fled_reserve])
+	fled_enemy.cargo = {Commodity.Type.ORE: 10.0}
+	var fled_player := CampaignFleet.new()
+	fled_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([fled_enemy])
+	campaign_state.player_fleet = fled_player
+	campaign_state.start_engagement(fled_enemy)
 
-	var disable_scene: Node2D = CombatSceneScene.instantiate()
-	tree.root.add_child(disable_scene)
+	var fled_scene: Node2D = CombatSceneScene.instantiate()
+	fled_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	tree.root.add_child(fled_scene)
 	await tree.process_frame
 	await tree.process_frame
-
-	if disable_scene.enemy_ships.size() != 2:
-		failures.append("destroyed ending: expected the 2 crewed capitals deployed and the reserve held back, got %d enemy ships" % disable_scene.enemy_ships.size())
-	for ship in disable_scene.enemy_ships.duplicate():
+	if fled_scene.enemy_ships.size() != 1:
+		failures.append("held-back escape: expected only the crewed enemy corvette deployed, got %d" % fled_scene.enemy_ships.size())
+	for ship in fled_scene.enemy_ships.duplicate():
 		ship.hull.apply_damage(ship.hull.max_hp)
-	if disable_scene.result_label.text != "Victory":
-		failures.append("destroyed ending: expected 'Victory' once every enemy ship is destroyed, got '%s'" % disable_scene.result_label.text)
-	# The returned campaign scene's _ready opens its loot panel from pending_loot and clears it,
-	# so read the panel. This enemy carries no cargo or parts, so there is nothing to loot.
-	var loot_panel_visible := true
-	for i in 10:
-		await tree.process_frame
-		var returned_scene: Node = tree.current_scene
-		if returned_scene != null and returned_scene != disable_scene:
-			loot_panel_visible = returned_scene.loot_panel.visible
-			tree.current_scene = null
-			if is_instance_valid(returned_scene) and not returned_scene.is_queued_for_deletion():
-				returned_scene.queue_free()
-			break
-
-	if campaign_state.enemy_fleets.has(disable_enemy):
-		failures.append("destroyed ending: expected the defeated enemy fleet removed from enemy_fleets")
-	if loot_panel_visible:
-		failures.append("destroyed ending: expected no loot window for an enemy with nothing to loot")
+	if fled_scene.result_label.text != "Victory":
+		failures.append("held-back escape: expected 'Victory', got '%s'" % fled_scene.result_label.text)
+	var fled_offer: LootOffer = await _take_loot_offer(tree, fled_scene)
+	if not campaign_state.enemy_fleets.has(fled_enemy) or fled_enemy.ship_compositions.size() != 1:
+		failures.append("held-back escape: expected the enemy fleet kept with 1 ship, got %d" % fled_enemy.ship_compositions.size())
+	elif CrewRules.crew_of(fled_enemy.ship_compositions[0]) != 3:
+		failures.append("held-back escape: expected the escaper to keep its crew 3, got %d" % CrewRules.crew_of(fled_enemy.ship_compositions[0]))
+	if fled_offer != null and not fled_offer.ships.is_empty():
+		failures.append("held-back escape: expected no captured ships offered, got %d" % fled_offer.ships.size())
+	if fled_enemy.cargo.get(Commodity.Type.ORE, 0.0) != 10.0:
+		failures.append("held-back escape: expected the escaper to keep all the cargo, got %s" % fled_enemy.cargo)
 	campaign_state.reset()
-	if is_instance_valid(disable_scene) and not disable_scene.is_queued_for_deletion():
-		disable_scene.queue_free()
+	if is_instance_valid(fled_scene) and not fled_scene.is_queued_for_deletion():
+		fled_scene.queue_free()
+
+	# Same battle with the roll failing: the corvette is offered with its crew and the fleet is gone.
+	campaign_state.reset()
+	var caught_reserve := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	caught_reserve["crew"] = 3
+	var caught_enemy := CampaignFleet.new()
+	caught_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), caught_reserve])
+	var caught_player := CampaignFleet.new()
+	caught_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([caught_enemy])
+	campaign_state.player_fleet = caught_player
+	campaign_state.start_engagement(caught_enemy)
+
+	var caught_scene: Node2D = CombatSceneScene.instantiate()
+	caught_scene.escape_rng = _seeded_rng(CAPTURE_SEED)
+	tree.root.add_child(caught_scene)
+	await tree.process_frame
+	await tree.process_frame
+	for ship in caught_scene.enemy_ships.duplicate():
+		ship.hull.apply_damage(ship.hull.max_hp)
+	var caught_offer: LootOffer = await _take_loot_offer(tree, caught_scene)
+	if caught_offer == null or caught_offer.ships.size() != 1:
+		failures.append("held-back capture: expected the captured corvette offered as loot")
+	elif ShipType.kind_of(caught_offer.ships[0]) != ShipType.Kind.CORVETTE or CrewRules.crew_of(caught_offer.ships[0]) != 3:
+		failures.append("held-back capture: expected a corvette with crew 3 offered, got %s" % caught_offer.ships[0])
+	if campaign_state.enemy_fleets.has(caught_enemy):
+		failures.append("held-back capture: expected the enemy fleet erased")
+	if campaign_state.player_fleet.ship_compositions.size() != 1:
+		failures.append("held-back capture: expected the captured ship only offered, not added, got %d player comps" % campaign_state.player_fleet.ship_compositions.size())
+	campaign_state.reset()
+	if is_instance_valid(caught_scene) and not caught_scene.is_queued_for_deletion():
+		caught_scene.queue_free()
 
 	# Mutual knockout (Review Focus 2): both sides out in the same check -> Defeat.
 	campaign_state.reset()
@@ -393,7 +434,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(mutual_scene) and not mutual_scene.is_queued_for_deletion():
 		mutual_scene.queue_free()
 
-	# Defeat with a held-back ship: the fleet continues with it instead of game over.
+	# Defeat with a held-back ship that escapes: the fleet continues with it instead of game over.
 	campaign_state.reset()
 	var held_flagship := ShipType.new_composition(ShipType.Kind.CORVETTE)
 	held_flagship["flagship"] = true
@@ -403,12 +444,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	held_player.ship_compositions.assign([held_flagship, held_reserve])
 	var held_reserve_before: Dictionary = held_reserve.duplicate(true)
 	var held_enemy := CampaignFleet.new()
-	held_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
+	held_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	campaign_state.enemy_fleets.assign([held_enemy])
 	campaign_state.player_fleet = held_player
 	campaign_state.start_engagement(held_enemy)
 
 	var held_scene: Node2D = CombatSceneScene.instantiate()
+	held_scene.escape_rng = _seeded_rng(ESCAPE_SEED)  # The held-back reserve gets away.
 	tree.root.add_child(held_scene)
 	await tree.process_frame
 	await tree.process_frame
@@ -469,71 +511,97 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(loss_scene) and not loss_scene.is_queued_for_deletion():
 		loss_scene.queue_free()
 
-	# Unarmed stalemate: no side has a working weapon, so the battle ends at once
-	# with both fleets intact, the enemy kept on the map and nothing looted.
+	# An unarmed player fleet against an armed enemy is an immediate Defeat, then escape rolls.
+	# The roll fails: the freighter joins the enemy fleet (flagship cleared) and the player respawns.
 	campaign_state.reset()
-	var stale_player := CampaignFleet.new()
-	stale_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
-	var stale_enemy := CampaignFleet.new()
-	stale_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
-	stale_enemy.cargo = {Commodity.Type.ORE: 10.0}
-	campaign_state.enemy_fleets.assign([stale_enemy])
-	campaign_state.player_fleet = stale_player
-	campaign_state.start_engagement(stale_enemy)
+	var unarmed_freighter := ShipType.new_composition(ShipType.Kind.FREIGHTER)
+	unarmed_freighter["flagship"] = true
+	var unarmed_player := CampaignFleet.new()
+	unarmed_player.ship_compositions.assign([unarmed_freighter])
+	var unarmed_enemy := CampaignFleet.new()
+	unarmed_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([unarmed_enemy])
+	campaign_state.player_fleet = unarmed_player
+	campaign_state.start_engagement(unarmed_enemy)
 
-	var stale_scene: Node2D = CombatSceneScene.instantiate()
-	tree.root.add_child(stale_scene)
+	var unarmed_scene: Node2D = CombatSceneScene.instantiate()
+	unarmed_scene.escape_rng = _seeded_rng(CAPTURE_SEED)
+	tree.root.add_child(unarmed_scene)
 	await tree.process_frame
 	await tree.process_frame
-	if stale_scene.result_label.text != "Stalemate" or not stale_scene.result_label.visible:
-		failures.append("stalemate: expected 'Stalemate' shown for freighter vs freighter, got '%s' visible=%s" % [stale_scene.result_label.text, stale_scene.result_label.visible])
-	var stale_next_scene: String = await _take_leaked_scene(tree, stale_scene)
-	if stale_next_scene != "res://scenes/campaign/campaign_scene.tscn":
-		failures.append("stalemate: expected a return to the campaign scene, got '%s'" % stale_next_scene)
-	if campaign_state.player_fleet.ship_compositions.size() != 1 or stale_enemy.ship_compositions.size() != 1:
-		failures.append("stalemate: expected both fleets intact, got %d player / %d enemy comps" % [campaign_state.player_fleet.ship_compositions.size(), stale_enemy.ship_compositions.size()])
-	if not campaign_state.enemy_fleets.has(stale_enemy):
-		failures.append("stalemate: expected the enemy fleet kept in enemy_fleets")
-	if campaign_state.pending_loot != null or campaign_state.pending_respawn:
-		failures.append("stalemate: expected no loot and no respawn")
+	if unarmed_scene.result_label.text != "Defeat" or not unarmed_scene.result_label.visible:
+		failures.append("unarmed player: expected an immediate 'Defeat', got '%s' visible=%s" % [unarmed_scene.result_label.text, unarmed_scene.result_label.visible])
+	var unarmed_next_scene: String = await _take_leaked_scene(tree, unarmed_scene)
 	tree.paused = false
+	if unarmed_next_scene != "res://scenes/campaign/campaign_scene.tscn":
+		failures.append("unarmed player: expected a return to the campaign scene, got '%s'" % unarmed_next_scene)
+	if not campaign_state.enemy_fleets.has(unarmed_enemy) or unarmed_enemy.ship_compositions.size() != 2:
+		failures.append("unarmed player: expected the captured freighter appended to the enemy fleet, got %d enemy comps" % unarmed_enemy.ship_compositions.size())
+	elif ShipType.kind_of(unarmed_enemy.ship_compositions[1]) != ShipType.Kind.FREIGHTER or CrewRules.is_flagship(unarmed_enemy.ship_compositions[1]):
+		failures.append("unarmed player: expected the captured freighter with its flagship flag cleared, got %s" % unarmed_enemy.ship_compositions[1])
+	if not campaign_state.pending_respawn or not campaign_state.player_fleet.ship_compositions.is_empty():
+		failures.append("unarmed player: expected the emptied player fleet to respawn")
 	campaign_state.reset()
-	if is_instance_valid(stale_scene) and not stale_scene.is_queued_for_deletion():
-		stale_scene.queue_free()
+	if is_instance_valid(unarmed_scene) and not unarmed_scene.is_queued_for_deletion():
+		unarmed_scene.queue_free()
 
-	# An armed enemy prevents the stalemate until its last weapon mount is destroyed.
+	# Review Focus 2: destroying the enemy's last weapon mount mid-battle (hulls intact) is a Victory.
 	campaign_state.reset()
-	var armed_player := CampaignFleet.new()
-	armed_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.FREIGHTER)])
-	var armed_enemy := CampaignFleet.new()
-	armed_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
-	campaign_state.enemy_fleets.assign([armed_enemy])
-	campaign_state.player_fleet = armed_player
-	campaign_state.start_engagement(armed_enemy)
+	var disarm_player := CampaignFleet.new()
+	disarm_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var disarm_enemy := CampaignFleet.new()
+	disarm_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([disarm_enemy])
+	campaign_state.player_fleet = disarm_player
+	campaign_state.start_engagement(disarm_enemy)
 
-	var armed_scene: Node2D = CombatSceneScene.instantiate()
-	tree.root.add_child(armed_scene)
+	var disarm_scene: Node2D = CombatSceneScene.instantiate()
+	disarm_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	tree.root.add_child(disarm_scene)
 	await tree.process_frame
 	await tree.process_frame
-	if armed_scene.result_label.visible:
-		failures.append("armed vs unarmed: expected no immediate result, got '%s'" % armed_scene.result_label.text)
-	if armed_scene.enemy_ships.size() == 1:
-		var armed_mounts: Array[WeaponMount] = armed_scene.enemy_ships[0].weapon_mounts
-		if armed_mounts.is_empty():
-			failures.append("armed vs unarmed: expected the enemy corvette to have weapon mounts")
-		for mount in armed_mounts:
+	if disarm_scene.result_label.visible:
+		failures.append("disarm: expected no immediate result with both sides armed, got '%s'" % disarm_scene.result_label.text)
+	if disarm_scene.enemy_ships.size() == 1:
+		var disarm_mounts: Array[WeaponMount] = disarm_scene.enemy_ships[0].weapon_mounts
+		if disarm_mounts.is_empty():
+			failures.append("disarm: expected the enemy corvette to have weapon mounts")
+		for mount in disarm_mounts:
 			mount.apply_damage(mount.max_hp)
-		if armed_scene.result_label.text != "Stalemate":
-			failures.append("armed vs unarmed: expected 'Stalemate' once every enemy mount is destroyed, got '%s'" % armed_scene.result_label.text)
-	await _take_leaked_scene(tree, armed_scene)
-	if not campaign_state.enemy_fleets.has(armed_enemy) or armed_enemy.ship_compositions.size() != 1:
-		failures.append("armed vs unarmed: expected the disarmed enemy fleet kept with its ship")
+		if disarm_scene.enemy_ships[0].hull.is_destroyed():
+			failures.append("disarm: expected the enemy hull intact")
+	if disarm_scene.result_label.text != "Victory":
+		failures.append("disarm: expected 'Victory' once every enemy mount is destroyed, got '%s'" % disarm_scene.result_label.text)
+	await _take_leaked_scene(tree, disarm_scene)
+	if not campaign_state.enemy_fleets.has(disarm_enemy) or disarm_enemy.ship_compositions.size() != 1:
+		failures.append("disarm: expected the disarmed enemy to escape with its ship")
+	elif CrewRules.is_armed(disarm_enemy.ship_compositions[0]):
+		failures.append("disarm: expected the escaper's comp to carry its destroyed mount back")
 	tree.paused = false
 	campaign_state.reset()
-	if is_instance_valid(armed_scene) and not armed_scene.is_queued_for_deletion():
-		armed_scene.queue_free()
+	if is_instance_valid(disarm_scene) and not disarm_scene.is_queued_for_deletion():
+		disarm_scene.queue_free()
 
 	return failures
+
+static func _seeded_rng(seed_value: int) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	return rng
+
+# Like _take_leaked_scene, but returns the loot offer the returned campaign scene opened
+# (its _ready consumes pending_loot), or null when it opened none.
+static func _take_loot_offer(tree: SceneTree, own_scene: Node) -> LootOffer:
+	for i in 10:
+		await tree.process_frame
+		var current: Node = tree.current_scene
+		if current != null and current != own_scene:
+			var offer: LootOffer = current.loot_panel._offer if current.loot_panel.visible else null
+			tree.current_scene = null
+			if is_instance_valid(current) and not current.is_queued_for_deletion():
+				current.queue_free()
+			return offer
+	return null
 
 # change_scene_to_file applies a few frames later; poll for it, then free the
 # swapped-in scene so it doesn't keep running for the rest of the test run.

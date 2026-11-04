@@ -450,23 +450,109 @@ static func run() -> Array[String]:
 	if loot_state.pending_loot != null:
 		failures.append("reset: expected pending_loot cleared to null")
 
-	# resolve_engagement player_won: the enemy is defeated even with ships left
-	# (disabled/held back); with nothing to carry it leaves no loot.
+	# resolve_engagement player_won with a partial escape: enemy_survivors are the escapers,
+	# so the enemy stays with them; cargo splits by capacity and the captured ship is offered.
 	var won_state := CampaignState.new()
+	var won_dominion := PowerFaction.new()
+	won_dominion.faction_enum = CampaignFleet.Faction.DOMINION
+	won_dominion.reputation = 60.0
+	won_state.factions = [won_dominion]
 	var won_player := CampaignFleet.new()
-	won_player.ship_compositions.assign([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}])
+	won_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	won_state.player_fleet = won_player
+	var won_escaper := ShipType.new_composition(ShipType.Kind.CAPITAL)
+	var won_caught := ShipType.new_composition(ShipType.Kind.FREIGHTER)
+	won_caught["crew"] = 4
 	var won_enemy := CampaignFleet.new()
-	won_enemy.ship_compositions.assign([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}])
+	won_enemy.faction = CampaignFleet.Faction.DOMINION
+	won_enemy.ship_compositions.assign([won_escaper, won_caught, ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	won_enemy.cargo = {Commodity.Type.ORE: 80.0}
+	won_enemy.part_inventory.assign(["part_a", "part_b", "part_c"])
 	won_state.enemy_fleets.assign([won_enemy])
 	won_state.start_engagement(won_enemy)
-	won_state.resolve_engagement([{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}], [{"max_hp": 100.0, "current_hp": 40.0, "max_shield": 50.0, "current_shield": 0.0}], true)
-	if won_state.enemy_fleets.has(won_enemy):
-		failures.append("resolve_engagement(player_won): expected the enemy removed from enemy_fleets despite surviving ships")
-	if won_state.pending_loot != null:
-		failures.append("resolve_engagement(player_won): expected no loot for an enemy with no cargo or parts")
+	var won_escapers: Array[Dictionary] = [won_escaper]
+	var won_captured: Array[Dictionary] = [won_caught]
+	won_state.resolve_engagement(won_player.ship_compositions, won_escapers, true, won_captured)
+	if not won_state.enemy_fleets.has(won_enemy) or won_enemy.ship_compositions.size() != 1:
+		failures.append("resolve_engagement(partial escape): expected the enemy kept with its 1 escaper, got %d ships" % won_enemy.ship_compositions.size())
+	if not is_equal_approx(won_enemy.cargo.get(Commodity.Type.ORE, 0.0), 20.0) or won_enemy.part_inventory != ["part_c"]:
+		failures.append("resolve_engagement(partial escape): expected the escaper to keep ORE 20 and part_c, got %s / %s" % [won_enemy.cargo, won_enemy.part_inventory])
+	if won_state.pending_loot == null:
+		failures.append("resolve_engagement(partial escape): expected a loot offer")
+	else:
+		if not is_equal_approx(won_state.pending_loot.cargo.get(Commodity.Type.ORE, 0.0), 60.0) or won_state.pending_loot.parts != ["part_a", "part_b"]:
+			failures.append("resolve_engagement(partial escape): expected loot ORE 60 and 2 parts, got %s / %s" % [won_state.pending_loot.cargo, won_state.pending_loot.parts])
+		if won_state.pending_loot.ships.size() != 1 or CrewRules.crew_of(won_state.pending_loot.ships[0]) != 4:
+			failures.append("resolve_engagement(partial escape): expected the captured freighter offered with crew 4, got %s" % [won_state.pending_loot.ships])
+	# Once per battle, although one ship was destroyed and another captured.
+	if won_dominion.fine != CampaignState.FINE_PER_KILL or not is_equal_approx(won_dominion.reputation, 60.0 - CampaignState.REPUTATION_LOSS_PER_DEFEAT):
+		failures.append("resolve_engagement(partial escape): expected one reputation loss and fine, got fine %d rep %s" % [won_dominion.fine, won_dominion.reputation])
 	if won_player.flagship_index() == -1:
 		failures.append("resolve_engagement: expected ensure_flagship to assign a flagship to the player fleet")
+
+	# player_won with every enemy ship escaping: nothing lost, so no reputation loss and no loot.
+	var fled_state := CampaignState.new()
+	var fled_dominion := PowerFaction.new()
+	fled_dominion.faction_enum = CampaignFleet.Faction.DOMINION
+	fled_state.factions = [fled_dominion]
+	var fled_player := CampaignFleet.new()
+	fled_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	fled_state.player_fleet = fled_player
+	var fled_enemy := CampaignFleet.new()
+	fled_enemy.faction = CampaignFleet.Faction.DOMINION
+	fled_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	fled_enemy.cargo = {Commodity.Type.ORE: 10.0}
+	fled_state.enemy_fleets.assign([fled_enemy])
+	fled_state.start_engagement(fled_enemy)
+	fled_state.resolve_engagement(fled_player.ship_compositions, fled_enemy.ship_compositions.duplicate(true), true)
+	if not fled_state.enemy_fleets.has(fled_enemy) or fled_dominion.fine != 0 or fled_state.pending_loot != null:
+		failures.append("resolve_engagement(all escaped): expected the enemy kept, no fine and no loot, got fine %d loot %s" % [fled_dominion.fine, fled_state.pending_loot])
+	if fled_enemy.cargo.get(Commodity.Type.ORE, 0.0) != 10.0:
+		failures.append("resolve_engagement(all escaped): expected the enemy to keep all its cargo, got %s" % fled_enemy.cargo)
+
+	# player_won with the only enemy ship captured: the fleet is erased and its ship is offered.
+	var caught_state := CampaignState.new()
+	var caught_player := CampaignFleet.new()
+	caught_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	caught_state.player_fleet = caught_player
+	var caught_enemy := CampaignFleet.new()
+	caught_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	caught_state.enemy_fleets.assign([caught_enemy])
+	caught_state.start_engagement(caught_enemy)
+	var caught_ships: Array[Dictionary] = [caught_enemy.ship_compositions[0].duplicate(true)]
+	var no_escapers: Array[Dictionary] = []
+	caught_state.resolve_engagement(caught_player.ship_compositions, no_escapers, true, caught_ships)
+	if caught_state.enemy_fleets.has(caught_enemy):
+		failures.append("resolve_engagement(all captured): expected the enemy fleet erased")
+	if caught_state.pending_loot == null or caught_state.pending_loot.ships.size() != 1:
+		failures.append("resolve_engagement(all captured): expected the captured ship offered")
+
+	# Player loss: captured player comps join the enemy fleet up to MAX_SHIPS_PER_FLEET, flagship cleared.
+	var taken_state := CampaignState.new()
+	var taken_flagship := ShipType.new_composition(ShipType.Kind.CAPITAL)
+	taken_flagship["flagship"] = true
+	var taken_corvette := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	var taken_escaper := ShipType.new_composition(ShipType.Kind.FREIGHTER)
+	var taken_player := CampaignFleet.new()
+	taken_player.ship_compositions.assign([taken_flagship, taken_corvette, taken_escaper])
+	taken_state.player_fleet = taken_player
+	var taken_enemy := CampaignFleet.new()
+	taken_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	taken_state.enemy_fleets.assign([taken_enemy])
+	taken_state.start_engagement(taken_enemy)
+	var taken_player_escapers: Array[Dictionary] = [taken_escaper]
+	var taken_captured: Array[Dictionary] = [taken_flagship, taken_corvette]
+	taken_state.resolve_engagement(taken_player_escapers, taken_enemy.ship_compositions.duplicate(true), false, taken_captured)
+	if taken_enemy.ship_compositions.size() != FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
+		failures.append("resolve_engagement(player loss): expected the enemy capped at %d ships, got %d" % [FleetAllocationPolicy.MAX_SHIPS_PER_FLEET, taken_enemy.ship_compositions.size()])
+	elif ShipType.kind_of(taken_enemy.ship_compositions[2]) != ShipType.Kind.CAPITAL or CrewRules.is_flagship(taken_enemy.ship_compositions[2]):
+		failures.append("resolve_engagement(player loss): expected the captured capital appended with its flagship flag cleared, got %s" % taken_enemy.ship_compositions[2])
+	if taken_player.ship_compositions.size() != 1 or ShipType.kind_of(taken_player.ship_compositions[0]) != ShipType.Kind.FREIGHTER:
+		failures.append("resolve_engagement(player loss): expected the player left with the escaped freighter")
+	elif taken_player.flagship_index() != 0:
+		failures.append("resolve_engagement(player loss): expected ensure_flagship to promote the escaped freighter")
+	if taken_state.pending_loot != null:
+		failures.append("resolve_engagement(player loss): expected no loot")
 
 	# resolve_engagement player loss: a surviving enemy fleet stays and its crew is rebalanced.
 	var lost_state := CampaignState.new()

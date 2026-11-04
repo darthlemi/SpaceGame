@@ -1,4 +1,67 @@
-# Carry-Forward - SpaceGame 2026-11-03 (Blender kitbash capital + freighter) - on main, committed, not pushed
+# Carry-Forward - SpaceGame 2026-11-04 (kitbash ships in game + combat camera) - on main, committed, not pushed
+
+## Completed this session
+- **Pushed** `main` through `acf4392` at the user's request.
+- **`03e243d`: kitbash sprites are in the game, at about 2x the old ships.** The user chose
+  2x over keeping the old size.
+  - The sprites are rendered at exact in-game size, so `Sprite2D` scale is 1 and no
+    `.import` or mipmap changes were needed.
+  - `art\README.md` "In-game sprites" lists the `--res` values: corvette 75, capital 143,
+    freighter 107.
+  - Mount counts are unchanged (corvette 1, capital 3, freighter 0). The user will update
+    the art to match, because the renders still show 5/6/2 plates.
+  - Mounts were placed on render plates from that render's `.mounts.json`. The capital's
+    third mount sits on the prow at (38, 0), where there's no plate.
+- **`7874f6d`:** the capital was "20% too large", so it was re-rendered at 80% (122x111 px).
+  - Capital: hit radius 54, shield octagon 67, engine (-53, 0) r16, mounts (32, ±25) and
+    (38, 0) r14.
+  - Corvette and freighter: hit radius 24 and 44, shield octagons 32 and 56.
+  - `test_ship_type_scenes.gd` was updated to these radii.
+- **`7874f6d`: the combat scene was "too small", so the arena was doubled.**
+  - Walls now enclose 2304x1296 (`scenes\combat\combat_scene.tscn`).
+  - Spawn points doubled to x 400/1600, y 400/600/800; `formation_spacing` 60 -> 120.
+- **New `scripts\combat\combat_camera.gd` (`CombatCamera`):**
+  - The wheel zooms about the cursor, from `fit_zoom` (0.5) to 1.5, starting at 0.75.
+  - WASD/arrows and middle-drag pan.
+  - `clamp_center` keeps the view in the arena.
+  - `PROCESS_MODE_ALWAYS` with wall-clock dt, so it works while paused or sped up.
+  - Panning is skipped while a `LineEdit` (the debug console) has focus.
+  - `combat_scene.gd` calls `focus(_spawn_centre())` after spawning.
+  - Tested by `tests\test_combat_camera.gd`, whose run was confirmed by mutation.
+- **Verification:** in-engine screenshots (a throwaway `--script`, since removed) confirmed
+  sprites, hitboxes and both camera views. The suite shows only the
+  `test_campaign_long_run_sim` flake (5-6 failures).
+
+## Rules / conventions established
+- Ships are in world px with no zoom baked in. The camera provides zoom, so a ship's size
+  is set only by its render `--res`, at `Sprite2D` scale 1.
+- If an art change moves plates or changes `--res`, re-check the `WeaponMount` and
+  `Engine` positions in `scenes\ship\ship_*.tscn` against the new `.mounts.json`.
+- Godot screenshot recipe: non-headless `--script` with
+  `root.get_viewport().get_texture().get_image().save_png()`, run via `Start-Process -Wait`.
+- Warm passes create `images.jpg.import` for the untracked root reference. Delete it after
+  each warm pass.
+
+## Next steps
+1. **Playtest combat:** weapon ranges and speeds haven't changed, so guns now reach about
+   half as far relative to the hulls. Retune after the user plays a fight.
+2. **The user is updating the art** to match mount counts (capital 3 plates, freighter 0,
+   corvette 1). Re-render with the README `--res` values and re-place the mounts.
+3. **Spawn stacking:** fleets with more than 3 ships reuse the 3 spawn points
+   (`points[k % size]` in `_spawn_fleet_from_data`).
+4. **VFX scale:** `HitSpark`, `SmokeTrail` and `EngineTrail` particles are still the old
+   size.
+5. **Shared module, freighter variants, neon glow, background art** (zoomed out, the
+   view is plain grey), **cyberpunk UI, Blender pipeline spec:** carried over from the
+   entry below, items 2-6.
+6. **Unpushed:** `03e243d` and `7874f6d`, plus this entry. Push only when asked.
+7. **Untracked root files:** `images.jpg`, `MEMORY.md` and `token-efficient-execution.md`.
+   Ask before deleting or committing them. Never commit the `.import` churn or the CRLF
+   noise in `project.godot` and `tests\test_campaign_scene_fleet_panel.gd`.
+
+---
+
+# Carry-Forward - SpaceGame 2026-11-03 (Blender kitbash capital + freighter) - on main, committed, pushed
 
 ## Completed this session
 - **`a48c0b2` `art\blender\kitbash_capital.py`:** a low, faceted saucer with a bow slot. The
@@ -43,7 +106,7 @@
   stations and `p >= 2` comes out domed, and the user rejects that.
 - Detail has to read at sprite size: use geometry, not bump maps.
 
-## Next steps
+## Next steps (superseded by the entry above; item 1 done in `03e243d`)
 1. **Put the 3 ships in the game:** render transparent sprites over
    `assets\sprites\ships\{corvette,capital,freighter}.png`.
    - For each scene in `scenes\ship\ship_*.tscn`: set the `Sprite2D` scale for the size and

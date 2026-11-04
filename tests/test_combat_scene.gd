@@ -273,6 +273,41 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		if is_instance_valid(leaked_scene) and not leaked_scene.is_queued_for_deletion():
 			leaked_scene.queue_free()
 
+	# Regression: a ship lost mid-battle is freed before the deferred report runs, and
+	# passing it to a Ship-typed parameter raised "previously freed" and aborted the report.
+	campaign_state.reset()
+	var freed_player := CampaignFleet.new()
+	freed_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var freed_enemy := CampaignFleet.new()
+	freed_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([freed_enemy])
+	campaign_state.player_fleet = freed_player
+	campaign_state.start_engagement(freed_enemy)
+
+	var freed_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(freed_scene)
+	await tree.process_frame
+	await tree.process_frame
+	if freed_scene.player_ships.size() != 2:
+		failures.append("freed-ship report: expected 2 player ships deployed, got %d" % freed_scene.player_ships.size())
+	else:
+		var lost_ship: Ship = freed_scene.player_ships[0]
+		lost_ship.hull.apply_damage(lost_ship.hull.max_hp)
+		await tree.process_frame
+		await tree.process_frame
+		if is_instance_valid(lost_ship):
+			failures.append("freed-ship report: expected the lost ship freed before the battle ends")
+		for ship in freed_scene.enemy_ships.duplicate():
+			ship.hull.apply_damage(ship.hull.max_hp)
+		await _take_loot_offer(tree, freed_scene)
+		if campaign_state.active_enemy_fleet != null:
+			failures.append("freed-ship report: expected _report_to_campaign to resolve the engagement")
+		if campaign_state.player_fleet == null or campaign_state.player_fleet.ship_compositions.size() != 1:
+			failures.append("freed-ship report: expected the 1 surviving player ship carried back")
+	campaign_state.reset()
+	if is_instance_valid(freed_scene) and not freed_scene.is_queued_for_deletion():
+		freed_scene.queue_free()
+
 	# Crew deployment: only crewed, deploy-flagged ships spawn; the held-back
 	# comps come back unchanged after the battle.
 	campaign_state.reset()

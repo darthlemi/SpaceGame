@@ -276,7 +276,9 @@ func _roll_escapes(survivors: Array[Dictionary], speeds: Array[float], pursuer_s
 			captured.append(survivors[i])
 	return escaped
 
-func _is_surviving(ship: Ship) -> bool:
+# Untyped: lost ships are freed by report time, and a freed object fails any
+# Object-typed parameter check before is_instance_valid can run.
+func _is_surviving(ship) -> bool:
 	return is_instance_valid(ship) and not ship.hull.is_destroyed()
 
 func _survivor_comp(ship: Ship, orig: Dictionary) -> Dictionary:

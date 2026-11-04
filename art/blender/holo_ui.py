@@ -8,8 +8,8 @@ film. Standard view transform + emission strength 1 make an output px equal its 
 Run headless in Blender 5.2; see art\\README.md for the command.
 
 9-slice contract (keep in sync with theme.tres texture_margin_*): everything that is not a
-straight run lives inside the margins, and the tiled centre is a whole number of pattern
-periods (button dashes 6 px, panel scanlines 6 px), so tiling never smears or seams.
+straight run lives inside the margins, and the tiled button centre is a whole number of
+6 px dash periods, so tiling never smears or seams.
 """
 import argparse
 import logging
@@ -44,11 +44,9 @@ PANEL_INNER_GLOW = (0.25, 0.17, 0.1, 0.05)
 BRACKET_INSET = 3         # 2 px thick L-brackets over the border's outer edge
 BRACKET_THICK = 2
 BRACKET_LEN = 12          # ends at px 14, inside the 15 px margin
-SCANLINE_PITCH = 6        # 36 px tiled centre = 6 whole periods
-SCANLINE_ALPHA = 0.015   # faint: Cycles stacks in linear light, brighter than sRGB blending
 
 # Draw order, bottom to top; the camera looks down -Z.
-Z_FILL, Z_SCAN, Z_GLOW, Z_LINE, Z_BRACKET = range(5)
+Z_FILL, Z_GLOW, Z_LINE, Z_BRACKET = range(4)
 
 
 def hex_lin(h):
@@ -159,7 +157,7 @@ def setup_scene(width: int, height: int, samples: int):
     scene.cycles.samples = samples
     scene.cycles.use_denoising = False
     scene.cycles.filter_width = 0.01  # minimum: px-aligned edges stay hard
-    scene.cycles.transparent_max_bounces = 16  # stacked fill/scan/glow/line layers
+    scene.cycles.transparent_max_bounces = 16  # stacked fill/glow/line layers
     scene.render.film_transparent = True
     scene.view_settings.view_transform = "Standard"  # AgX shifts the palette hex
     scene.view_settings.look = "None"
@@ -180,15 +178,11 @@ def setup_scene(width: int, height: int, samples: int):
 
 
 def build_panel(alpha: float):
-    """Navy glass with scanlines, a faint cobalt border + glow, bright corner brackets."""
+    """Navy glass, a faint cobalt border + glow, bright corner brackets."""
     c = Canvas(PANEL_SIZE, PANEL_SIZE)
     b = PANEL_BORDER_INSET
     inner = PANEL_SIZE - 2 * (b + 1)
     c.rect(b + 1, b + 1, inner, inner, GLASS, alpha, Z_FILL)
-    # Rows on an absolute y % pitch phase, so the 36 px tiled centre is whole periods.
-    for y in range(b + 1, PANEL_SIZE - b - 1):
-        if y % SCANLINE_PITCH == 0:
-            c.rect(b + 1, y, inner, 1, ACCENT, SCANLINE_ALPHA, Z_SCAN)
     c.glow(b, ACCENT, PANEL_OUTER_GLOW, PANEL_INNER_GLOW, Z_GLOW)
     c.ring(b, ACCENT, PANEL_BORDER_ALPHA, Z_LINE)
     far = PANEL_SIZE - BRACKET_INSET

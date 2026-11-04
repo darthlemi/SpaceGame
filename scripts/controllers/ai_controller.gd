@@ -20,6 +20,10 @@ func _physics_process(_delta: float) -> void:
 	var enemy := Ship.nearest_in_range(candidates, ship.global_position, INF)
 	if enemy == null:
 		return
+	# Nothing left to shoot with: run rather than sit in the line of fire.
+	if ship.engagement_distance(enemy) < 0.0:
+		ship.execute_order(Order.retreat(enemy.global_position))
+		return
 	var hp_ratio: float = ship.hull.current_hp / ship.hull.max_hp if ship.hull.max_hp > 0.0 else 0.0
 	var in_range: bool = ship.global_position.distance_to(enemy.global_position) <= ship.attack_range()
 	state = AIController.next_state(state, hp_ratio, retreat_hp_ratio, in_range)

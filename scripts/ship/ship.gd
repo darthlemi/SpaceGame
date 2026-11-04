@@ -1,6 +1,13 @@
 class_name Ship
 extends CharacterBody2D
 
+# Standoff sits this far inside the chosen weapon range so target drift doesn't break it.
+const ENGAGE_RANGE_FRACTION := 0.8
+# Share of total weapon dps the standoff range must keep in reach.
+const ENGAGE_DPS_SHARE := 0.75
+# Minimum clear space between hulls, so short-ranged ships don't ram.
+const ENGAGE_HULL_GAP := 30.0
+
 @onready var hull: Hull = $Hull
 @onready var shield: Shield = $Shield
 @onready var engine: ShipEngine = $Engine
@@ -13,17 +20,16 @@ var current_order: Order
 @export var player_targetable: bool = true
 @export var enemy_group: StringName = &""
 @export var arrival_radius: float = 20.0
-@export var aggro_range: float = 0.0
-@export var leash_distance: float = 250.0
 @export var loiter_radius: float = 40.0
 @export var loiter_interval: float = 3.0
 @export var loiter_arrival_radius: float = 5.0
 @export var randomize_loadout: bool = false
 
 var _hold_center: Vector2 = Vector2.ZERO
+# Spawners place a ship after its _ready issues HOLD, so the anchor waits for the first tick.
+var _hold_anchored: bool = false
 var _loiter_target: Vector2 = Vector2.ZERO
 var _loiter_timer: float = 0.0
-var _chase_target: Node2D
 
 # complement 0 means crew isn't tracked (drones, non-campaign battles): full efficiency.
 var crew: float = 0.0
@@ -76,10 +82,8 @@ func _assign_random_loadout() -> void:
 func execute_order(order: Order) -> void:
 	current_order = order
 	if order.type == Order.Type.HOLD:
-		_hold_center = global_position
-		_loiter_target = global_position
+		_hold_anchored = false
 		_loiter_timer = 0.0
-		_chase_target = null
 
 func attack_range() -> float:
 	var max_range := 0.0
@@ -87,6 +91,19 @@ func attack_range() -> float:
 		if mount.weapon:
 			max_range = max(max_range, mount.weapon.weapon_range)
 	return max_range
+
+# How far to sit from target: < 0 means don't close in (nothing working to shoot with).
+# Drones without mounts override this.
+func engagement_distance(target: Node2D) -> float:
+	var weapons: Array[Weapon] = []
+	for mount in weapon_mounts:
+		if mount.weapon != null and not mount.is_destroyed():
+			weapons.append(mount.weapon)
+	if weapons.is_empty():
+		return -1.0
+	var target_radius: float = target.get_hit_radius() if target.has_method("get_hit_radius") else 0.0
+	var hull_floor := hit_radius + target_radius + ENGAGE_HULL_GAP
+	return maxf(Ship.best_engagement_range(weapons) * ENGAGE_RANGE_FRACTION, hull_floor)
 
 func get_hit_radius() -> float:
 	return hit_radius
@@ -150,44 +167,49 @@ func _process_order_movement(delta: float) -> void:
 			if not is_instance_valid(current_order.target_ship):
 				execute_order(Order.hold())
 				return
-			var target_pos: Vector2 = current_order.target_ship.global_position
-			if global_position.distance_to(target_pos) > attack_range():
-				_steer_to(target_pos, delta)
-			else:
-				velocity = velocity.move_toward(Vector2.ZERO, engine.acceleration * delta)
-				engine.velocity = velocity
+			_engage(current_order.target_ship, delta)
 		Order.Type.RETREAT:
 			var away := global_position + (global_position - current_order.target_position).normalized() * 500.0
 			_steer_to(away, delta)
 		Order.Type.HOLD:
-			_process_hold(delta)
+			_process_hold(delta, _enemy_candidates())
+
+# Holds the standoff on the line from target to ship, nose on the target so fixed and
+# limited-arc hardpoints bear.
+func _enemy_candidates() -> Array:
+	return get_tree().get_nodes_in_group(enemy_group) if enemy_group != &"" else []
+
+func _engage(target: Node2D, delta: float) -> void:
+	var standoff := engagement_distance(target)
+	if standoff < 0.0:
+		velocity = velocity.move_toward(Vector2.ZERO, engine.acceleration * delta)
+		engine.velocity = velocity
+		return
+	var target_pos := target.global_position
+	var away := global_position - target_pos
+	var bearing := away.normalized() if away.length() > 0.01 else Vector2.LEFT.rotated(rotation)
+	var result := engine.hold_station(global_position, rotation, target_pos, target_pos + bearing * standoff, delta)
+	rotation = result["rotation"]
+	velocity = result["velocity"]
 
 func _steer_to(target_pos: Vector2, delta: float) -> void:
 	var result := engine.steer_toward(global_position, rotation, target_pos, delta)
 	rotation = result["rotation"]
 	velocity = result["velocity"]
 
-func _process_hold(delta: float) -> void:
-	var effective_aggro := aggro_range if aggro_range > 0.0 else attack_range()
-	if _chase_target != null and is_instance_valid(_chase_target):
-		if Ship.should_disengage(global_position, _chase_target.global_position, _hold_center, effective_aggro, leash_distance):
-			_chase_target = null
-		else:
-			if global_position.distance_to(_chase_target.global_position) > attack_range():
-				_steer_to(_chase_target.global_position, delta)
-			else:
-				velocity = velocity.move_toward(Vector2.ZERO, engine.acceleration * delta)
-				engine.velocity = velocity
-			return
-	else:
-		_chase_target = null
-
-	var candidates: Array = get_tree().get_nodes_in_group(enemy_group) if enemy_group != &"" else []
-	var candidate := Ship.nearest_in_range(candidates, global_position, effective_aggro)
-	if candidate != null:
-		_chase_target = candidate
+# Idle ships hunt the nearest enemy anywhere, re-picking each tick so a closer threat
+# takes over; they loiter only once no enemy is left.
+func _process_hold(delta: float, candidates: Array) -> void:
+	var nearest := Ship.nearest_in_range(candidates, global_position, INF)
+	if nearest != null:
+		# Re-anchor after the fight, so loitering starts where it ended, not back at spawn.
+		_hold_anchored = false
+		_engage(nearest, delta)
 		return
-
+	if not _hold_anchored:
+		_hold_center = global_position
+		_loiter_target = global_position
+		_hold_anchored = true
 	_process_loiter(delta)
 
 func _process_loiter(delta: float) -> void:
@@ -201,16 +223,35 @@ func _process_loiter(delta: float) -> void:
 func _process_weapons() -> void:
 	if weapon_mounts.is_empty():
 		return
-	var max_range := attack_range()
-	var candidates: Array = get_tree().get_nodes_in_group(enemy_group) if enemy_group != &"" else []
-	var target := Ship.pick_autofire_target(current_order, candidates, global_position, max_range)
-	if target == null:
-		return
+	var candidates := _enemy_candidates()
+	var primary := Ship.pick_autofire_target(current_order, candidates, global_position, attack_range())
 	for mount in weapon_mounts:
-		mount.try_fire(target)
+		if not mount.can_fire():
+			continue
+		var target := Ship.pick_mount_target(mount, primary, candidates)
+		if target != null:
+			mount.try_fire(target)
 
 func _on_hull_destroyed() -> void:
 	queue_free()
+
+# The longest weapon range that still keeps ENGAGE_DPS_SHARE of total dps in reach, so a
+# light short weapon doesn't drag the ship in but a heavy one does.
+static func best_engagement_range(weapons: Array[Weapon]) -> float:
+	var total_dps := 0.0
+	for weapon in weapons:
+		total_dps += Ship._weapon_dps(weapon)
+	var best_range := 0.0
+	for candidate in weapons:
+		if candidate.weapon_range <= best_range:
+			continue
+		var reach_dps := 0.0
+		for weapon in weapons:
+			if weapon.weapon_range >= candidate.weapon_range:
+				reach_dps += Ship._weapon_dps(weapon)
+		if reach_dps >= total_dps * ENGAGE_DPS_SHARE:
+			best_range = candidate.weapon_range
+	return best_range
 
 static func nearest_in_range(candidates: Array, own_position: Vector2, max_range: float) -> Node2D:
 	var nearest: Node2D = null
@@ -228,9 +269,11 @@ static func pick_autofire_target(order: Order, candidates: Array, own_position: 
 		return order.target_ship if is_instance_valid(order.target_ship) else null
 	return Ship.nearest_in_range(candidates, own_position, max_range)
 
-static func should_disengage(own_position: Vector2, target_position: Vector2, hold_center: Vector2, aggro_range: float, leash_distance: float) -> bool:
-	if own_position.distance_to(target_position) > aggro_range:
-		return true
-	if own_position.distance_to(hold_center) > leash_distance:
-		return true
-	return false
+# Mounts that can't bear on the primary target take any other enemy they can hit.
+static func pick_mount_target(mount: WeaponMount, primary: Node2D, candidates: Array) -> Node2D:
+	if primary != null and mount.can_engage(primary):
+		return primary
+	return mount.nearest_engageable(candidates)
+
+static func _weapon_dps(weapon: Weapon) -> float:
+	return weapon.damage * weapon.fire_rate * weapon.submissile_count

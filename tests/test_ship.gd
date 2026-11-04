@@ -36,7 +36,12 @@ static func run() -> Array[String]:
 	_check_scene_structure(failures)
 	_check_ship_logic(failures)
 	_check_autofire_targeting(failures)
-	_check_disengage_rule(failures)
+	_check_engage_movement(failures)
+	_check_engagement_distance(failures)
+	_check_engagement_range(failures)
+	_check_hold_anchor(failures)
+	_check_hold_hunt(failures)
+	_check_mount_target(failures)
 	_check_receive_weapon_damage(failures)
 
 	return failures
@@ -382,11 +387,183 @@ static func _check_autofire_targeting(failures: Array[String]) -> void:
 	far.free()
 	explicit_target.free()
 
-static func _check_disengage_rule(failures: Array[String]) -> void:
-	var hold_center := Vector2.ZERO
-	if Ship.should_disengage(Vector2(10, 0), Vector2(20, 0), hold_center, 100.0, 250.0):
-		failures.append("should_disengage: expected false when target is within aggro_range and ship within leash")
-	if not Ship.should_disengage(Vector2(10, 0), Vector2(300, 0), hold_center, 100.0, 250.0):
-		failures.append("should_disengage: expected true when target exceeds aggro_range")
-	if not Ship.should_disengage(Vector2(300, 0), Vector2(310, 0), hold_center, 100.0, 250.0):
-		failures.append("should_disengage: expected true when ship exceeds leash_distance from hold_center")
+static func _check_engage_movement(failures: Array[String]) -> void:
+	var ship := _make_bare_ship([_make_weapon(300.0, 10.0, 1.0)])
+	var target := Ship.new()
+	target.hit_radius = 12.0
+
+	# Inside the 240 standoff: back off while keeping the nose on the target.
+	target.global_position = Vector2(100, 0)
+	ship._engage(target, 0.1)
+	if ship.velocity.x >= 0.0:
+		failures.append("_engage: expected a too-close ship to back away, got velocity %s" % ship.velocity)
+	if not is_zero_approx(ship.rotation):
+		failures.append("_engage: expected a backing ship to keep facing the target, got rotation %s" % ship.rotation)
+
+	# Far outside the standoff: close in.
+	ship.velocity = Vector2.ZERO
+	ship.engine.velocity = Vector2.ZERO
+	target.global_position = Vector2(1000, 0)
+	ship._engage(target, 0.1)
+	if ship.velocity.x <= 0.0:
+		failures.append("_engage: expected a distant ship to close in, got velocity %s" % ship.velocity)
+
+	# Target behind: turn toward it so forward-facing hardpoints can bear.
+	target.global_position = Vector2(-1000, 0)
+	ship._engage(target, 0.1)
+	if is_zero_approx(ship.rotation):
+		failures.append("_engage: expected the ship to turn toward a target behind it")
+
+	# Unarmed: never approach.
+	var unarmed := _make_bare_ship([])
+	target.global_position = Vector2(1000, 0)
+	unarmed._engage(target, 0.1)
+	if unarmed.velocity.length() > 0.01:
+		failures.append("_engage: expected an unarmed ship not to approach, got velocity %s" % unarmed.velocity)
+
+	_free_bare_ship(ship)
+	_free_bare_ship(unarmed)
+	target.free()
+
+static func _check_engagement_distance(failures: Array[String]) -> void:
+	var target := Ship.new()
+	target.hit_radius = 12.0
+
+	var ship := _make_bare_ship([_make_weapon(300.0, 10.0, 1.0)])
+	var expected := 300.0 * Ship.ENGAGE_RANGE_FRACTION
+	if not is_equal_approx(ship.engagement_distance(target), expected):
+		failures.append("engagement_distance: expected %s for a 300-range weapon, got %s" % [expected, ship.engagement_distance(target)])
+
+	# A destroyed mount no longer counts.
+	ship.weapon_mounts[0].apply_damage(1000.0)
+	if ship.engagement_distance(target) >= 0.0:
+		failures.append("engagement_distance: expected < 0 once every mount is destroyed, got %s" % ship.engagement_distance(target))
+
+	# Short weapons never pull the hulls into contact.
+	var short_ship := _make_bare_ship([_make_weapon(20.0, 10.0, 1.0)])
+	var min_gap := short_ship.hit_radius + target.hit_radius + Ship.ENGAGE_HULL_GAP
+	if not is_equal_approx(short_ship.engagement_distance(target), min_gap):
+		failures.append("engagement_distance: expected the hull-gap floor %s, got %s" % [min_gap, short_ship.engagement_distance(target)])
+
+	var unarmed := _make_bare_ship([])
+	if unarmed.engagement_distance(target) >= 0.0:
+		failures.append("engagement_distance: expected < 0 for a ship with no mounts, got %s" % unarmed.engagement_distance(target))
+
+	var bomber := BomberDrone.new()
+	if not is_zero_approx(bomber.engagement_distance(target)):
+		failures.append("engagement_distance: expected a bomber drone to close to 0, got %s" % bomber.engagement_distance(target))
+	var ew := EwDrone.new()
+	if not is_equal_approx(ew.engagement_distance(target), ew.aura_range * Ship.ENGAGE_RANGE_FRACTION):
+		failures.append("engagement_distance: expected an EW drone to hold inside its aura, got %s" % ew.engagement_distance(target))
+
+	_free_bare_ship(ship)
+	_free_bare_ship(short_ship)
+	_free_bare_ship(unarmed)
+	bomber.free()
+	ew.free()
+	target.free()
+
+static func _check_engagement_range(failures: Array[String]) -> void:
+	var none: Array[Weapon] = []
+	if not is_zero_approx(Ship.best_engagement_range(none)):
+		failures.append("best_engagement_range: expected 0 with no weapons, got %s" % Ship.best_engagement_range(none))
+
+	var single: Array[Weapon] = [_make_weapon(300.0, 10.0, 2.0)]
+	if not is_equal_approx(Ship.best_engagement_range(single), 300.0):
+		failures.append("best_engagement_range: expected the only weapon's range 300, got %s" % Ship.best_engagement_range(single))
+
+	# Railgun 8.75 dps @500, kinetic 20 @300, flak 16 @200: only 200 reaches the dps share.
+	var mixed: Array[Weapon] = [_make_weapon(500.0, 35.0, 0.25), _make_weapon(300.0, 10.0, 2.0), _make_weapon(200.0, 4.0, 4.0)]
+	if not is_equal_approx(Ship.best_engagement_range(mixed), 200.0):
+		failures.append("best_engagement_range: expected 200 for a flak-heavy mix, got %s" % Ship.best_engagement_range(mixed))
+
+	# 30 of 35 dps reaches 450, so the light short weapon doesn't drag the ship in.
+	var long_heavy: Array[Weapon] = [_make_weapon(450.0, 30.0, 1.0), _make_weapon(200.0, 5.0, 1.0)]
+	if not is_equal_approx(Ship.best_engagement_range(long_heavy), 450.0):
+		failures.append("best_engagement_range: expected 450 when the long weapon carries the dps, got %s" % Ship.best_engagement_range(long_heavy))
+
+static func _check_hold_anchor(failures: Array[String]) -> void:
+	# Spawners position a ship after its _ready has already issued HOLD.
+	var ship := _make_bare_ship([])
+	ship.execute_order(Order.hold())
+	ship.global_position = Vector2(300, 200)
+	ship._process_hold(0.016, [])
+	if ship._hold_center != Vector2(300, 200):
+		failures.append("_process_hold: expected the hold anchor at the first-tick position (300, 200), got %s" % ship._hold_center)
+	_free_bare_ship(ship)
+
+static func _check_hold_hunt(failures: Array[String]) -> void:
+	var ship := _make_bare_ship([_make_weapon(300.0, 10.0, 1.0)])
+	ship.execute_order(Order.hold())
+	var near := Ship.new()
+	near.global_position = Vector2(2000, 0)
+	var far := Ship.new()
+	far.global_position = Vector2(-5000, 0)
+
+	# Far beyond weapon range: an idle ship still goes after the nearest enemy.
+	ship._process_hold(0.1, [far, near])
+	if ship.velocity.x <= 0.0:
+		failures.append("_process_hold: expected an idle ship to hunt the nearest enemy, got velocity %s" % ship.velocity)
+	if ship._hold_anchored:
+		failures.append("_process_hold: expected hunting to drop the hold anchor so loiter restarts where the fight ends")
+
+	_free_bare_ship(ship)
+	near.free()
+	far.free()
+
+static func _check_mount_target(failures: Array[String]) -> void:
+	var weapon := _make_weapon(300.0, 10.0, 1.0)
+	weapon.fire_arc_degrees = 10.0
+	var mount := WeaponMount.new()
+	mount.weapon = weapon
+	mount._ready()
+	var behind := Node2D.new()
+	behind.global_position = Vector2(-100, 0)
+	var ahead := Node2D.new()
+	ahead.global_position = Vector2(150, 0)
+	var candidates: Array = [behind, ahead]
+
+	if Ship.pick_mount_target(mount, ahead, candidates) != ahead:
+		failures.append("pick_mount_target: expected the primary target when the mount bears on it")
+	if Ship.pick_mount_target(mount, behind, candidates) != ahead:
+		failures.append("pick_mount_target: expected a fallback in arc when the primary is behind the mount")
+	if Ship.pick_mount_target(mount, null, [behind]) != null:
+		failures.append("pick_mount_target: expected null when nothing is in range and arc")
+
+	mount.free()
+	behind.free()
+	ahead.free()
+
+static func _free_bare_ship(ship: Ship) -> void:
+	for mount in ship.weapon_mounts:
+		mount.free()
+	ship.engine.free()
+	ship.hull.free()
+	ship.shield.free()
+	ship.free()
+
+static func _make_bare_ship(weapons: Array) -> Ship:
+	var ship := Ship.new()
+	ship.hull = Hull.new()
+	ship.shield = Shield.new()
+	ship.engine = ShipEngine.new()
+	ship.engine.max_speed = 100.0
+	ship.engine.acceleration = 1000.0
+	ship.engine.turn_rate = 10.0
+	ship.engine._ready()
+	var mounts: Array[WeaponMount] = []
+	for weapon in weapons:
+		var mount := WeaponMount.new()
+		mount.weapon = weapon
+		mount._ready()
+		mounts.append(mount)
+	ship.weapon_mounts = mounts
+	ship.current_order = Order.hold()
+	return ship
+
+static func _make_weapon(weapon_range: float, damage: float, fire_rate: float) -> Weapon:
+	var weapon := Weapon.new()
+	weapon.weapon_range = weapon_range
+	weapon.damage = damage
+	weapon.fire_rate = fire_rate
+	return weapon

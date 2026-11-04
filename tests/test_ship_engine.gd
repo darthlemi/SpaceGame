@@ -47,4 +47,35 @@ static func run() -> Array[String]:
 		failures.append("steer_toward: expected a destroyed engine to produce no new acceleration, velocity length was %s" % dead_vel.length())
 
 	damaged_engine.free()
+
+	_check_hold_station(failures)
 	return failures
+
+static func _check_hold_station(failures: Array[String]) -> void:
+	var station_engine := ShipEngine.new()
+	station_engine.max_speed = 100.0
+	station_engine.acceleration = 1000.0
+	station_engine.turn_rate = 10.0
+	station_engine._ready()
+	var face := Vector2(100, 0)
+
+	var forward: Dictionary = station_engine.hold_station(Vector2.ZERO, 0.0, face, Vector2(500, 0), 1.0)
+	if not (forward["velocity"] as Vector2).is_equal_approx(Vector2(100, 0)):
+		failures.append("hold_station: expected full speed along the nose, got %s" % forward["velocity"])
+
+	station_engine.velocity = Vector2.ZERO
+	var backing: Dictionary = station_engine.hold_station(Vector2.ZERO, 0.0, face, Vector2(-500, 0), 1.0)
+	var expected_reverse := Vector2(-100.0 * ShipEngine.REVERSE_SPEED_FACTOR, 0)
+	if not (backing["velocity"] as Vector2).is_equal_approx(expected_reverse):
+		failures.append("hold_station: expected reverse thrust capped at %s, got %s" % [expected_reverse, backing["velocity"]])
+	if not is_zero_approx(backing["rotation"]):
+		failures.append("hold_station: expected the nose to stay on the face point while reversing, got %s" % backing["rotation"])
+
+	var settled: Dictionary = station_engine.hold_station(Vector2.ZERO, 0.0, face, Vector2.ZERO, 1.0)
+	if (settled["velocity"] as Vector2).length() > 0.01:
+		failures.append("hold_station: expected to stop on the station, got %s" % settled["velocity"])
+
+	var turning: Dictionary = station_engine.hold_station(Vector2.ZERO, 0.0, Vector2(0, 100), Vector2.ZERO, 0.01)
+	if not is_equal_approx(turning["rotation"], 0.1):
+		failures.append("hold_station: expected a turn-rate-limited step toward the face point, got %s" % turning["rotation"])
+	station_engine.free()

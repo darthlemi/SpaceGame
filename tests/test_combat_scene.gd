@@ -36,6 +36,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if scene.fleet_commander == null or scene.fleet_commander.ships != scene.player_ships:
 		failures.append("run_async: expected fleet_commander.ships == player_ships")
 
+	# Idle player ships hunt the enemy line to their right; they once drifted to the
+	# origin because spawners place a ship after add_child has run its _ready.
+	await tree.physics_frame
+	for k in scene.player_ships.size():
+		var heading: Vector2 = scene.player_ships[k].velocity
+		if heading.x <= 0.0:
+			failures.append("run_async: expected idle player ship %d to head toward the enemy, got velocity %s" % [k, heading])
+
 	if scene.result_label == null:
 		failures.append("run_async: expected result_label resolved by @onready, got null")
 	elif scene.result_label.visible:

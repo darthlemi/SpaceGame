@@ -7,6 +7,10 @@ extends Ship
 func attack_range() -> float:
 	return detonate_radius
 
+# Detonates on contact, so it closes all the way in.
+func engagement_distance(_target: Node2D) -> float:
+	return 0.0
+
 func _process_weapons() -> void:
 	if current_order == null or current_order.type != Order.Type.ATTACK_TARGET:
 		return

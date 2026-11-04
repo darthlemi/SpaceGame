@@ -18,6 +18,11 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var pause_button: Button = scene.get_node("Layout/PauseButton")
 	var paused_label: Label = scene.get_node("Layout/PausedLabel")
 
+	# Clicks on the panel must not fall through to fleet selection / the campaign map.
+	var background: Control = scene.get_node("Background")
+	if background.mouse_filter != Control.MOUSE_FILTER_STOP:
+		failures.append("expected the Background panel to stop mouse input, got filter %s" % background.mouse_filter)
+
 	speed_3x.pressed.emit()
 	if not is_equal_approx(Engine.time_scale, 3.0):
 		failures.append("expected 3x button to set time_scale to 3.0, got %s" % Engine.time_scale)

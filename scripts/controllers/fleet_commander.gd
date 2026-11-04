@@ -109,7 +109,7 @@ static func ship_at_point(candidates: Array, point: Vector2, radius: float) -> S
 	var best: Ship = null
 	var best_dist := radius
 	for c in candidates:
-		if c is Ship and is_instance_valid(c) and c.player_targetable:
+		if is_instance_valid(c) and c is Ship and c.player_targetable:
 			var d: float = c.global_position.distance_to(point)
 			if d <= best_dist:
 				best_dist = d

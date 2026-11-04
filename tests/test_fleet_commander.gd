@@ -32,6 +32,13 @@ static func _check_ship_at_point(failures: Array[String]) -> void:
 		failures.append("ship_at_point: expected null when the only candidate is not player_targetable, got %s" % only_drone)
 	drone.free()
 
+	# Dead ships stay in the commander's roster; 'is' on a freed instance is a script error.
+	var dead := _make_ship(Vector2(1, 0))
+	dead.free()
+	var picked_past_dead := FleetCommander.ship_at_point([dead, near], Vector2.ZERO, 50.0)
+	if picked_past_dead != near:
+		failures.append("ship_at_point: expected a freed candidate to be skipped, got %s" % picked_past_dead)
+
 	near.free()
 	far.free()
 

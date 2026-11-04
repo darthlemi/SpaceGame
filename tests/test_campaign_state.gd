@@ -43,7 +43,7 @@ static func run() -> Array[String]:
 
 	# Credits, cargo capacity, and buy/sell.
 	var trade_state := CampaignState.new()
-	trade_state.credits = 50.0
+	trade_state.credits = 50
 	var trade_economy := BaseEconomy.new()
 	trade_economy.stock = {Commodity.Type.ORE: 10.0}
 	var trade_fleet := CampaignFleet.new()
@@ -53,14 +53,14 @@ static func run() -> Array[String]:
 	var bought: bool = trade_state.buy(trade_economy, Commodity.Type.ORE, trade_fleet)
 	if not bought:
 		failures.append("buy: expected a well-funded, in-capacity purchase to succeed")
-	if abs(trade_state.credits - (50.0 - buy_price)) > 0.001:
+	if trade_state.credits != 50 - buy_price:
 		failures.append("buy: expected credits reduced by buy_price, got %s" % trade_state.credits)
 	if trade_economy.stock.get(Commodity.Type.ORE, 0.0) != 9.0:
 		failures.append("buy: expected base stock reduced by 1, got %s" % trade_economy.stock.get(Commodity.Type.ORE, 0.0))
 	if trade_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 1.0:
 		failures.append("buy: expected fleet cargo increased by 1, got %s" % trade_fleet.cargo.get(Commodity.Type.ORE, 0.0))
 
-	trade_state.credits = 0.0
+	trade_state.credits = 0
 	var bought_broke: bool = trade_state.buy(trade_economy, Commodity.Type.ORE, trade_fleet)
 	if bought_broke:
 		failures.append("buy: expected purchase to fail with 0 credits")
@@ -69,7 +69,7 @@ static func run() -> Array[String]:
 	var sold: bool = trade_state.sell(trade_economy, Commodity.Type.ORE, trade_fleet)
 	if not sold:
 		failures.append("sell: expected selling held cargo to succeed")
-	if abs(trade_state.credits - sell_price) > 0.001:
+	if trade_state.credits != sell_price:
 		failures.append("sell: expected credits increased by sell_price, got %s" % trade_state.credits)
 	if trade_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
 		failures.append("sell: expected fleet cargo reduced by 1, got %s" % trade_fleet.cargo.get(Commodity.Type.ORE, 0.0))
@@ -80,7 +80,7 @@ static func run() -> Array[String]:
 
 	# buy: out-of-stock base should fail without touching credits/cargo/stock.
 	var out_of_stock_state := CampaignState.new()
-	out_of_stock_state.credits = 50.0
+	out_of_stock_state.credits = 50
 	var out_of_stock_economy := BaseEconomy.new()
 	out_of_stock_economy.stock = {Commodity.Type.ORE: 0.0}
 	var out_of_stock_fleet := CampaignFleet.new()
@@ -89,7 +89,7 @@ static func run() -> Array[String]:
 	var bought_out_of_stock: bool = out_of_stock_state.buy(out_of_stock_economy, Commodity.Type.ORE, out_of_stock_fleet)
 	if bought_out_of_stock:
 		failures.append("buy: expected purchase to fail when base stock is below 1.0")
-	if out_of_stock_state.credits != 50.0:
+	if out_of_stock_state.credits != 50:
 		failures.append("buy: expected credits unchanged when base stock is below 1.0, got %s" % out_of_stock_state.credits)
 	if out_of_stock_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
 		failures.append("buy: expected fleet cargo unchanged when base stock is below 1.0")
@@ -98,7 +98,7 @@ static func run() -> Array[String]:
 
 	# buy: fleet cargo already at capacity should fail without touching credits/cargo/stock.
 	var full_cargo_state := CampaignState.new()
-	full_cargo_state.credits = 50.0
+	full_cargo_state.credits = 50
 	var full_cargo_economy := BaseEconomy.new()
 	full_cargo_economy.stock = {Commodity.Type.ORE: 10.0}
 	var full_cargo_fleet := CampaignFleet.new()
@@ -110,7 +110,7 @@ static func run() -> Array[String]:
 	var bought_full_cargo: bool = full_cargo_state.buy(full_cargo_economy, Commodity.Type.ORE, full_cargo_fleet)
 	if bought_full_cargo:
 		failures.append("buy: expected purchase to fail when cargo would exceed capacity")
-	if full_cargo_state.credits != 50.0:
+	if full_cargo_state.credits != 50:
 		failures.append("buy: expected credits unchanged when cargo is full, got %s" % full_cargo_state.credits)
 	if full_cargo_fleet.cargo.get(Commodity.Type.ORE, 0.0) != 0.0:
 		failures.append("buy: expected fleet cargo unchanged (no Ore added) when cargo is full")
@@ -148,10 +148,10 @@ static func run() -> Array[String]:
 		failures.append("tick_economy: expected the null-economy faction to remain untouched")
 
 	# reset() clears the new economy fields too.
-	tick_state.credits = 10.0
+	tick_state.credits = 10
 	tick_state.reset()
-	if tick_state.credits != 500.0:
-		failures.append("reset: expected credits reset to 500.0, got %s" % tick_state.credits)
+	if tick_state.credits != 500:
+		failures.append("reset: expected credits reset to 500, got %s" % tick_state.credits)
 	if tick_state.home_base_economy != null:
 		failures.append("reset: expected home_base_economy cleared to null")
 
@@ -535,22 +535,60 @@ static func run() -> Array[String]:
 		failures.append("is_damaged: expected false for a legacy composition dict with no engine/mount fields")
 
 	var repair_state := CampaignState.new()
-	repair_state.credits = 200.0
+	repair_state.credits = 200
 	var to_repair := {
 		"max_hp": 100.0, "current_hp": 10.0, "max_shield": 50.0, "current_shield": 0.0,
 		"engine_max_hp": 20.0, "engine_current_hp": 2.0,
 		"weapon_mount_max_hp": [10.0], "weapon_mount_current_hp": [1.0],
 	}
 	repair_state.repair_ship(to_repair)
-	if not is_equal_approx(repair_state.credits, 200.0 - CampaignState.REPAIR_COST):
+	if repair_state.credits != 200 - CampaignState.REPAIR_COST:
 		failures.append("repair_ship: expected credits reduced by REPAIR_COST, got %s" % repair_state.credits)
 	if to_repair["current_hp"] != 100.0 or to_repair["current_shield"] != 50.0 or to_repair["engine_current_hp"] != 20.0 or to_repair["weapon_mount_current_hp"][0] != 10.0:
 		failures.append("repair_ship: expected every field restored to max, got %s" % to_repair)
 
+	# Whole credits: credits stay int after every spend or gain.
+	var int_state := CampaignState.new()
+	int_state.credits = 5000
+	var int_economy := BaseEconomy.new()
+	int_economy.stock = {Commodity.Type.ORE: 10.0}
+	var int_fleet := CampaignFleet.new()
+	int_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL)])
+	int_fleet.set_flagship(0)
+	int_state.player_fleet = int_fleet
+	int_state.buy(int_economy, Commodity.Type.ORE, int_fleet)
+	if typeof(int_state.credits) != TYPE_INT:
+		failures.append("buy: expected int credits, got type %d" % typeof(int_state.credits))
+	int_state.sell(int_economy, Commodity.Type.ORE, int_fleet)
+	if typeof(int_state.credits) != TYPE_INT:
+		failures.append("sell: expected int credits, got type %d" % typeof(int_state.credits))
+	int_economy.crew_pool = 10.0
+	int_fleet.ship_compositions[0]["crew"] = 0
+	int_state.hire_crew(int_economy, int_fleet, 2)
+	if typeof(int_state.credits) != TYPE_INT:
+		failures.append("hire_crew: expected int credits, got type %d" % typeof(int_state.credits))
+	var int_damaged := {"max_hp": 100.0, "current_hp": 10.0, "max_shield": 0.0, "current_shield": 0.0}
+	int_state.repair_ship(int_damaged)
+	if typeof(int_state.credits) != TYPE_INT:
+		failures.append("repair_ship: expected int credits, got type %d" % typeof(int_state.credits))
+	if typeof(CampaignState.repair_cost_for(int_damaged)) != TYPE_INT:
+		failures.append("repair_cost_for: expected int")
+	var int_faction := PowerFaction.new()
+	int_faction.faction_enum = CampaignFleet.Faction.DOMINION
+	int_faction.fine = 150
+	int_state.factions.assign([int_faction])
+	int_state.pay_fine(CampaignFleet.Faction.DOMINION)
+	if typeof(int_state.credits) != TYPE_INT:
+		failures.append("pay_fine: expected int credits, got type %d" % typeof(int_state.credits))
+	int_state.begin_respawn()
+	if typeof(int_state.credits) != TYPE_INT:
+		failures.append("begin_respawn: expected int credits, got type %d" % typeof(int_state.credits))
+	int_state.free()
+
 	# buy_part/sell_part/equip_part.
 	var campaign_state := CampaignState.new()
 	campaign_state.reset()
-	campaign_state.credits = 1000.0
+	campaign_state.credits = 1000
 	var part_fleet := CampaignFleet.new()
 	part_fleet.ship_compositions = [ShipType.new_composition(ShipType.Kind.CORVETTE)]
 
@@ -558,13 +596,13 @@ static func run() -> Array[String]:
 		failures.append("buy_part: expected buying an affordable, in-capacity part to succeed")
 	if part_fleet.part_inventory != ["res://resources/weapons/railgun.tres"]:
 		failures.append("buy_part: expected the bought part added to part_inventory, got %s" % part_fleet.part_inventory)
-	if not is_equal_approx(campaign_state.credits, 1000.0 - PartRarity.price_for(PartRarity.Tier.RARE)):
+	if campaign_state.credits != 1000 - PartRarity.price_for(PartRarity.Tier.RARE):
 		failures.append("buy_part: expected credits debited by the railgun's RARE price, got %s" % campaign_state.credits)
 
-	campaign_state.credits = 0.0
+	campaign_state.credits = 0
 	if campaign_state.buy_part("res://resources/weapons/mass_driver.tres", part_fleet):
 		failures.append("buy_part: expected buying to fail with insufficient credits")
-	campaign_state.credits = 1000.0
+	campaign_state.credits = 1000
 
 	var credits_before_sell := campaign_state.credits
 	if not campaign_state.sell_part(part_fleet, 0):
@@ -638,10 +676,10 @@ static func run() -> Array[String]:
 	var hire_fleet := CampaignFleet.new()
 	hire_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	hire_fleet.ship_compositions[0]["crew"] = 9
-	hire_state.credits = 500.0
+	hire_state.credits = 500
 	if not hire_state.hire_crew(hire_economy, hire_fleet, 3):
 		failures.append("hire_crew: expected 3 hires to succeed")
-	if not is_equal_approx(hire_state.credits, 500.0 - 3.0 * CampaignState.CREW_HIRE_COST):
+	if hire_state.credits != 500 - 3 * CampaignState.CREW_HIRE_COST:
 		failures.append("hire_crew: expected credits 380, got %s" % hire_state.credits)
 	if not is_equal_approx(hire_economy.crew_pool, 7.0) or hire_fleet.crew_total() != 12:
 		failures.append("hire_crew: expected pool 7 and crew 12, got %s / %s" % [hire_economy.crew_pool, hire_fleet.crew_total()])
@@ -651,7 +689,7 @@ static func run() -> Array[String]:
 	hire_fleet.ship_compositions[0]["crew"] = 0
 	if hire_state.hire_crew(hire_economy, hire_fleet, 8):
 		failures.append("hire_crew: expected failure when count exceeds the pool")
-	hire_state.credits = 100.0
+	hire_state.credits = 100
 	if hire_state.hire_crew(hire_economy, hire_fleet, 3):
 		failures.append("hire_crew: expected failure when credits are short")
 	if hire_state.hire_crew(hire_economy, hire_fleet, 0):
@@ -662,19 +700,21 @@ static func run() -> Array[String]:
 	wage_fleet.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL), ShipType.new_composition(ShipType.Kind.CORVETTE)])
 	wage_fleet.set_flagship(0)
 	wage_state.player_fleet = wage_fleet
-	if not is_equal_approx(wage_state.wage_bill(wage_fleet), 4.0):
-		failures.append("wage_bill: expected 4.0, got %s" % wage_state.wage_bill(wage_fleet))
+	if wage_state.wage_bill(wage_fleet) != 4:
+		failures.append("wage_bill: expected 4, got %s" % wage_state.wage_bill(wage_fleet))
 	if wage_state.flagship_floor(wage_fleet) != 12:
 		failures.append("flagship_floor: expected 12 for a capital, got %s" % wage_state.flagship_floor(wage_fleet))
-	wage_state.credits = 1.0
+	wage_state.credits = 1
 	wage_state.pay_wages()
-	if not is_equal_approx(wage_state.credits, 0.0) or wage_state.credits < 0.0:
-		failures.append("pay_wages: expected credits 0.0, got %s" % wage_state.credits)
+	if wage_state.credits != 0:
+		failures.append("pay_wages: expected credits 0, got %s" % wage_state.credits)
 	if wage_fleet.ship_compositions[1]["crew"] != 6 or wage_fleet.ship_compositions[0]["crew"] != 40:
 		failures.append("pay_wages: expected 6 deserters from the corvette, got %s" % wage_fleet.ship_compositions)
-	wage_state.credits = 100.0
+	if typeof(wage_state.credits) != TYPE_INT:
+		failures.append("pay_wages: expected int credits, got type %d" % typeof(wage_state.credits))
+	wage_state.credits = 100
 	wage_state.pay_wages()
-	if not is_equal_approx(wage_state.credits, 100.0 - 0.1 * 34.0):
+	if wage_state.credits != 100 - 3:
 		failures.append("pay_wages: expected full bill paid, got credits %s" % wage_state.credits)
 
 	# Desertion with no credits never takes the flagship below its floor.
@@ -685,17 +725,20 @@ static func run() -> Array[String]:
 	broke_fleet.ship_compositions[1]["crew"] = 0
 	broke_fleet.set_flagship(0)
 	broke_state.player_fleet = broke_fleet
-	broke_state.credits = 0.0
+	broke_state.credits = 0
 	for i in 20:
 		broke_state.pay_wages()
-	if broke_fleet.ship_compositions[0]["crew"] != 12 or broke_state.credits != 0.0:
+	if broke_fleet.ship_compositions[0]["crew"] != 12 or broke_state.credits != 0:
 		failures.append("pay_wages: flagship floor/credits violated, crew %s credits %s" % [broke_fleet.ship_compositions[0]["crew"], broke_state.credits])
 	# Unpayable bill above the floor: deserters leave but the flagship stops at its floor.
 	broke_fleet.ship_compositions[0]["crew"] = 40
 	for i in 40:
 		broke_state.pay_wages()
-	if broke_fleet.ship_compositions[0]["crew"] != 12 or broke_state.credits != 0.0:
-		failures.append("pay_wages: expected flagship to settle at floor 12, got %s" % broke_fleet.ship_compositions[0]["crew"])
+	# Under 10 billable crew is not a wage group: desertion stops there (12 floor + 8 free = 20).
+	if broke_fleet.ship_compositions[0]["crew"] != 20 or broke_state.credits != 0:
+		failures.append("pay_wages: expected flagship to settle at 20 (floor 12 + 8 unbilled crew), got %s" % broke_fleet.ship_compositions[0]["crew"])
+	if broke_state.wage_bill(broke_fleet) != 0:
+		failures.append("wage_bill: expected 0 under one full wage group, got %s" % broke_state.wage_bill(broke_fleet))
 
 	# NPC crew: power-faction fleets refill from the faction pool, pirates regen a fixed amount.
 	var npc_state := CampaignState.new()
@@ -970,7 +1013,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	second_enemy.ship_compositions = [{"max_hp": 100.0, "current_hp": 100.0, "max_shield": 50.0, "current_shield": 50.0}]
 	defeat_state.start_engagement(second_enemy)
 	defeat_state.resolve_engagement(defeat_player.ship_compositions, [])
-	if defeat_dominion.fine != CampaignState.FINE_PER_KILL * 2.0:
+	if defeat_dominion.fine != CampaignState.FINE_PER_KILL * 2:
 		failures.append("fines: expected two kills to stack fines, got %s" % defeat_dominion.fine)
 	if defeat_dominion.fine_reputation != CampaignState.REPUTATION_LOSS_PER_DEFEAT + 5.0:
 		failures.append("fines: expected the clamped 5.0 loss recorded, got fine_reputation %s" % defeat_dominion.fine_reputation)
@@ -978,17 +1021,17 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# pay_fine: refused without enough credits, then clears the fine and restores reputation.
 	var signalled: Array = []
 	defeat_state.faction_reputation_changed.connect(func(f): signalled.append(f))
-	defeat_state.credits = defeat_dominion.fine - 1.0
+	defeat_state.credits = defeat_dominion.fine - 1
 	if defeat_state.pay_fine(CampaignFleet.Faction.DOMINION):
 		failures.append("pay_fine: expected refusal when credits cannot cover the fine")
-	defeat_state.credits = 1000.0
+	defeat_state.credits = 1000
 	if not defeat_state.pay_fine(CampaignFleet.Faction.DOMINION):
 		failures.append("pay_fine: expected success with enough credits")
-	if not is_equal_approx(defeat_state.credits, 1000.0 - CampaignState.FINE_PER_KILL * 2.0):
+	if defeat_state.credits != 1000 - CampaignState.FINE_PER_KILL * 2:
 		failures.append("pay_fine: expected the fine deducted, got credits %s" % defeat_state.credits)
 	if defeat_dominion.reputation != 0.0 + CampaignState.REPUTATION_LOSS_PER_DEFEAT + 5.0:
 		failures.append("pay_fine: expected recorded reputation restored, got %s" % defeat_dominion.reputation)
-	if defeat_dominion.fine != 0.0 or defeat_dominion.fine_reputation != 0.0:
+	if defeat_dominion.fine != 0 or defeat_dominion.fine_reputation != 0.0:
 		failures.append("pay_fine: expected fine cleared, got fine=%s rep=%s" % [defeat_dominion.fine, defeat_dominion.fine_reputation])
 	if signalled != [CampaignFleet.Faction.DOMINION]:
 		failures.append("pay_fine: expected one faction_reputation_changed(DOMINION) emission, got %s" % [signalled])
@@ -1044,7 +1087,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# Respawn: credit penalty, loss of cargo/parts/ships; reputation and fines kept.
 	var respawn_state = CampaignState.new()
 	var respawn_faction := PowerFaction.new()
-	respawn_faction.fine = 150.0
+	respawn_faction.fine = 150
 	respawn_faction.reputation = 30.0
 	respawn_state.factions.assign([respawn_faction])
 	var respawn_fleet := CampaignFleet.new()
@@ -1052,15 +1095,15 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	respawn_fleet.cargo = {Commodity.Type.ORE: 5.0}
 	respawn_fleet.part_inventory.assign(["res://resources/weapons/kinetic_cannon.tres"])
 	respawn_state.player_fleet = respawn_fleet
-	respawn_state.credits = 400.0
+	respawn_state.credits = 400
 	respawn_state.begin_respawn()
 	if not respawn_state.pending_respawn:
 		failures.append("begin_respawn: expected pending_respawn set")
-	if not is_equal_approx(respawn_state.credits, 300.0):
+	if respawn_state.credits != 300:
 		failures.append("begin_respawn: expected 300 credits, got %s" % respawn_state.credits)
 	if not respawn_fleet.cargo.is_empty() or not respawn_fleet.part_inventory.is_empty() or not respawn_fleet.ship_compositions.is_empty():
 		failures.append("begin_respawn: expected cargo, parts and ships cleared")
-	if respawn_faction.fine != 150.0 or respawn_faction.reputation != 30.0:
+	if respawn_faction.fine != 150 or respawn_faction.reputation != 30.0:
 		failures.append("begin_respawn: expected fine and reputation untouched")
 	if respawn_state.complete_respawn(ShipType.Kind.CAPITAL, true):
 		failures.append("complete_respawn: expected buying a capital at 300 credits to fail")
@@ -1073,22 +1116,26 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("complete_respawn: expected one free corvette regardless of kind")
 	elif CrewRules.crew_of(free_comps[0]) != 4 or not CrewRules.is_flagship(free_comps[0]):
 		failures.append("complete_respawn: expected corvette crew 4 and flagship, got %s" % free_comps[0])
-	if not is_equal_approx(respawn_state.credits, 300.0):
+	if respawn_state.credits != 300:
 		failures.append("complete_respawn: expected the free ship to cost nothing, got %s" % respawn_state.credits)
 	if respawn_state.pending_respawn:
 		failures.append("complete_respawn: expected pending_respawn cleared")
 	respawn_fleet.ship_compositions.clear()
 	if respawn_state.complete_respawn(ShipType.Kind.FREIGHTER, true):
 		failures.append("complete_respawn: expected buying a freighter at 300 credits to fail")
-	respawn_state.credits = 600.0
+	respawn_state.credits = 600
 	if not respawn_state.complete_respawn(ShipType.Kind.FREIGHTER, true):
 		failures.append("complete_respawn: expected buying a freighter at 600 credits to succeed")
-	elif not is_equal_approx(respawn_state.credits, 100.0) or CrewRules.crew_of(respawn_fleet.ship_compositions[0]) != 2:
+	elif respawn_state.credits != 100 or CrewRules.crew_of(respawn_fleet.ship_compositions[0]) != 2:
 		failures.append("complete_respawn: expected 100 credits left and freighter crew 2")
-	respawn_state.credits = 10.0
+	respawn_state.credits = 10
 	respawn_state.begin_respawn()
-	if not is_equal_approx(respawn_state.credits, 7.5):
-		failures.append("begin_respawn: expected 7.5 credits, got %s" % respawn_state.credits)
+	if respawn_state.credits != 7:
+		failures.append("begin_respawn: expected 7 credits, got %s" % respawn_state.credits)
+	respawn_state.credits = 401
+	respawn_state.begin_respawn()
+	if respawn_state.credits != 300 or typeof(respawn_state.credits) != TYPE_INT:
+		failures.append("begin_respawn: expected int 300 credits from 401, got %s" % respawn_state.credits)
 	respawn_state.reset()
 	if respawn_state.pending_respawn:
 		failures.append("reset: expected pending_respawn cleared")

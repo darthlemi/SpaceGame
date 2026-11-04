@@ -5,14 +5,15 @@ signal fleet_spawn_requested(fleet: CampaignFleet)
 signal fleet_role_changed(fleet: CampaignFleet)
 signal faction_reputation_changed(faction_enum: CampaignFleet.Faction)
 
-const FINE_PER_KILL := 150.0
+const FINE_PER_KILL := 150
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
 const ECONOMY_TICK_INTERVAL := 5.0
-const REPAIR_COST := 75.0
+const REPAIR_COST := 75
 # Tuning placeholders.
-const CREW_HIRE_COST := 40.0
-const WAGE_PER_CREW := 0.1
+const CREW_HIRE_COST := 40
+const WAGE_PER_10_CREW := 1
+const CREW_PER_WAGE_GROUP := 10
 const DESERTION_RATE := 0.2
 const RESPAWN_CREDIT_PENALTY := 0.25
 const PIRATE_CREW_REGEN := 1
@@ -26,7 +27,7 @@ var pending_respawn: bool = false
 var factions: Array[PowerFaction] = []
 var factions_at_war: bool = true
 var active_skirmishes: Array[Skirmish] = []
-var credits: float = 500.0
+var credits: int = 500
 var home_base_economy: BaseEconomy = null
 var _economy_tick_elapsed: float = 0.0
 
@@ -72,8 +73,8 @@ static func is_damaged(comp: Dictionary) -> bool:
 			return true
 	return false
 
-static func repair_cost_for(comp: Dictionary) -> float:
-	return REPAIR_COST if is_damaged(comp) else 0.0
+static func repair_cost_for(comp: Dictionary) -> int:
+	return REPAIR_COST if is_damaged(comp) else 0
 
 func repair_ship(comp: Dictionary) -> void:
 	credits -= REPAIR_COST
@@ -86,7 +87,7 @@ func repair_ship(comp: Dictionary) -> void:
 
 # Total loss: keeps reputation and fines, loses cargo, parts, ships and a share of credits.
 func begin_respawn() -> void:
-	credits = maxf(0.0, credits * (1.0 - RESPAWN_CREDIT_PENALTY))
+	credits = floori(credits * (1.0 - RESPAWN_CREDIT_PENALTY))
 	if player_fleet != null:
 		player_fleet.cargo = {}
 		player_fleet.part_inventory.clear()
@@ -119,7 +120,7 @@ func reset() -> void:
 	factions = []
 	factions_at_war = true
 	active_skirmishes = []
-	credits = 500.0
+	credits = 500
 	home_base_economy = null
 	_economy_tick_elapsed = 0.0
 
@@ -202,23 +203,24 @@ func _others(fleet: CampaignFleet, index: int) -> Array[Dictionary]:
 			others.append(fleet.ship_compositions[i])
 	return others
 
-func wage_bill(fleet: CampaignFleet) -> float:
-	return WAGE_PER_CREW * _billable_crew(fleet)
+# Wages are paid per full group of CREW_PER_WAGE_GROUP billable crew; a remainder is free.
+func wage_bill(fleet: CampaignFleet) -> int:
+	return _wage_groups(fleet) * WAGE_PER_10_CREW
 
 func pay_wages() -> void:
 	if player_fleet == null:
 		return
-	var billable := _billable_crew(player_fleet)
-	if billable <= 0:
+	var payable := _billable_crew(player_fleet)
+	var groups := _wage_groups(player_fleet)
+	if groups <= 0:
 		return
-	if credits >= WAGE_PER_CREW * billable:
-		credits -= WAGE_PER_CREW * billable
+	if credits >= groups * WAGE_PER_10_CREW:
+		credits -= groups * WAGE_PER_10_CREW
 		return
-	# Epsilon guards float noise in credits / WAGE_PER_CREW (0.3 / 0.1 is 2.9999999999999996).
-	var paid := mini(billable, floori(credits / WAGE_PER_CREW + 0.000001))
-	credits = maxf(0.0, credits - paid * WAGE_PER_CREW)
-	var unpaid := billable - paid
-	var deserters := clampi(maxi(1, roundi(unpaid * DESERTION_RATE)), 0, unpaid)
+	var paid_groups := mini(groups, floori(credits / float(WAGE_PER_10_CREW)))
+	credits -= paid_groups * WAGE_PER_10_CREW
+	var unpaid_groups := groups - paid_groups
+	var deserters := clampi(maxi(1, roundi(unpaid_groups * CREW_PER_WAGE_GROUP * DESERTION_RATE)), 0, payable)
 	CrewRules.remove_crew(player_fleet.ship_compositions, deserters, player_fleet.flagship_index(), flagship_floor(player_fleet))
 
 func hire_crew(economy: BaseEconomy, fleet: CampaignFleet, count: int) -> bool:
@@ -233,7 +235,7 @@ func hire_crew(economy: BaseEconomy, fleet: CampaignFleet, count: int) -> bool:
 	return true
 
 func buy(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bool:
-	var price := base_economy.price_for(commodity)
+	var price: int = base_economy.price_for(commodity)
 	var stock: float = base_economy.stock.get(commodity, 0.0)
 	if credits < price or stock < 1.0 or fleet.cargo_total() + 1.0 > fleet.cargo_capacity():
 		return false
@@ -246,7 +248,7 @@ func sell(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bo
 	var held: float = fleet.cargo.get(commodity, 0.0)
 	if held < 1.0:
 		return false
-	var price := base_economy.sell_price_for(commodity)
+	var price: int = base_economy.sell_price_for(commodity)
 	credits += price
 	fleet.cargo[commodity] = held - 1.0
 	base_economy.stock[commodity] = base_economy.stock.get(commodity, 0.0) + 1.0
@@ -254,7 +256,7 @@ func sell(base_economy: BaseEconomy, commodity: int, fleet: CampaignFleet) -> bo
 
 func buy_part(path: String, fleet: CampaignFleet) -> bool:
 	var item: Resource = load(path)
-	var price: float = PartRarity.price_for(item.rarity)
+	var price: int = PartRarity.price_for(item.rarity)
 	if credits < price or fleet.cargo_total() + 1.0 > fleet.cargo_capacity():
 		return false
 	credits -= price
@@ -304,11 +306,11 @@ func equip_part(comp: Dictionary, fleet: CampaignFleet, slot_type: ShipType.Slot
 
 func pay_fine(faction_enum: CampaignFleet.Faction) -> bool:
 	var faction := _power_faction_for(faction_enum)
-	if faction == null or faction.fine <= 0.0 or credits < faction.fine:
+	if faction == null or faction.fine <= 0 or credits < faction.fine:
 		return false
 	credits -= faction.fine
 	faction.reputation += faction.fine_reputation
-	faction.fine = 0.0
+	faction.fine = 0
 	faction.fine_reputation = 0.0
 	faction_reputation_changed.emit(faction_enum)
 	return true
@@ -398,6 +400,9 @@ func _refill_npc_crew() -> void:
 		else:
 			continue
 		CrewRules.balance(fleet.ship_compositions)
+
+func _wage_groups(fleet: CampaignFleet) -> int:
+	return floori(_billable_crew(fleet) / float(CREW_PER_WAGE_GROUP))
 
 func _billable_crew(fleet: CampaignFleet) -> int:
 	var index := fleet.flagship_index()

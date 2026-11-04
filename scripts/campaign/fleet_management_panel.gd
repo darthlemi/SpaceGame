@@ -66,7 +66,7 @@ func refresh() -> void:
 			_build_row(i)
 	for i in comps.size():
 		_update_row(i)
-	header_label.text = "Crew %d / %d   Wages %.1f cr/tick   Credits %d" % [_player_fleet.crew_total(), _player_fleet.crew_capacity(), CampaignState.wage_bill(_player_fleet), CampaignState.credits]
+	header_label.text = "Crew %d / %d   Wages %d cr/tick   Credits %d" % [_player_fleet.crew_total(), _player_fleet.crew_capacity(), CampaignState.wage_bill(_player_fleet), CampaignState.credits]
 	_update_hire_row()
 
 # Single place rows are built, so per-row buttons can be added here.
@@ -142,8 +142,8 @@ func _update_hire_row() -> void:
 		return
 	var pool := floori(_economy.crew_pool)
 	var cap := mini(pool, CrewRules.free_berths(_player_fleet.ship_compositions))
-	cap = mini(cap, floori(CampaignState.credits / CampaignState.CREW_HIRE_COST))
-	hire_label.text = "Hire (pool %d, %d cr each)" % [pool, roundi(CampaignState.CREW_HIRE_COST)]
+	cap = mini(cap, floori(CampaignState.credits / float(CampaignState.CREW_HIRE_COST)))
+	hire_label.text = "Hire (pool %d, %d cr each)" % [pool, CampaignState.CREW_HIRE_COST]
 	hire_count.max_value = maxi(1, cap)
 	hire_count.set_value_no_signal(clampf(hire_count.value, 1.0, hire_count.max_value))
 	hire_button.text = "Hire (%d cr)" % (int(hire_count.value) * CampaignState.CREW_HIRE_COST)

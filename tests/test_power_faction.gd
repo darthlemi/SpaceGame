@@ -33,7 +33,7 @@ static func run() -> Array[String]:
 
 
 	var fresh := PowerFaction.new()
-	if fresh.fine != 0.0 or fresh.fine_reputation != 0.0:
+	if fresh.fine != 0 or fresh.fine_reputation != 0.0:
 		failures.append("PowerFaction: expected no outstanding fine by default, got fine=%s rep=%s" % [fresh.fine, fresh.fine_reputation])
 
 	return failures

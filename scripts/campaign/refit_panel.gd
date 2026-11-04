@@ -74,7 +74,7 @@ func _rebuild_catalog_rows() -> void:
 		child.queue_free()
 	for path in _catalog:
 		var item: Resource = load(path)
-		var price: float = PartRarity.price_for(item.rarity)
+		var price: int = PartRarity.price_for(item.rarity)
 		var row := HBoxContainer.new()
 		var label := Label.new()
 		label.text = "%s  price:%d" % [_item_name(item), price]
@@ -93,7 +93,7 @@ func _rebuild_inventory_rows() -> void:
 	for i in _fleet.part_inventory.size():
 		var path: String = _fleet.part_inventory[i]
 		var item: Resource = load(path)
-		var sell_price: float = PartRarity.sell_price_for(item.rarity)
+		var sell_price: int = PartRarity.sell_price_for(item.rarity)
 		var row := HBoxContainer.new()
 		var label := Label.new()
 		label.text = "%s  sell:%d" % [_item_name(item), sell_price]

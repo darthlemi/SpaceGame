@@ -29,11 +29,11 @@ func refresh() -> void:
 	for child in repair_container.get_children():
 		repair_container.remove_child(child)
 		child.queue_free()
-	var total_cost := 0.0
+	var total_cost := 0
 	for i in _player_fleet.ship_compositions.size():
 		var comp: Dictionary = _player_fleet.ship_compositions[i]
 		var cost := CampaignState.repair_cost_for(comp)
-		if cost <= 0.0:
+		if cost <= 0:
 			continue
 		total_cost += cost
 		var row := HBoxContainer.new()
@@ -46,11 +46,11 @@ func refresh() -> void:
 		row.add_child(label)
 		row.add_child(button)
 		repair_container.add_child(row)
-	if total_cost <= 0.0:
+	if total_cost <= 0:
 		var none_label := Label.new()
 		none_label.text = "All ships are fully repaired."
 		repair_container.add_child(none_label)
-	repair_all_button.disabled = total_cost <= 0.0 or CampaignState.credits < total_cost
+	repair_all_button.disabled = total_cost <= 0 or CampaignState.credits < total_cost
 
 func _on_repair_pressed(index: int) -> void:
 	CampaignState.repair_ship(_player_fleet.ship_compositions[index])
@@ -58,6 +58,6 @@ func _on_repair_pressed(index: int) -> void:
 
 func _on_repair_all_pressed() -> void:
 	for comp in _player_fleet.ship_compositions:
-		if CampaignState.repair_cost_for(comp) > 0.0 and CampaignState.credits >= CampaignState.REPAIR_COST:
+		if CampaignState.repair_cost_for(comp) > 0 and CampaignState.credits >= CampaignState.REPAIR_COST:
 			CampaignState.repair_ship(comp)
 	refresh()

@@ -6,7 +6,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	var campaign_state = tree.root.get_node("/root/CampaignState")
 	campaign_state.reset()
-	campaign_state.credits = 2000.0
+	campaign_state.credits = 2000
 
 	var panel: Control = RefitPanelScene.instantiate()
 	tree.root.add_child(panel)
@@ -93,7 +93,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# no weapon_mount_items key at all). Weapon slot count must be derived from
 	# the ship class's BASE_STATS, not from a (possibly absent) items array.
 	campaign_state.reset()
-	campaign_state.credits = 2000.0
+	campaign_state.credits = 2000
 	var bare_panel: Control = RefitPanelScene.instantiate()
 	tree.root.add_child(bare_panel)
 	await tree.process_frame

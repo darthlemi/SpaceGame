@@ -53,15 +53,15 @@ func refresh() -> void:
 	consumes_label.text = "Consumes: %s" % _commodity_list("consumes")
 	var has_faction := _faction != null
 	reputation_label.visible = has_faction
-	var owes_fine := has_faction and _faction.fine > 0.0
+	var owes_fine := has_faction and _faction.fine > 0
 	fine_label.visible = owes_fine
 	pay_fine_button.visible = owes_fine
 	if has_faction:
 		var standing := " (hostile)" if _faction.reputation < CampaignState.HOSTILE_REPUTATION_THRESHOLD else ""
 		reputation_label.text = "Reputation: %d%s" % [roundi(_faction.reputation), standing]
 	if owes_fine:
-		fine_label.text = "Outstanding fine: %d" % roundi(_faction.fine)
-		pay_fine_button.text = "Pay Fine (%d)" % roundi(_faction.fine)
+		fine_label.text = "Outstanding fine: %d" % _faction.fine
+		pay_fine_button.text = "Pay Fine (%d)" % _faction.fine
 		pay_fine_button.disabled = CampaignState.credits < _faction.fine
 
 # role_field is "produces" or "consumes"; listed in Commodity.Type order.

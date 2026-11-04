@@ -70,7 +70,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	# Docked: hiring.
 	var economy := BaseEconomy.new()
 	economy.crew_pool = 10.0
-	campaign_state.credits = 500.0
+	campaign_state.credits = 500
 	var hire_fleet := _make_fleet(6, 40, 6)
 	panel.open_for(hire_fleet, economy)
 	await tree.process_frame
@@ -78,7 +78,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("FleetManagementPanel: expected hire row visible when docked")
 	panel.hire_count.value = 3
 	panel.hire_button.pressed.emit()
-	if hire_fleet.crew_total() != 55 or not is_equal_approx(campaign_state.credits, 500.0 - 3 * campaign_state.CREW_HIRE_COST):
+	if hire_fleet.crew_total() != 55 or campaign_state.credits != 500 - 3 * campaign_state.CREW_HIRE_COST:
 		failures.append("FleetManagementPanel: expected hire of 3 to add crew and charge credits, got crew %d credits %s" % [hire_fleet.crew_total(), campaign_state.credits])
 	if not panel.header_label.text.begins_with("Crew 55 / 58"):
 		failures.append("FleetManagementPanel: expected header to update, got '%s'" % panel.header_label.text)
@@ -86,7 +86,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	UiLayoutCheck.check_panel_layout(panel, failures)
 
 	# Hire strip: credits cap the count (100 cr buys 2 at 40) and the button shows the total.
-	campaign_state.credits = 100.0
+	campaign_state.credits = 100
 	var broke_fleet := _make_fleet(6, 40, 6)
 	panel.open_for(broke_fleet, economy)
 	await tree.process_frame
@@ -102,7 +102,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("FleetManagementPanel: expected 'Hire (80 cr)' after picking 2, got '%s'" % panel.hire_button.text)
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(panel, failures)
-	campaign_state.credits = 500.0
+	campaign_state.credits = 500
 
 	# Scuttle: overflow routes through the jettison dialog.
 	var scuttle_fleet := _make_fleet(6, 40, 6)

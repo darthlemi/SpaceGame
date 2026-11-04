@@ -42,9 +42,9 @@ const LOADOUT_POINTS := {
 }
 
 const SHIP_PRICE := {
-	Kind.CORVETTE: 400.0,
-	Kind.FREIGHTER: 500.0,
-	Kind.CAPITAL: 2000.0,
+	Kind.CORVETTE: 400,
+	Kind.FREIGHTER: 500,
+	Kind.CAPITAL: 2000,
 }
 
 static func points_budget_for(kind: Kind) -> int:

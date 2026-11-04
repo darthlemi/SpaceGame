@@ -90,35 +90,47 @@ static func run() -> Array[String]:
 	var ore_base_price: float = Commodity.BASE_PRICE[Commodity.Type.ORE]
 
 	pricing_base.stock = {Commodity.Type.ORE: ore_target * 0.1}  # critical: <20%
-	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.6) > 0.001:
+	if pricing_base.price_for(Commodity.Type.ORE) != roundi(ore_base_price * 1.6):
 		failures.append("price_for: expected critical band 1.6x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
 	pricing_base.stock = {Commodity.Type.ORE: ore_target * 1.0}  # normal: 60-140%
-	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.0) > 0.001:
+	if pricing_base.price_for(Commodity.Type.ORE) != roundi(ore_base_price * 1.0):
 		failures.append("price_for: expected normal band 1.0x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
 	pricing_base.stock = {Commodity.Type.ORE: ore_target * 2.0}  # surplus: >180%
-	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 0.6) > 0.001:
+	if pricing_base.price_for(Commodity.Type.ORE) != roundi(ore_base_price * 0.6):
 		failures.append("price_for: expected surplus band 0.6x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
 	pricing_base.stock = {Commodity.Type.ORE: ore_target * 0.4}  # low: 20-60%
-	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.3) > 0.001:
+	if pricing_base.price_for(Commodity.Type.ORE) != roundi(ore_base_price * 1.3):
 		failures.append("price_for: expected low band 1.3x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
 	pricing_base.stock = {Commodity.Type.ORE: ore_target * 1.6}  # high: 140-180%
-	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 0.8) > 0.001:
+	if pricing_base.price_for(Commodity.Type.ORE) != roundi(ore_base_price * 0.8):
 		failures.append("price_for: expected high band 0.8x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
 	# Boundary: ratio exactly 0.2 falls into the "low" band (threshold check is
 	# ratio < 0.2 for critical, so 0.2 itself does not qualify as critical).
 	pricing_base.stock = {Commodity.Type.ORE: ore_target * 0.2}  # boundary: exactly 20%
-	if abs(pricing_base.price_for(Commodity.Type.ORE) - ore_base_price * 1.3) > 0.001:
+	if pricing_base.price_for(Commodity.Type.ORE) != roundi(ore_base_price * 1.3):
 		failures.append("price_for: expected ratio==0.2 boundary to land in low band 1.3x, got %s" % pricing_base.price_for(Commodity.Type.ORE))
 
-	var buy: float = pricing_base.price_for(Commodity.Type.ORE)
-	var sell: float = pricing_base.sell_price_for(Commodity.Type.ORE)
-	if abs(sell - buy * 0.8) > 0.001:
-		failures.append("sell_price_for: expected 80%% of buy price, got buy=%s sell=%s" % [buy, sell])
+	var buy: int = pricing_base.price_for(Commodity.Type.ORE)
+	var sell: int = pricing_base.sell_price_for(Commodity.Type.ORE)
+	if sell != clampi(floori(buy * 0.8), 1, maxi(1, buy - 1)):
+		failures.append("sell_price_for: expected floor of 80%% of buy price, got buy=%s sell=%s" % [buy, sell])
+
+	# Whole credits: every commodity at every band prices as int, sell below buy, never under 1.
+	for commodity in Commodity.Type.values():
+		for ratio in [0.1, 0.4, 1.0, 1.6, 2.0]:
+			pricing_base.stock = {commodity: float(Commodity.TARGET_STOCK[commodity]) * ratio}
+			var whole_buy = pricing_base.price_for(commodity)
+			var whole_sell = pricing_base.sell_price_for(commodity)
+			if typeof(whole_buy) != TYPE_INT or typeof(whole_sell) != TYPE_INT:
+				failures.append("price_for: expected int buy/sell for commodity %d ratio %s" % [commodity, ratio])
+				continue
+			if whole_sell < 1 or (whole_buy >= 2 and whole_sell > whole_buy - 1):
+				failures.append("sell_price_for: expected 1 <= sell < buy for commodity %d ratio %s, got buy=%d sell=%d" % [commodity, ratio, whole_buy, whole_sell])
 
 	# net_commodities: sums produces-minus-consumes across all slots.
 	var net_base := BaseEconomy.new()

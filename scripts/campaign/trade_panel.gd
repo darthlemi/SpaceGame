@@ -35,7 +35,7 @@ func refresh() -> void:
 		var buy_price := _docked_base_economy.price_for(commodity)
 		var sell_price := _docked_base_economy.sell_price_for(commodity)
 		var held: float = _player_fleet.cargo.get(commodity, 0.0)
-		row["label"].text = "%s  stock:%.0f  buy:%.0f  sell:%.0f  held:%.0f" % [Commodity.NAMES[commodity], stock, buy_price, sell_price, held]
+		row["label"].text = "%s  stock:%.0f  buy:%d  sell:%d  held:%.0f" % [Commodity.NAMES[commodity], stock, buy_price, sell_price, held]
 		row["buy_button"].disabled = CampaignState.credits < buy_price or stock < 1.0 or _player_fleet.cargo_total() + 1.0 > _player_fleet.cargo_capacity()
 		row["sell_button"].disabled = held < 1.0
 

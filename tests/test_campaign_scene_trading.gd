@@ -99,9 +99,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	UiLayoutCheck.check_panel_layout(status_bar, failures)
 	var crew_text: String = status_bar.get_node("Layout/CrewLabel").text
 	var crew_fleet: CampaignFleet = campaign_state.player_fleet
-	var expected_crew_text := "Crew: %d/%d (-%.1f cr/tick)" % [crew_fleet.crew_total(), crew_fleet.crew_capacity(), campaign_state.wage_bill(crew_fleet)]
+	var expected_crew_text := "Crew: %d/%d (-%d cr/tick)" % [crew_fleet.crew_total(), crew_fleet.crew_capacity(), campaign_state.wage_bill(crew_fleet)]
 	if status_bar.get_node_or_null("Layout/FleetButton") == null:
 		failures.append("expected FleetStatusBar to have a Fleet button")
+	if "." in crew_text.get_slice("
+", 0):
+		failures.append("expected FleetStatusBar wage text without a decimal point, got '%s'" % crew_text)
 	if crew_text != expected_crew_text:
 		failures.append("expected FleetStatusBar crew label '%s', got '%s'" % [expected_crew_text, crew_text])
 	var fuel_text: String = status_bar.get_node("Layout/FuelLabel").text
@@ -190,10 +193,10 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("expected a combat fleet icon for the docked faction")
 		else:
 			docked_faction.reputation = campaign_state.HOSTILE_REPUTATION_THRESHOLD - 10.0
-			docked_faction.fine = 150.0
+			docked_faction.fine = 150
 			docked_faction.fine_reputation = 20.0
 			faction_icon.behavior_type = CampaignFleetIcon.BehaviorType.PIRATE
-			campaign_state.credits = 1000.0
+			campaign_state.credits = 1000
 			overview.refresh()
 			overview.pay_fine_button.pressed.emit()
 			if faction_icon.behavior_type != CampaignFleetIcon.BehaviorType.PATROL:

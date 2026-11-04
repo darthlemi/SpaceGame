@@ -70,7 +70,7 @@ func tick() -> void:
 func crew_pool_cap() -> float:
 	return population * CREW_POOL_CAP_FRACTION
 
-func price_for(commodity: int) -> float:
+func price_for(commodity: int) -> int:
 	var target: float = Commodity.TARGET_STOCK[commodity]
 	var ratio: float = stock.get(commodity, 0.0) / target
 	var multiplier: float = BAND_MULTIPLIERS[BAND_MULTIPLIERS.size() - 1]
@@ -78,10 +78,12 @@ func price_for(commodity: int) -> float:
 		if ratio < BAND_THRESHOLDS[i]:
 			multiplier = BAND_MULTIPLIERS[i]
 			break
-	return Commodity.BASE_PRICE[commodity] * multiplier
+	return maxi(1, roundi(Commodity.BASE_PRICE[commodity] * multiplier))
 
-func sell_price_for(commodity: int) -> float:
-	return price_for(commodity) * SELL_SPREAD
+# Always at least 1 under the buy price (unless the buy price is itself 1), so a round trip never profits.
+func sell_price_for(commodity: int) -> int:
+	var buy := price_for(commodity)
+	return clampi(floori(buy * SELL_SPREAD), 1, maxi(1, buy - 1))
 
 func net_commodities() -> Dictionary:
 	var net: Dictionary = {}

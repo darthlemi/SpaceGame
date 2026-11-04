@@ -35,8 +35,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("TradePanel: expected a non-null icon texture for commodity %s" % commodity)
 
 	var buy_button: Button = panel._rows[Commodity.Type.ORE]["buy_button"]
-	var ore_buy_price: float = economy.price_for(Commodity.Type.ORE)
-	var credits_before: float = campaign_state.credits
+	var ore_buy_price: int = economy.price_for(Commodity.Type.ORE)
+	var credits_before: int = campaign_state.credits
 	buy_button.pressed.emit()
 	if campaign_state.credits != credits_before - ore_buy_price:
 		failures.append("TradePanel: expected pressing Buy to call CampaignState.buy, credits before=%s after=%s" % [credits_before, campaign_state.credits])
@@ -44,7 +44,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("TradePanel: expected pressing Buy to add 1 Ore to fleet cargo")
 
 	var sell_button: Button = panel._rows[Commodity.Type.ORE]["sell_button"]
-	var credits_before_sell: float = campaign_state.credits
+	var credits_before_sell: int = campaign_state.credits
 	sell_button.pressed.emit()
 	if campaign_state.credits <= credits_before_sell:
 		failures.append("TradePanel: expected pressing Sell to call CampaignState.sell and increase credits")
@@ -52,13 +52,13 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("TradePanel: expected pressing Sell to remove the Ore from fleet cargo")
 
 	# Buy disabled on insufficient credits
-	campaign_state.credits = 0.0
+	campaign_state.credits = 0
 	panel.refresh()
 	if not buy_button.disabled:
 		failures.append("TradePanel: expected Buy disabled when credits are insufficient")
 
 	# Restore credits, then buy disabled on insufficient stock
-	campaign_state.credits = 1000.0
+	campaign_state.credits = 1000
 	economy.stock[Commodity.Type.ORE] = 0.0
 	panel.refresh()
 	if not buy_button.disabled:
@@ -85,7 +85,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if sell_button.disabled:
 		failures.append("TradePanel: expected Sell re-enabled when fleet holds the commodity")
 
-	campaign_state.credits = 1000.0
+	campaign_state.credits = 1000
 	panel.close()
 	if panel.visible:
 		failures.append("TradePanel: expected hidden after close")

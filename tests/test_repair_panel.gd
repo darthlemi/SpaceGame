@@ -28,7 +28,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			"weapon_mount_max_hp": [], "weapon_mount_current_hp": [],
 		},
 	]
-	campaign_state.credits = 1000.0
+	campaign_state.credits = 1000
 	panel.open_for(fleet)
 	if not panel.visible:
 		failures.append("RepairPanel: expected visible after open_for")
@@ -39,9 +39,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("RepairPanel: expected Repair All enabled when credits cover the damaged ship")
 
 	var repair_button: Button = _repair_rows(panel)[0].get_child(1)
-	var credits_before_repair: float = campaign_state.credits
+	var credits_before_repair: int = campaign_state.credits
 	repair_button.pressed.emit()
-	if not is_equal_approx(campaign_state.credits, credits_before_repair - CampaignState.REPAIR_COST):
+	if campaign_state.credits != credits_before_repair - CampaignState.REPAIR_COST:
 		failures.append("RepairPanel: expected pressing Repair to deduct REPAIR_COST, got credits=%s" % campaign_state.credits)
 	if fleet.ship_compositions[0]["current_hp"] != 100.0:
 		failures.append("RepairPanel: expected pressing Repair to fully heal the ship")
@@ -54,12 +54,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	fleet.ship_compositions[0]["current_hp"] = 1.0
 	fleet.ship_compositions[1]["current_hp"] = 1.0
-	campaign_state.credits = 10.0
+	campaign_state.credits = 10
 	panel.refresh()
 	if not panel.repair_all_button.disabled:
 		failures.append("RepairPanel: expected Repair All disabled when credits can't cover every damaged ship")
 
-	campaign_state.credits = 1000.0
+	campaign_state.credits = 1000
 	panel.refresh()
 	panel.repair_all_button.pressed.emit()
 	if fleet.ship_compositions[0]["current_hp"] != 100.0 or fleet.ship_compositions[1]["current_hp"] != 100.0:

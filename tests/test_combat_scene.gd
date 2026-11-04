@@ -453,7 +453,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	loss_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CAPITAL)])
 	campaign_state.enemy_fleets.assign([loss_enemy])
 	campaign_state.player_fleet = loss_player
-	campaign_state.credits = 400.0
+	campaign_state.credits = 400
 	campaign_state.start_engagement(loss_enemy)
 
 	var loss_scene: Node2D = CombatSceneScene.instantiate()
@@ -465,7 +465,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var loss_next_scene: String = await _take_leaked_scene(tree, loss_scene)
 	if not campaign_state.pending_respawn:
 		failures.append("total loss: expected pending_respawn set")
-	if not is_equal_approx(campaign_state.credits, 300.0):
+	if campaign_state.credits != 300:
 		failures.append("total loss: expected the 25 percent credit penalty, got %s" % campaign_state.credits)
 	if loss_next_scene != "res://scenes/campaign/campaign_scene.tscn":
 		failures.append("total loss: expected the campaign scene (not game over), got '%s'" % loss_next_scene)

@@ -42,14 +42,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	faction.faction_enum = CampaignFleet.Faction.DOMINION
 	faction.display_name = "Dominion"
 	faction.reputation = 30.0
-	faction.fine = 150.0
+	faction.fine = 150
 	faction.fine_reputation = 15.0
 	faction.economy = BaseEconomy.new()
 	faction.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
 	faction.economy.deficit_streaks = {0: 2}
 	# assign(): campaign_state is untyped here, so a bare literal won't coerce to Array[PowerFaction].
 	campaign_state.factions.assign([faction])
-	campaign_state.credits = 100.0
+	campaign_state.credits = 100
 	panel.open_for("Dominion Base", faction.economy, faction)
 	if panel.economy_label.text != "Economy: Poor":
 		failures.append("BaseOverviewPanel: expected a deficit economy to read Poor, got '%s'" % panel.economy_label.text)
@@ -67,12 +67,12 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(panel, failures)
 
-	campaign_state.credits = 500.0
+	campaign_state.credits = 500
 	panel.refresh()
 	if panel.pay_fine_button.disabled:
 		failures.append("BaseOverviewPanel: expected Pay Fine enabled once credits cover it")
 	panel.pay_fine_button.pressed.emit()
-	if faction.fine != 0.0 or faction.reputation != 45.0:
+	if faction.fine != 0 or faction.reputation != 45.0:
 		failures.append("BaseOverviewPanel: expected Pay Fine to clear the fine and restore reputation, got fine=%s rep=%s" % [faction.fine, faction.reputation])
 	if panel.fine_label.visible or panel.pay_fine_button.visible:
 		failures.append("BaseOverviewPanel: expected fine UI hidden after paying")

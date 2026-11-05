@@ -60,7 +60,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_on_right_press()
 
 func _issue_order(world_pos: Vector2) -> void:
-	selected_ships = selected_ships.filter(func(s): return is_instance_valid(s) and not s.is_queued_for_deletion())
+	selected_ships = selected_ships.filter(func(s): return is_instance_valid(s) and not s.is_queued_for_deletion() and not s.has_fled)
 	if selected_ships.is_empty():
 		return
 	var enemy_candidates: Array = get_tree().get_nodes_in_group(enemy_group)
@@ -119,7 +119,7 @@ func _group_facing(world_pos: Vector2) -> Vector2:
 
 func _draw() -> void:
 	for ship in selected_ships:
-		if is_instance_valid(ship):
+		if is_instance_valid(ship) and not ship.has_fled:
 			_draw_frustums(ship)
 			draw_arc(ship.global_position, select_radius, 0, TAU, 24, Color(0.2, 1.0, 0.4), 2.0)
 	if _dragging:
@@ -200,7 +200,7 @@ static func ship_at_point(candidates: Array, point: Vector2, radius: float) -> S
 	var best: Ship = null
 	var best_dist := radius
 	for c in candidates:
-		if is_instance_valid(c) and c is Ship and c.player_targetable:
+		if is_instance_valid(c) and c is Ship and c.player_targetable and not c.has_fled:
 			var d: float = c.global_position.distance_to(point)
 			if d <= best_dist:
 				best_dist = d
@@ -210,7 +210,7 @@ static func ship_at_point(candidates: Array, point: Vector2, radius: float) -> S
 static func ships_in_rect(candidates: Array[Ship], rect: Rect2) -> Array[Ship]:
 	var result: Array[Ship] = []
 	for c in candidates:
-		if is_instance_valid(c) and rect.has_point(c.global_position):
+		if is_instance_valid(c) and not c.has_fled and rect.has_point(c.global_position):
 			result.append(c)
 	return result
 

@@ -558,7 +558,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		failures.append("held-back defeat: expected 1 player ship deployed, got %d" % held_scene.player_ships.size())
 	# Speeds fed to the escape roll: spawned ships use their live engine, held-back comps the crew-scaled top speed.
 	var held_speeds: Array[float] = []
-	held_scene._collect_survivor_data(held_scene.player_ships, held_player.ship_compositions, held_scene._player_spawned_indices, held_speeds)
+	held_scene._collect_survivor_data(held_scene.player_ships, held_player.ship_compositions, held_scene._player_spawned_indices, held_speeds, [] as Array[bool])
 	if held_speeds.size() != 2:
 		failures.append("held-back speeds: expected 2 speeds, got %s" % [held_speeds])
 	else:
@@ -697,7 +697,115 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(disarm_scene) and not disarm_scene.is_queued_for_deletion():
 		disarm_scene.queue_free()
 
+	# Review Focus 3: every enemy jumps out in the same frame. One Victory, no escape rolls.
+	campaign_state.reset()
+	var flee_player := CampaignFleet.new()
+	flee_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var flee_enemy := CampaignFleet.new()
+	flee_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([flee_enemy])
+	campaign_state.player_fleet = flee_player
+	campaign_state.start_engagement(flee_enemy)
+
+	var flee_scene: Node2D = CombatSceneScene.instantiate()
+	flee_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	var rng_state_before: int = flee_scene.escape_rng.state
+	tree.root.add_child(flee_scene)
+	await tree.process_frame
+	await tree.process_frame
+	if flee_scene.enemy_ships.size() != 2:
+		failures.append("enemy_all_flee_same_frame_is_victory_once: expected 2 enemy ships, got %d" % flee_scene.enemy_ships.size())
+	for ship in flee_scene.enemy_ships:
+		ship.execute_order(Order.flee())
+		ship._flee_spool = Ship.FLEE_SPOOL_TIME[ship.ship_type]
+	await tree.physics_frame
+	await tree.physics_frame
+	for ship in flee_scene.enemy_ships:
+		if not ship.has_fled:
+			failures.append("enemy_all_flee_same_frame_is_victory_once: expected every enemy to have jumped out")
+	if flee_scene.result_label.text != "Victory":
+		failures.append("enemy_all_flee_same_frame_is_victory_once: expected 'Victory', got '%s'" % flee_scene.result_label.text)
+	await _take_leaked_scene(tree, flee_scene)
+	if flee_scene.escape_rng.state != rng_state_before:
+		failures.append("enemy_all_flee_same_frame_is_victory_once: expected no escape rolls for fled ships")
+	if not campaign_state.enemy_fleets.has(flee_enemy) or flee_enemy.ship_compositions.size() != 2:
+		failures.append("enemy_all_flee_same_frame_is_victory_once: expected both fled ships kept as survivors, got %d" % flee_enemy.ship_compositions.size())
+	tree.paused = false
+	campaign_state.reset()
+	if is_instance_valid(flee_scene) and not flee_scene.is_queued_for_deletion():
+		flee_scene.queue_free()
+
+	# The last armed player ship jumping out is a Withdrew, not a Defeat.
+	campaign_state.reset()
+	var withdraw_player := CampaignFleet.new()
+	withdraw_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var withdraw_enemy := CampaignFleet.new()
+	withdraw_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([withdraw_enemy])
+	campaign_state.player_fleet = withdraw_player
+	campaign_state.start_engagement(withdraw_enemy)
+
+	var withdraw_scene: Node2D = CombatSceneScene.instantiate()
+	withdraw_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	tree.root.add_child(withdraw_scene)
+	await tree.process_frame
+	await tree.process_frame
+	var withdrawing: Ship = withdraw_scene.player_ships[0]
+	withdrawing.execute_order(Order.flee())
+	withdrawing._flee_spool = Ship.FLEE_SPOOL_TIME[withdrawing.ship_type]
+	await tree.physics_frame
+	await tree.physics_frame
+	if withdraw_scene.result_label.text != "Withdrew":
+		failures.append("player_flee_shows_withdrew: expected 'Withdrew', got '%s'" % withdraw_scene.result_label.text)
+	await _take_leaked_scene(tree, withdraw_scene)
+	tree.paused = false
+	campaign_state.reset()
+	if is_instance_valid(withdraw_scene) and not withdraw_scene.is_queued_for_deletion():
+		withdraw_scene.queue_free()
+
+	# A player ship that fled damaged comes back with that damage after a win.
+	campaign_state.reset()
+	var keep_player := CampaignFleet.new()
+	var damaged_comp := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	damaged_comp["current_hp"] = 25.0
+	keep_player.ship_compositions.assign([damaged_comp, ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var keep_enemy := CampaignFleet.new()
+	keep_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([keep_enemy])
+	campaign_state.player_fleet = keep_player
+	campaign_state.start_engagement(keep_enemy)
+
+	var keep_scene: Node2D = CombatSceneScene.instantiate()
+	keep_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	tree.root.add_child(keep_scene)
+	await tree.process_frame
+	await tree.process_frame
+	var fled_damaged: Ship = keep_scene.player_ships[0]
+	fled_damaged.execute_order(Order.flee())
+	fled_damaged._flee_spool = Ship.FLEE_SPOOL_TIME[fled_damaged.ship_type]
+	await tree.physics_frame
+	await tree.physics_frame
+	if not fled_damaged.has_fled:
+		failures.append("fled_player_ship_returns_with_state: setup expected the damaged ship to have jumped out")
+	for ship in keep_scene.enemy_ships.duplicate():
+		ship.hull.apply_damage(ship.hull.max_hp)
+	if keep_scene.result_label.text != "Victory":
+		failures.append("fled_player_ship_returns_with_state: expected 'Victory', got '%s'" % keep_scene.result_label.text)
+	await _take_loot_offer(tree, keep_scene)
+	var kept_hp: Array[float] = []
+	for comp in keep_player.ship_compositions:
+		kept_hp.append(comp["current_hp"])
+	if kept_player_count_wrong(kept_hp):
+		failures.append("fled_player_ship_returns_with_state: expected both player comps back with the fled one at 25 hp, got %s" % [kept_hp])
+	tree.paused = false
+	campaign_state.reset()
+	if is_instance_valid(keep_scene) and not keep_scene.is_queued_for_deletion():
+		keep_scene.queue_free()
+
 	return failures
+
+static func kept_player_count_wrong(kept_hp: Array[float]) -> bool:
+	return kept_hp.size() != 2 or not kept_hp.has(25.0)
 
 static func _seeded_rng(seed_value: int) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()

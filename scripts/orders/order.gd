@@ -1,7 +1,7 @@
 class_name Order
 extends RefCounted
 
-enum Type { MOVE_TO, ATTACK_TARGET, HOLD, RETREAT }
+enum Type { MOVE_TO, ATTACK_TARGET, HOLD, RETREAT, HOLD_POSITION, FLEE }
 
 var type: Type
 var target_position: Vector2
@@ -28,4 +28,14 @@ static func retreat(from_position: Vector2) -> Order:
 	var o := Order.new()
 	o.type = Type.RETREAT
 	o.target_position = from_position
+	return o
+
+static func hold_position() -> Order:
+	var o := Order.new()
+	o.type = Type.HOLD_POSITION
+	return o
+
+static func flee() -> Order:
+	var o := Order.new()
+	o.type = Type.FLEE
 	return o

@@ -81,6 +81,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [target_scoring_test.resource_path, f])
 	total_failures += target_scoring_failures.size()
 
+	var flee_async_test = load("res://tests/test_flee_async.gd")
+	var flee_async_failures: Array[String] = await flee_async_test.run_async(self)
+	for f in flee_async_failures:
+		print("FAIL [%s]: %s" % [flee_async_test.resource_path, f])
+	total_failures += flee_async_failures.size()
+
 	var ship_tactics_test = load("res://tests/test_ship_tactics.gd")
 	var ship_tactics_failures: Array[String] = await ship_tactics_test.run_async(self)
 	for f in ship_tactics_failures:

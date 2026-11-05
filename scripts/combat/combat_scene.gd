@@ -47,9 +47,12 @@ func _ready() -> void:
 		_apply_fleet_data(player_ships, CampaignState.player_fleet, _player_spawned_indices, 0)
 		_apply_fleet_data(enemy_ships, CampaignState.active_enemy_fleet, _enemy_spawned_indices, CrewRules.NPC_CREW_FLOOR)
 
+	var arena := Rect2(Vector2.ZERO, combat_camera.arena_size)
 	for ship in player_ships:
+		ship.arena_rect = arena
 		_wire_battle_end(ship)
 	for ship in enemy_ships:
+		ship.arena_rect = arena
 		_wire_battle_end(ship)
 		_wire_ai(ship)
 
@@ -159,6 +162,7 @@ func _spawn_extra_ship(own_group: StringName, opposing_group: StringName, facing
 
 	await get_tree().process_frame
 
+	ship.arena_rect = Rect2(Vector2.ZERO, combat_camera.arena_size)
 	_wire_battle_end(ship)
 	fleet.append(ship)
 	if own_group == ENEMY_GROUP:
@@ -188,6 +192,7 @@ func _kill_all_enemies() -> void:
 # already reads as queued for deletion when the check runs.
 func _wire_battle_end(ship: Ship) -> void:
 	ship.hull.destroyed.connect(_check_battle_end)
+	ship.jumped_out.connect(_check_battle_end.unbind(1))
 	for mount in ship.weapon_mounts:
 		mount.destroyed.connect(_check_battle_end)
 
@@ -197,7 +202,7 @@ func _check_battle_end() -> void:
 	if _resolved:
 		return
 	if not _has_armed_active_ship(PLAYER_GROUP):
-		_show_result("Defeat")
+		_show_result("Withdrew" if _any_fled(player_ships) else "Defeat")
 	elif not _has_armed_active_ship(ENEMY_GROUP):
 		_player_won = true
 		_show_result("Victory")
@@ -209,6 +214,12 @@ func _has_armed_active_ship(group: StringName) -> bool:
 		for mount in member.weapon_mounts:
 			if mount.weapon != null and not mount.is_destroyed():
 				return true
+	return false
+
+func _any_fled(ships: Array[Ship]) -> bool:
+	for ship in ships:
+		if is_instance_valid(ship) and ship.has_fled:
+			return true
 	return false
 
 # The flagship, or the first deployed ship when it was held back or there's no campaign.
@@ -227,7 +238,7 @@ func _initial_selection() -> Array[Ship]:
 	return selection
 
 func _is_active(member: Node) -> bool:
-	return is_instance_valid(member) and not member.is_queued_for_deletion()
+	return is_instance_valid(member) and not member.is_queued_for_deletion() and not member.has_fled
 
 func _show_result(text: String) -> void:
 	_resolved = true
@@ -241,14 +252,16 @@ func _report_to_campaign() -> void:
 	var enemy_comps: Array[Dictionary] = CampaignState.active_enemy_fleet.ship_compositions
 	var player_speeds: Array[float] = []
 	var enemy_speeds: Array[float] = []
-	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices, player_speeds)
-	var enemy_survivors := _collect_survivor_data(enemy_ships, enemy_comps, _enemy_spawned_indices, enemy_speeds)
+	var player_fled: Array[bool] = []
+	var enemy_fled: Array[bool] = []
+	var player_survivors := _collect_survivor_data(player_ships, player_comps, _player_spawned_indices, player_speeds, player_fled)
+	var enemy_survivors := _collect_survivor_data(enemy_ships, enemy_comps, _enemy_spawned_indices, enemy_speeds, enemy_fled)
 	# Every surviving loser, deployed or held back, rolls to escape; the caught are captured.
 	var captured: Array[Dictionary] = []
 	if _player_won:
-		enemy_survivors = _roll_escapes(enemy_survivors, enemy_speeds, _pursuer_speed(player_ships), captured)
+		enemy_survivors = _roll_escapes(enemy_survivors, enemy_speeds, enemy_fled, _pursuer_speed(player_ships), captured)
 	else:
-		player_survivors = _roll_escapes(player_survivors, player_speeds, _pursuer_speed(enemy_ships), captured)
+		player_survivors = _roll_escapes(player_survivors, player_speeds, player_fled, _pursuer_speed(enemy_ships), captured)
 	CampaignState.resolve_engagement(player_survivors, enemy_survivors, _player_won, captured)
 	if CampaignState.player_fleet == null:
 		return
@@ -259,37 +272,50 @@ func _report_to_campaign() -> void:
 
 # Keeps comp order: each spawned comp becomes its ship's state (or is dropped if lost)
 # and held-back comps pass through. Debug-spawned extras go last with no orig comp.
-# Appends each survivor's escape speed to speeds, in the same order.
-func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary], spawned_indices: Array[int], speeds: Array[float]) -> Array[Dictionary]:
+# Appends each survivor's escape speed to speeds and whether it jumped out to fled, in the same order.
+func _collect_survivor_data(ships: Array[Ship], original_compositions: Array[Dictionary], spawned_indices: Array[int], speeds: Array[float], fled: Array[bool]) -> Array[Dictionary]:
 	var survivors: Array[Dictionary] = []
 	for i in original_compositions.size():
 		var k := spawned_indices.find(i)
 		if k == -1:
 			survivors.append(original_compositions[i].duplicate(true))
 			speeds.append(CrewRules.comp_top_speed(original_compositions[i]))
+			fled.append(false)
 		elif _is_surviving(ships[k]):
 			survivors.append(_survivor_comp(ships[k], original_compositions[i]))
 			speeds.append(ships[k].engine.effective_max_speed())
+			fled.append(ships[k].has_fled)
 	for k in range(spawned_indices.size(), ships.size()):
 		if _is_surviving(ships[k]):
 			survivors.append(_survivor_comp(ships[k], {}))
 			speeds.append(ships[k].engine.effective_max_speed())
+			fled.append(ships[k].has_fled)
 	return survivors
 
 # 0 when the winner has no ship left, which lets every loser escape.
 func _pursuer_speed(winner_ships: Array[Ship]) -> float:
 	var fastest := 0.0
 	for ship in winner_ships:
-		if _is_surviving(ship):
+		if _is_surviving(ship) and not ship.has_fled:
 			fastest = maxf(fastest, ship.engine.effective_max_speed())
 	return fastest
 
-# Returns the escaped comps; the caught ones are appended to captured.
-func _roll_escapes(survivors: Array[Dictionary], speeds: Array[float], pursuer_speed: float, captured: Array[Dictionary]) -> Array[Dictionary]:
+# Returns the escaped comps; the caught ones are appended to captured. A ship that jumped out
+# escaped already and draws no roll.
+func _roll_escapes(survivors: Array[Dictionary], speeds: Array[float], fled: Array[bool], pursuer_speed: float, captured: Array[Dictionary]) -> Array[Dictionary]:
 	var escaped: Array[Dictionary] = []
-	var rolls := BattleResolution.roll_escapes(speeds, pursuer_speed, escape_rng)
+	var rolling_speeds: Array[float] = []
 	for i in survivors.size():
-		if rolls[i]:
+		if not fled[i]:
+			rolling_speeds.append(speeds[i])
+	var rolls := BattleResolution.roll_escapes(rolling_speeds, pursuer_speed, escape_rng)
+	var next_roll := 0
+	for i in survivors.size():
+		var escaped_ship := true
+		if not fled[i]:
+			escaped_ship = rolls[next_roll]
+			next_roll += 1
+		if escaped_ship:
 			escaped.append(survivors[i])
 		else:
 			captured.append(survivors[i])

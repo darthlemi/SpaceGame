@@ -1,53 +1,54 @@
 class_name AIController
 extends Node
 
-enum State { APPROACH, ENGAGE, RETREAT }
+# Share of the battle-start hull that must be lost before an armed ship flees.
+const FLEE_LOSS_FRACTION := {ShipType.Kind.CORVETTE: 0.65, ShipType.Kind.CAPITAL: 0.85}
+# An unarmed ship flees once an enemy hull edge is this close.
+const UNARMED_FLEE_RANGE := 500.0
 
-@export var retreat_hp_ratio: float = 0.25
-
-var state: State = State.APPROACH
 var ship: Ship
 var enemy_group: StringName
+var start_hp: float = 0.0
 var _target: Node2D = null
 var _retarget_timer: float = 0.0
+var _fleeing: bool = false
 
+# Must run after the fleet data is applied: the hull then is the battle-start hull.
 func setup(p_ship: Ship, p_enemy_group: StringName) -> void:
 	ship = p_ship
 	enemy_group = p_enemy_group
+	start_hp = ship.hull.current_hp
 
 func _physics_process(delta: float) -> void:
-	if not is_instance_valid(ship):
+	if not is_instance_valid(ship) or _fleeing:
 		return
 	_retarget_timer -= delta
+	var candidates: Array = get_tree().get_nodes_in_group(enemy_group)
 	# A target freed this frame stays valid until the queue flushes, so check both.
 	var target_gone := not is_instance_valid(_target) or _target.is_queued_for_deletion()
 	if _retarget_timer <= 0.0 or target_gone:
-		var candidates: Array = get_tree().get_nodes_in_group(enemy_group)
 		_target = CombatTactics.pick_target(ship, candidates, _target)
 		_retarget_timer = CombatTactics.RETARGET_INTERVAL
-	var enemy := _target
-	if enemy == null:
+	var armed := ship.engagement_distance(_target if _target != null else ship) >= 0.0
+	if AIController.should_flee(ship.ship_type, start_hp, ship.hull.current_hp, armed, _nearest_enemy_edge(candidates)):
+		_fleeing = true
+		ship.execute_order(Order.flee())
 		return
-	# Nothing left to shoot with: run rather than sit in the line of fire.
-	if ship.engagement_distance(enemy) < 0.0:
-		ship.execute_order(Order.retreat(enemy.global_position))
-		return
-	var hp_ratio: float = ship.hull.current_hp / ship.hull.max_hp if ship.hull.max_hp > 0.0 else 0.0
-	var in_range: bool = ship.global_position.distance_to(enemy.global_position) <= ship.attack_range()
-	state = AIController.next_state(state, hp_ratio, retreat_hp_ratio, in_range)
-	match state:
-		State.APPROACH, State.ENGAGE:
-			ship.execute_order(Order.attack_target(enemy))
-		State.RETREAT:
-			ship.execute_order(Order.retreat(enemy.global_position))
+	if _target != null:
+		ship.execute_order(Order.attack_target(_target))
 
-static func next_state(state: State, hp_ratio: float, retreat_hp_ratio: float, in_attack_range: bool) -> State:
-	if hp_ratio <= retreat_hp_ratio:
-		return State.RETREAT
-	if state == State.RETREAT and hp_ratio > retreat_hp_ratio + 0.1:
-		return State.APPROACH
-	if state == State.APPROACH and in_attack_range:
-		return State.ENGAGE
-	if state == State.ENGAGE and not in_attack_range:
-		return State.APPROACH
-	return state
+func _nearest_enemy_edge(candidates: Array) -> float:
+	var nearest := INF
+	for candidate in candidates:
+		if is_instance_valid(candidate) and candidate is Node2D:
+			nearest = minf(nearest, CombatTactics.edge_distance(ship.global_position, candidate))
+	return nearest
+
+# A freighter has no key of its own, so an armed one reads like a corvette.
+static func should_flee(kind: ShipType.Kind, start_hp: float, current_hp: float, armed: bool, nearest_enemy_edge: float) -> bool:
+	if start_hp <= 0.0:
+		return false
+	if not armed:
+		return nearest_enemy_edge <= UNARMED_FLEE_RANGE
+	var loss_fraction: float = FLEE_LOSS_FRACTION.get(kind, FLEE_LOSS_FRACTION[ShipType.Kind.CORVETTE])
+	return current_hp <= start_hp * (1.0 - loss_fraction)

@@ -75,7 +75,7 @@ stock all become editable in one tool. The data format must be easy to extend fo
 - **Field list drives the inspector:** one descriptor per field (key, label, type, default, owner:
   system or station). New fields appear in the UI and in save/load by adding a descriptor.
 - **Fleet quotas** are editable per role the game already has (combat, trader).
-- **Save/Load targets** `res:\\data\galaxy.json`; Save writes only when validation passes and reports
+- **Save/Load targets** `res://data/galaxy.json`; Save writes only when validation passes and reports
   every failure in a list that selects the offending node or station on click.
 
 ## Left to the builder

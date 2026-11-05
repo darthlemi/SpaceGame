@@ -8,16 +8,24 @@ enum State { APPROACH, ENGAGE, RETREAT }
 var state: State = State.APPROACH
 var ship: Ship
 var enemy_group: StringName
+var _target: Node2D = null
+var _retarget_timer: float = 0.0
 
 func setup(p_ship: Ship, p_enemy_group: StringName) -> void:
 	ship = p_ship
 	enemy_group = p_enemy_group
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if not is_instance_valid(ship):
 		return
-	var candidates: Array = get_tree().get_nodes_in_group(enemy_group)
-	var enemy := Ship.nearest_in_range(candidates, ship.global_position, INF)
+	_retarget_timer -= delta
+	# A target freed this frame stays valid until the queue flushes, so check both.
+	var target_gone := not is_instance_valid(_target) or _target.is_queued_for_deletion()
+	if _retarget_timer <= 0.0 or target_gone:
+		var candidates: Array = get_tree().get_nodes_in_group(enemy_group)
+		_target = CombatTactics.pick_target(ship, candidates, _target)
+		_retarget_timer = CombatTactics.RETARGET_INTERVAL
+	var enemy := _target
 	if enemy == null:
 		return
 	# Nothing left to shoot with: run rather than sit in the line of fire.

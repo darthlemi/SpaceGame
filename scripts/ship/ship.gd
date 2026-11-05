@@ -34,6 +34,9 @@ var _loiter_timer: float = 0.0
 var _run_phase: CombatTactics.RunPhase = CombatTactics.RunPhase.INBOUND
 # Cleared every tick, so a ship that stops fighting drops out of its allies' spread.
 var _engaged_target: Node2D = null
+# What idle HOLD is engaging, re-picked every RETARGET_INTERVAL.
+var _idle_target: Node2D = null
+var _retarget_timer: float = 0.0
 
 # complement 0 means crew isn't tracked (drones, non-campaign battles): full efficiency.
 var crew: float = 0.0
@@ -111,6 +114,10 @@ func threat_range() -> float:
 # The target _engage last ran against, or null. Allies use it to find who shares a target.
 func engaging_target() -> Node2D:
 	return _engaged_target if is_instance_valid(_engaged_target) else null
+
+# What idle HOLD is currently engaging, or null.
+func idle_target() -> Node2D:
+	return _idle_target if is_instance_valid(_idle_target) else null
 
 # How far to sit from the target's hull edge: < 0 means don't close in (nothing working to
 # shoot with). Drones without mounts override this.
@@ -287,14 +294,17 @@ func _steer_to(target_pos: Vector2, delta: float) -> void:
 	rotation = result["rotation"]
 	velocity = result["velocity"]
 
-# Idle ships hunt the nearest enemy anywhere, re-picking each tick so a closer threat
-# takes over; they loiter only once no enemy is left.
+# Idle ships hunt the best-scored enemy anywhere, re-picking every RETARGET_INTERVAL (or at
+# once when the target is gone); they loiter only once no enemy is left.
 func _process_hold(delta: float, candidates: Array) -> void:
-	var nearest := Ship.nearest_in_range(candidates, global_position, INF)
-	if nearest != null:
+	_retarget_timer -= delta
+	if _retarget_timer <= 0.0 or not _is_live_target(_idle_target):
+		_idle_target = CombatTactics.pick_target(self, candidates, _idle_target)
+		_retarget_timer = CombatTactics.RETARGET_INTERVAL
+	if _idle_target != null:
 		# Re-anchor after the fight, so loitering starts where it ended, not back at spawn.
 		_hold_anchored = false
-		_engage(nearest, delta)
+		_engage(_idle_target, delta)
 		return
 	if not _hold_anchored:
 		_hold_center = global_position
@@ -310,11 +320,15 @@ func _process_loiter(delta: float) -> void:
 			_loiter_timer = loiter_interval
 	_steer_to(_loiter_target, delta)
 
+# A target freed this frame is still valid until the queue is flushed, so check both.
+func _is_live_target(target) -> bool:
+	return is_instance_valid(target) and not target.is_queued_for_deletion()
+
 func _process_weapons() -> void:
 	if weapon_mounts.is_empty():
 		return
 	var candidates := _enemy_candidates()
-	var primary := Ship.pick_autofire_target(current_order, candidates, global_position, attack_range())
+	var primary := Ship.pick_autofire_target(current_order, candidates, global_position, attack_range(), idle_target())
 	for mount in weapon_mounts:
 		if not mount.can_fire():
 			continue
@@ -356,9 +370,11 @@ static func nearest_in_range(candidates: Array, own_position: Vector2, max_range
 				nearest = c
 	return nearest
 
-static func pick_autofire_target(order: Order, candidates: Array, own_position: Vector2, max_range: float) -> Node2D:
+static func pick_autofire_target(order: Order, candidates: Array, own_position: Vector2, max_range: float, idle: Node2D = null) -> Node2D:
 	if order.type == Order.Type.ATTACK_TARGET:
 		return order.target_ship if is_instance_valid(order.target_ship) else null
+	if order.type == Order.Type.HOLD and idle != null and own_position.distance_to(idle.global_position) <= max_range:
+		return idle
 	return Ship.nearest_in_range(candidates, own_position, max_range)
 
 # Mounts that can't bear on the primary target take any other enemy they can hit.

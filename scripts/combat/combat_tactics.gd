@@ -23,6 +23,16 @@ const SEPARATION_RADIUS_FACTOR := 2.5
 # Pixels added to the station point at full push.
 const SEPARATION_STRENGTH := 60.0
 
+# Target scoring; each term is in "points", higher total wins.
+const DIST_WEIGHT := 1.0
+const TURN_WEIGHT := 2.0
+const MATCH_WEIGHT := 1.5
+const LOW_HULL_WEIGHT := 3.0
+const REFERENCE_DPS := 20.0
+const STICKY_BONUS := 2.0
+# Seconds between re-picks; in between a ship keeps its target while it is valid.
+const RETARGET_INTERVAL := 0.5
+
 # Point defense shoots missiles and drones, so it says nothing about how a ship should fight
 # a hull. A PD-only ship keeps them so it still has something to close to.
 static func range_weapons(weapons: Array[Weapon]) -> Array[Weapon]:
@@ -44,9 +54,8 @@ static func threat_range(weapons: Array[Weapon]) -> float:
 			longest = maxf(longest, weapon.weapon_range)
 	return longest
 
-static func tactic_for(weapons: Array[Weapon], turn_rate: float) -> Tactic:
-	if turn_rate < RUN_MIN_TURN_RATE:
-		return Tactic.PARK
+# Dps share of narrow-arc weapons among the range weapons: how much the ship must point its nose.
+static func narrow_share(weapons: Array[Weapon]) -> float:
 	var total_dps := 0.0
 	var narrow_dps := 0.0
 	for weapon in range_weapons(weapons):
@@ -54,7 +63,12 @@ static func tactic_for(weapons: Array[Weapon], turn_rate: float) -> Tactic:
 		total_dps += dps
 		if weapon.fire_arc_degrees <= NARROW_ARC_DEGREES:
 			narrow_dps += dps
-	if total_dps > 0.0 and narrow_dps >= total_dps * RUN_DPS_SHARE:
+	return narrow_dps / total_dps if total_dps > 0.0 else 0.0
+
+static func tactic_for(weapons: Array[Weapon], turn_rate: float) -> Tactic:
+	if turn_rate < RUN_MIN_TURN_RATE:
+		return Tactic.PARK
+	if narrow_share(weapons) >= RUN_DPS_SHARE:
 		return Tactic.RUN
 	return Tactic.PARK
 
@@ -89,3 +103,52 @@ static func separation_push(own_pos: Vector2, ally_positions: Array[Vector2], ra
 
 static func weapon_dps(weapon: Weapon) -> float:
 	return weapon.damage * weapon.fire_rate * weapon.submissile_count
+
+# Positive: the loadout does better against shields that are up (dps-weighted, in [-1, 1]).
+static func loadout_shield_bias(weapons: Array[Weapon]) -> float:
+	var total_dps := 0.0
+	var weighted := 0.0
+	for weapon in range_weapons(weapons):
+		var dps := weapon_dps(weapon)
+		total_dps += dps
+		weighted += dps * (weapon.shield_mult - weapon.hull_mult - weapon.pierce_pct)
+	return clampf(weighted / total_dps, -1.0, 1.0) if total_dps > 0.0 else 0.0
+
+# Untyped target: it may have been freed (or be about to be) while candidates are scored.
+static func score_target(own_pos: Vector2, own_rotation: float, turn_rate: float, shield_bias: float, narrow: float, target, is_current: bool) -> float:
+	if not is_instance_valid(target) or (target is Node and target.is_queued_for_deletion()):
+		return -INF
+	var score := -edge_distance(own_pos, target) / 100.0 * DIST_WEIGHT
+	var angle := absf(angle_difference(own_rotation, own_pos.angle_to_point(target.global_position)))
+	score -= angle / maxf(turn_rate, 0.01) * narrow * TURN_WEIGHT
+	# Bare nodes (no shield or hull children) score as shieldless and undamaged.
+	var shield_ratio := 0.0
+	if target.shield != null and target.shield.max_shield > 0.0:
+		shield_ratio = target.shield.current_shield / target.shield.max_shield
+	score += shield_bias * (shield_ratio - 0.5) * 2.0 * MATCH_WEIGHT
+	var hull_ratio := 1.0
+	if target.hull != null and target.hull.max_hp > 0.0:
+		hull_ratio = target.hull.current_hp / target.hull.max_hp
+	var target_dps := 0.0
+	if target.has_method("working_weapons"):
+		for weapon in range_weapons(target.working_weapons()):
+			target_dps += weapon_dps(weapon)
+	score += (1.0 - hull_ratio) * LOW_HULL_WEIGHT * clampf(target_dps / REFERENCE_DPS, 0.25, 2.0)
+	if is_current:
+		score += STICKY_BONUS
+	return score
+
+static func pick_target(ship: Ship, candidates: Array, current) -> Node2D:
+	var weapons := ship.working_weapons()
+	var bias := loadout_shield_bias(weapons)
+	var narrow := narrow_share(weapons)
+	var best: Node2D = null
+	var best_score := -INF
+	for candidate in candidates:
+		if not is_instance_valid(candidate) or not candidate is Node2D:
+			continue
+		var score := score_target(ship.global_position, ship.rotation, ship.engine.turn_rate if ship.engine != null else 0.0, bias, narrow, candidate, candidate == current)
+		if score > best_score:
+			best_score = score
+			best = candidate
+	return best

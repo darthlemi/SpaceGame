@@ -4,6 +4,24 @@ class HullStub extends Node2D:
 	func get_hit_radius() -> float:
 		return 54.0
 
+class Bar extends RefCounted:
+	var current_hp := 100.0
+	var max_hp := 100.0
+	var current_shield := 100.0
+	var max_shield := 100.0
+
+# Just enough of a Ship for score_target; armed stubs expose working_weapons().
+class ScoreStub extends Node2D:
+	var hull := Bar.new()
+	var shield := Bar.new()
+	var weapons: Array[Weapon] = []
+
+	func get_hit_radius() -> float:
+		return 0.0
+
+	func working_weapons() -> Array[Weapon]:
+		return weapons
+
 static func run() -> Array[String]:
 	var failures: Array[String] = []
 	_check_range_weapons(failures)
@@ -12,6 +30,7 @@ static func run() -> Array[String]:
 	_check_run_phase(failures)
 	_check_kite(failures)
 	_check_spread(failures)
+	_check_scoring(failures)
 	return failures
 
 static func _weapon(weapon_range: float, damage: float, fire_rate: float, arc: float, pd: bool) -> Weapon:
@@ -130,3 +149,72 @@ static func _check_spread(failures: Array[String]) -> void:
 	var stacked: Array[Vector2] = [Vector2.ZERO]
 	if not CombatTactics.separation_push(Vector2.ZERO, stacked, 60.0).is_finite():
 		failures.append("separation: expected a finite push for an ally at the same spot")
+
+static func _stub(pos: Vector2, armed: bool = true) -> ScoreStub:
+	var stub := ScoreStub.new()
+	stub.position = pos
+	if armed:
+		stub.weapons.append(_weapon(300.0, 10.0, 2.0, 90.0, false))
+	return stub
+
+static func _score(target: ScoreStub, bias: float = 0.0, narrow: float = 0.0, is_current: bool = false) -> float:
+	return CombatTactics.score_target(Vector2.ZERO, 0.0, 3.0, bias, narrow, target, is_current)
+
+static func _check_scoring(failures: Array[String]) -> void:
+	var near := _stub(Vector2(200.0, 0.0))
+	var far := _stub(Vector2(600.0, 0.0))
+	if _score(near) <= _score(far):
+		failures.append("score_prefers_closer: nearer target should score higher")
+
+	var ahead := _stub(Vector2(300.0, 0.0))
+	var behind := _stub(Vector2(-300.0, 0.0))
+	if _score(ahead, 0.0, 1.0) <= _score(behind, 0.0, 1.0):
+		failures.append("score_turn_matters_for_narrow: ahead should win with narrow 1.0")
+	if not is_equal_approx(_score(ahead, 0.0, 0.0), _score(behind, 0.0, 0.0)):
+		failures.append("score_turn_matters_for_narrow: scores should tie with narrow 0.0")
+
+	var up := _stub(Vector2(300.0, 0.0))
+	var down := _stub(Vector2(300.0, 0.0))
+	down.shield.current_shield = 0.0
+	if _score(up, 0.8) <= _score(down, 0.8):
+		failures.append("score_shield_match: shields-up should win with positive bias")
+	if _score(down, -0.8) <= _score(up, -0.8):
+		failures.append("score_shield_match: shields-down should win with negative bias")
+
+	var hurt := _stub(Vector2(300.0, 0.0))
+	hurt.hull.current_hp = 20.0
+	var healthy := _stub(Vector2(300.0, 0.0))
+	if _score(hurt) <= _score(healthy):
+		failures.append("score_low_hull_bonus: armed 20% hull target should beat the 100% one")
+
+	var held := _stub(Vector2(300.0, 0.0))
+	var rival := _stub(Vector2(250.0, 0.0))
+	if _score(held, 0.0, 0.0, true) <= _score(rival):
+		failures.append("score_sticky_resists_small_gain: current target at 300 should beat a new one at 250")
+
+	var freed := _stub(Vector2(100.0, 0.0))
+	freed.free()
+	if CombatTactics.score_target(Vector2.ZERO, 0.0, 3.0, 0.0, 0.0, freed, false) != -INF:
+		failures.append("score_invalid_target: expected -INF for a freed target")
+	if CombatTactics.score_target(Vector2.ZERO, 0.0, 3.0, 0.0, 0.0, null, false) != -INF:
+		failures.append("score_invalid_target: expected -INF for null")
+
+	var pulse: Array[Weapon] = [load("res://resources/weapons/pulse_laser.tres")]
+	var rail: Array[Weapon] = [load("res://resources/weapons/railgun.tres")]
+	if CombatTactics.loadout_shield_bias(pulse) <= 0.0:
+		failures.append("shield_bias_signs: pulse laser should be > 0")
+	if CombatTactics.loadout_shield_bias(rail) >= 0.0:
+		failures.append("shield_bias_signs: railgun should be < 0")
+	var none: Array[Weapon] = []
+	if not is_zero_approx(CombatTactics.loadout_shield_bias(none)):
+		failures.append("shield_bias_signs: no weapons should be 0")
+
+	var mixed: Array[Weapon] = [_weapon(300.0, 10.0, 2.0, 100.0, false), _weapon(500.0, 35.0, 0.25, 10.0, false)]
+	var expected := (35.0 * 0.25) / (10.0 * 2.0 + 35.0 * 0.25)
+	if not is_equal_approx(CombatTactics.narrow_share(mixed), expected):
+		failures.append("narrow_share: expected %s, got %s" % [expected, CombatTactics.narrow_share(mixed)])
+	if not is_zero_approx(CombatTactics.narrow_share(none)):
+		failures.append("narrow_share: expected 0 for no weapons")
+
+	for stub in [near, far, ahead, behind, up, down, hurt, healthy, held, rival]:
+		stub.free()

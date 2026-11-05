@@ -29,6 +29,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	_check_lists(editor, failures)
 	await _check_station_editor(tree, editor, failures)
 	_check_presets_tab(editor, failures)
+	_check_vector_row(editor, failures)
 	_check_rename_and_failed_save(editor, failures)
 	_check_save_blocked(editor, failures)
 	_check_save_and_load(editor, failures)
@@ -248,6 +249,16 @@ static func _check_station_editor(tree: SceneTree, editor: MapEditor, failures: 
 	editor.select_station("post_b")
 	editor.station_box.set_slot_preset(0, "mining")
 	await tree.process_frame
+
+static func _check_vector_row(editor: MapEditor, failures: Array[String]) -> void:
+	editor.load_document(Validator.doc())
+	editor.model.doc["systems"][1]["map"] = [0.123, 0.456]
+	editor.select_system("b")
+	editor._rebuild_system_fields()
+	editor.system_fields_box.get_node("Row_map").get_node("X").value = 0.5
+	var map: Array = editor.model.doc["systems"][1]["map"]
+	if map[0] != 0.5 or absf(map[1] - 0.456) > 0.0001:
+		failures.append("vector row: editing x must leave y unrounded, got %s" % [map])
 
 static func _check_presets_tab(editor: MapEditor, failures: Array[String]) -> void:
 	editor.load_document(Validator.doc())

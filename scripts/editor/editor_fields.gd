@@ -86,8 +86,14 @@ static func _add_vector_controls(row: HBoxContainer, spec: Dictionary, value: Ve
 	var y_spin := _spin(spec, value.y)
 	x_spin.name = "X"
 	y_spin.name = "Y"
-	x_spin.value_changed.connect(func(_v: float) -> void: on_change.call(Vector2(x_spin.value, y_spin.value)))
-	y_spin.value_changed.connect(func(_v: float) -> void: on_change.call(Vector2(x_spin.value, y_spin.value)))
+	# Only the edited axis changes: reading the other spin back would round it to the spin step.
+	var current := [value]
+	x_spin.value_changed.connect(func(v: float) -> void:
+		current[0] = Vector2(v, current[0].y)
+		on_change.call(current[0]))
+	y_spin.value_changed.connect(func(v: float) -> void:
+		current[0] = Vector2(current[0].x, v)
+		on_change.call(current[0]))
 	row.add_child(x_spin)
 	row.add_child(y_spin)
 

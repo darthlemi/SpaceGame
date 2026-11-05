@@ -37,7 +37,16 @@ var _findings: Array[Dictionary] = []
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable = Callable()
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if model.dirty:
+			_ask("Discard unsaved changes and close the editor?", func() -> void: get_tree().quit())
+		else:
+			get_tree().quit()
+
 func _ready() -> void:
+	# Closing goes through _notification so unsaved edits can be confirmed first.
+	get_tree().auto_accept_quit = false
 	_build_ui()
 	canvas.system_selected.connect(select_system)
 	canvas.system_moved.connect(_on_system_moved)
@@ -54,6 +63,9 @@ static func _empty_document() -> Dictionary:
 		"systems": [], "links": [], "stations": []}
 
 # --- public API (also what the tests drive) ---
+
+func _exit_tree() -> void:
+	get_tree().auto_accept_quit = true
 
 func load_document(doc: Dictionary) -> void:
 	model = MapEditModel.from_document(doc)
@@ -92,9 +104,17 @@ func save() -> bool:
 	_set_status("Saved %s" % save_path if wrote else "No changes to save")
 	return wrote
 
+# Releasing focus fires the field's focus_exited, so a typed-but-uncommitted value lands on the
+# current selection before the inspector rebuilds for the next one.
+func _commit_pending_edit() -> void:
+	var focused := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+	if focused is LineEdit:
+		focused.release_focus()
+
 func select_system(id: String) -> void:
 	if model.doc["systems"].filter(func(s): return s["id"] == id).is_empty():
 		return
+	_commit_pending_edit()
 	selected_system = id
 	canvas.selected = id
 	var station_index := model.station_index(selected_station)
@@ -109,6 +129,7 @@ func select_station(id: String) -> void:
 	var index := model.station_index(id)
 	if index < 0:
 		return
+	_commit_pending_edit()
 	var system_id: String = model.doc["stations"][index]["system"]
 	if system_id != selected_system:
 		select_system(system_id)
@@ -358,12 +379,6 @@ func _on_system_field_changed(spec: Dictionary, value) -> void:
 		model.move_system(selected_system, value)
 	else:
 		model.set_system_field(selected_system, spec["key"], null if EditorFields.is_default(spec, value) else value)
-	_after_edit(false)
-
-func _on_station_field_changed(spec: Dictionary, value) -> void:
-	model.set_station_field(selected_station, spec["key"], null if EditorFields.is_default(spec, value) else value)
-	if spec["key"] == "name":
-		selected_station = GalaxyDocument.station_id(str(value))
 	_after_edit(false)
 
 func _on_system_moved(id: String, map: Vector2) -> void:

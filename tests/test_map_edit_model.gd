@@ -185,3 +185,23 @@ static func _check_unknown_keys(failures: Array[String]) -> void:
 		failures.append("unknown keys: the duplicate lost a station key")
 	if m.doc.get("future", -1) != 1:
 		failures.append("unknown keys: top-level key lost")
+	_check_slot_keys(failures)
+
+static func _check_slot_keys(failures: Array[String]) -> void:
+	var d := Validator.doc()
+	d["stations"][1]["slots"][0] = {"preset": "mining", "note": "keep", "overrides": {"housing": 5.0}}
+	var m := MapEditModel.from_document(d)
+	m.set_override("post_b", 0, "produces", {"ORE": 9.0})
+	m.reset_override("post_b", 0, "produces")
+	m.reset_override("post_b", 0, "housing")
+	var slot = m.doc["stations"][1]["slots"][0]
+	if typeof(slot) != TYPE_DICTIONARY or slot.get("note", "") != "keep" or slot.has("overrides"):
+		failures.append("slot keys: expected the unknown key kept and overrides gone, got %s" % [slot])
+	m.dirty = false
+	m.set_slot_preset("post_b", 0, "mining")
+	if m.dirty:
+		failures.append("set_slot_preset: choosing the current preset must not dirty the document")
+	m.set_slot_preset("post_b", 0, "agriculture")
+	slot = m.doc["stations"][1]["slots"][0]
+	if typeof(slot) != TYPE_DICTIONARY or slot["preset"] != "agriculture" or slot.get("note", "") != "keep":
+		failures.append("set_slot_preset: expected the new preset with the unknown key kept, got %s" % [slot])

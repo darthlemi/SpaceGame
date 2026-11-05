@@ -64,6 +64,14 @@ static func _check_unknown_keys(failures: Array[String]) -> void:
 			post = st
 	if post.get("zz", -1) != 5:
 		failures.append("unknown keys: station key 'zz' lost")
+	doc["systems"][0]["extra"] = {"tier": 2.5}
+	var again: Dictionary = GalaxyDocument.parse(GalaxyDocument.serialize(doc))["doc"]
+	var tiered: Dictionary = {}
+	for sys in again["systems"]:
+		if sys["id"] == doc["systems"][0]["id"]:
+			tiered = sys
+	if tiered.get("extra", {}).get("tier", 0.0) != 2.5:
+		failures.append("unknown keys: extra.tier 2.5 must not be truncated to an int")
 
 static func _check_key_order(failures: Array[String]) -> void:
 	var shuffled := {}

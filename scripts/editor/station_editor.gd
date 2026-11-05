@@ -316,8 +316,13 @@ func _build_stock(entry: Dictionary) -> void:
 			if not set_stock_text(commodity, text):
 				# Reverts to what the document holds.
 				edit.text = "" if not _entry()["stock"].has(commodity) else str(_entry()["stock"][commodity])
-		edit.text_submitted.connect(commit)
-		edit.focus_exited.connect(func() -> void: commit.call(edit.text))
+		var last := [edit.text]
+		var commit_if_changed := func() -> void:
+			if edit.text != last[0]:
+				last[0] = edit.text
+				commit.call(edit.text)
+		edit.text_submitted.connect(func(_text: String) -> void: commit_if_changed.call())
+		edit.focus_exited.connect(commit_if_changed)
 		row.add_child(edit)
 		add_child(row)
 

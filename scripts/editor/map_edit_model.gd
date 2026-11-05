@@ -202,14 +202,23 @@ static func slot_preset_name(slot) -> String:
 static func slot_overrides_of(slot) -> Dictionary:
 	return {} if typeof(slot) == TYPE_STRING else slot.get("overrides", {})
 
-static func _make_slot(preset: String, overrides: Dictionary):
-	return preset if overrides.is_empty() else {"preset": preset, "overrides": overrides}
+# Rebuilds a slot with the given preset and overrides, keeping any other keys the slot carries.
+static func _make_slot(slot, preset: String, overrides: Dictionary):
+	var out: Dictionary = {} if typeof(slot) == TYPE_STRING else slot.duplicate(true)
+	out.erase("overrides")
+	out["preset"] = preset
+	if not overrides.is_empty():
+		out["overrides"] = overrides
+	return preset if out.size() == 1 else out
 
 func set_slot_preset(station_id: String, slot_index: int, preset: String) -> void:
 	var slots := _slot_at(station_id, slot_index)
 	if slots.is_empty():
 		return
-	slots[slot_index] = preset
+	if slot_preset_name(slots[slot_index]) == preset:
+		return
+	# A new preset starts clean: overrides were tuned against the old one.
+	slots[slot_index] = _make_slot(slots[slot_index], preset, {})
 	_touch()
 
 func add_slot(station_id: String) -> bool:
@@ -236,7 +245,7 @@ func set_override(station_id: String, slot_index: int, key: String, value) -> vo
 		return
 	var overrides := slot_overrides_of(slots[slot_index]).duplicate(true)
 	overrides[key] = value
-	slots[slot_index] = _make_slot(slot_preset_name(slots[slot_index]), overrides)
+	slots[slot_index] = _make_slot(slots[slot_index], slot_preset_name(slots[slot_index]), overrides)
 	_touch()
 
 func reset_override(station_id: String, slot_index: int, key: String) -> void:
@@ -246,7 +255,7 @@ func reset_override(station_id: String, slot_index: int, key: String) -> void:
 	var overrides := slot_overrides_of(slots[slot_index]).duplicate(true)
 	if not overrides.erase(key):
 		return
-	slots[slot_index] = _make_slot(slot_preset_name(slots[slot_index]), overrides)
+	slots[slot_index] = _make_slot(slots[slot_index], slot_preset_name(slots[slot_index]), overrides)
 	_touch()
 
 # value null removes the key.

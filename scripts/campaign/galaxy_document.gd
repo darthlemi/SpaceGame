@@ -98,6 +98,9 @@ static func _key_order(context: String) -> Array:
 
 # Context of a child value, from the parent's context and the child's key.
 static func _child_context(context: String, key: String) -> String:
+	# Free-form extra data keeps its numbers as written, whatever their key is called.
+	if context == "extra" or (key == "extra" and context in ["station", "system"]):
+		return "extra"
 	match context:
 		"doc":
 			if key == "presets":
@@ -131,7 +134,7 @@ static func _emit(value, depth: int, context: String, key: String) -> String:
 		TYPE_INT:
 			return str(value)
 		TYPE_FLOAT:
-			return str(int(value)) if key in INT_KEYS or context == "quota" else _float(value)
+			return str(int(value)) if (key in INT_KEYS and context != "extra") or context == "quota" else _float(value)
 	push_error("GalaxyDocument: cannot serialise a %s" % type_string(typeof(value)))
 	return "null"
 

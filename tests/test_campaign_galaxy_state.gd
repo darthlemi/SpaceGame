@@ -326,6 +326,9 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	var bastion: StationData = state.galaxy.station("bastion")
 	var b_trader: CampaignFleet = state.station_fleets(bastion, TRADER)[0]
 	b_trader.dest_station_id = "bastion"
+	# The Dominion quarries (Ore makers beside Bastion) are real partners now; keep them out of these checks.
+	for quarry_id in ["bastion_quarry", "ironhold_quarry", "kestrel_mines"]:
+		state.galaxy.station(quarry_id).owner = CampaignFleet.Faction.PIRATE
 	var far_rich := _extra_station("far_rich", "bastion", CampaignFleet.Faction.NEUTRAL, bastion.position + Vector2(900, 900), {Commodity.Type.ORE: 1000.0})
 	state.galaxy.add_station(far_rich)
 	state.galaxy.add_station(_extra_station("pirate_hoard", "bastion", CampaignFleet.Faction.PIRATE, bastion.position, {Commodity.Type.ORE: 9000.0}))
@@ -337,8 +340,11 @@ static func _check_next_destination(failures: Array[String]) -> void:
 		failures.append("next_trade_destination: expected a power faction at peace to be a candidate, got '%s'" % state.next_trade_destination(b_trader))
 	state.factions_at_war = true
 	# Once far_rich is empty, scores are surplus: Bastion Yards burns the Ore Bastion needs, so it
-	# offers none, and Marrow Depot's Food (it farms) wins at 1 jump.
-	far_rich.economy.stock = {}
+	# offers none, and Marrow Depot's Food (it farms) wins at 1 jump. Far_rich is left at TARGET_STOCK,
+	# not empty: an empty one is short of everything and would win as a delivery.
+	for commodity in Commodity.TARGET_STOCK:
+		far_rich.economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
+		state.galaxy.station("near_post").economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
 	if state.next_trade_destination(b_trader) != "marrow_depot":
 		failures.append("next_trade_destination: expected marrow_depot's food surplus once far_rich is empty, got '%s'" % state.next_trade_destination(b_trader))
 
@@ -367,6 +373,9 @@ static func _check_trade_range(failures: Array[String]) -> void:
 	trader.dest_station_id = "bastion"
 	state.galaxy.add_station(_extra_station("far_post", "tollgate", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e7}))
 	state.galaxy.add_station(_extra_station("edge_post", "haven", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e6}))
+	# The Dominion quarries beside Bastion would out-supply both posts; take them out of the trade.
+	for quarry_id in ["bastion_quarry", "ironhold_quarry", "kestrel_mines"]:
+		state.galaxy.station(quarry_id).owner = CampaignFleet.Faction.PIRATE
 	if state.galaxy.jump_distance("bastion", "haven") != 2 or state.galaxy.jump_distance("bastion", "tollgate") != 3:
 		failures.append("trade range: test setup expected haven 2 and tollgate 3 jumps from bastion")
 	if state.next_trade_destination(trader) != "edge_post":

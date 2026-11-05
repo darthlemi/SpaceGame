@@ -19,6 +19,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	_check_fuel_reserve(failures)
 	_check_trade_keeps_tank(failures)
 	_check_fuel_is_a_need_when_short(failures)
+	_check_stock_drives_trade_goods(failures)
 	_check_fuel_aware_destination(failures)
 	_check_away_time_and_home_rest(failures)
 	_check_home_repair(failures)
@@ -255,6 +256,31 @@ static func _check_fuel_is_a_need_when_short(failures: Array[String]) -> void:
 	wexford.economy.stock[FUEL] = 0.0
 	if state._home_trade_goods(wexford, false).has(FUEL):
 		failures.append("fuel need: expected a refining home never to haul FUEL in")
+	state.free()
+
+# Stock, not slot type, decides the rest: short goods are wanted, goods above TARGET_STOCK are spare,
+# a maker never wants its own product, a burner never ships out its input; NPCs skip player stations.
+static func _check_stock_drives_trade_goods(failures: Array[String]) -> void:
+	var state := _fresh_state()
+	var market: StationData = state.galaxy.station("cinder_market")
+	var ore: int = Commodity.Type.ORE
+	var luxury: int = Commodity.Type.LUXURY_GOODS
+	market.economy.stock[luxury] = 10.0
+	if not state._home_trade_goods(market, false).has(luxury):
+		failures.append("stock goods: expected a short good to be wanted by a station that doesn't make it")
+	market.economy.stock[luxury] = Commodity.TARGET_STOCK[luxury] + 5.0
+	if not state._home_trade_goods(market, true).has(luxury):
+		failures.append("stock goods: expected a good above TARGET_STOCK to be spare")
+	var spire: StationData = state.galaxy.station("aurum_spire")
+	spire.economy.stock[Commodity.Type.FUEL] = 0.0
+	spire.economy.stock[ore] = Commodity.TARGET_STOCK[ore] + 50.0
+	if state._home_trade_goods(spire, false).has(Commodity.Type.FUEL):
+		failures.append("stock goods: expected a refinery never to want FUEL")
+	if state._home_trade_goods(spire, true).has(ore):
+		failures.append("stock goods: expected an Ore burner never to export Ore")
+	var home_base: StationData = state.galaxy.station("home_base")
+	if state.can_refuel_at(_first_fleet(state, "aurum_bazaar", TRADER), home_base):
+		failures.append("stock goods: expected NPCs never to refuel at a player-owned station")
 	state.free()
 
 # C1(a): a trader only picks a partner it can fuel there and back, and re-picks at home when the

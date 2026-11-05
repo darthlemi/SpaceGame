@@ -41,15 +41,6 @@ const MIN_FLEET_FRACTION := 0.5
 const MIN_JUMP_RATE_KEPT := 0.4
 # A trader with a destination elsewhere decides within DECISION_INTERVAL + DECISION_JITTER.
 const MAX_TRADER_IDLE_AT_HOME := 120.0
-# Stations that lose slots on today's data (expected; see the 2026-11-04 final-fix-report). The
-# Dominion industrial stations have no Ore producer within TRADE_RANGE_JUMPS, and these
-# trade-hub populations eat more Food than one hauler brings. Any other station losing a slot is a
-# regression. Shrink this list when the economy data is rebalanced.
-const KNOWN_SLOT_LOSS: Array[String] = [
-	"aurum_bazaar", "aurum_spire", "bastion", "bastion_yards", "cinder_market", "crownspire",
-	"freeport", "haven_exchange", "ironhold", "kestrel_picket", "northgate_hub", "slagfall_foundry",
-	"wreckyard_salvage",
-]
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
@@ -178,8 +169,7 @@ static func _check_economy_and_traders(campaign_state, duration: float, seeded_s
 			continue
 		if economy.slots.size() < seeded_slots[station.id]:
 			lost.append(station.id)
-			if not KNOWN_SLOT_LOSS.has(station.id):
-				failures.append("[sim %0.0fs] expected %s to keep its %d slots, it has %d" % [duration, station.id, seeded_slots[station.id], economy.slots.size()])
+			failures.append("[sim %0.0fs] expected %s to keep its %d slots, it has %d" % [duration, station.id, seeded_slots[station.id], economy.slots.size()])
 	print("[sim %0.0fs] stations below their seeded slots: %s; longest trader idle at home with a destination: %.0f s (%s)" % [duration, lost, max_idle[0], max_idle[1]])
 	if max_idle[0] > MAX_TRADER_IDLE_AT_HOME:
 		failures.append("[sim %0.0fs] expected no trader idle at home over %.0f s with a destination, %s waited %.0f s" % [duration, MAX_TRADER_IDLE_AT_HOME, max_idle[1], max_idle[0]])

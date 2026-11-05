@@ -1,8 +1,9 @@
 class_name BaseEconomy
 extends Resource
 
-const DEFICIT_STREAK_THRESHOLD := 5
 const SURPLUS_STREAK_THRESHOLD := 5
+# Warehouse size as a multiple of Commodity.TARGET_STOCK; production above it is discarded.
+const STOCK_CAP_FACTOR := 3.0
 const BAND_THRESHOLDS := [0.2, 0.6, 1.4, 1.8]
 const BAND_MULTIPLIERS := [1.6, 1.3, 1.0, 0.8, 0.6]
 const SELL_SPREAD := 0.8
@@ -39,6 +40,10 @@ func tick() -> void:
 		var slot: EconomyRole = slots[i]
 		if slot.consumes.is_empty():
 			continue
+		# A full warehouse idles the slot, so inputs aren't burned for output that would be discarded.
+		if _output_full(slot):
+			deficit_streaks[i] = 0
+			continue
 		var can_afford := true
 		for commodity in slot.consumes:
 			if stock.get(commodity, 0.0) < slot.consumes[commodity]:
@@ -51,14 +56,12 @@ func tick() -> void:
 				stock[commodity] = stock.get(commodity, 0.0) + slot.produces[commodity]
 			deficit_streaks[i] = 0
 		else:
+			# A starved slot idles and keeps its inputs; it restarts when supply arrives.
 			any_deficit = true
-			for commodity in slot.consumes:
-				stock[commodity] = 0.0
 			deficit_streaks[i] = deficit_streaks.get(i, 0) + 1
-			if deficit_streaks[i] >= DEFICIT_STREAK_THRESHOLD:
-				slots.remove_at(slots.size() - 1)
-				deficit_streaks.clear()
-				break
+
+	for commodity in stock.keys():
+		stock[commodity] = minf(stock[commodity], stock_cap(commodity))
 
 	if any_deficit:
 		surplus_streak = 0
@@ -69,6 +72,21 @@ func tick() -> void:
 
 func crew_pool_cap() -> float:
 	return population * CREW_POOL_CAP_FRACTION
+
+func stock_cap(commodity: int) -> float:
+	return Commodity.TARGET_STOCK[commodity] * STOCK_CAP_FACTOR
+
+# Short means the stock is in the two highest-price bands (below BAND_THRESHOLDS[1] of target).
+func is_short_of(commodity: int) -> bool:
+	return stock.get(commodity, 0.0) < Commodity.TARGET_STOCK[commodity] * BAND_THRESHOLDS[1]
+
+func _output_full(slot: EconomyRole) -> bool:
+	if slot.produces.is_empty():
+		return false
+	for commodity in slot.produces:
+		if stock.get(commodity, 0.0) < stock_cap(commodity):
+			return false
+	return true
 
 func price_for(commodity: int) -> int:
 	var target: float = Commodity.TARGET_STOCK[commodity]

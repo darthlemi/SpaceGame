@@ -868,7 +868,10 @@ func run_npc_trade_at(fleet: CampaignFleet, station: StationData) -> void:
 			station.economy.stock[commodity] = station.economy.stock.get(commodity, 0.0) + amount
 	fleet.cargo = {Commodity.Type.FUEL: tank}
 	refuel_npc(fleet, station)
-	_load_trade_goods(fleet, _home_trade_goods(home, station == home), station.economy)
+	var goods := _home_trade_goods(home, station == home)
+	if station == home:
+		goods = _goods_wanted_by(goods, galaxy.station(_best_trade_partner(fleet, home)))
+	_load_trade_goods(fleet, goods, station.economy)
 
 # Home after every away stop. From home: see _best_trade_partner.
 func next_trade_destination(fleet: CampaignFleet) -> String:
@@ -879,10 +882,11 @@ func next_trade_destination(fleet: CampaignFleet) -> String:
 		return home.id
 	return _best_trade_partner(fleet, home)
 
-# The in-range partner whose surplus best covers what home needs, among those the fleet can fuel
+# The in-range partner whose haul is worth most (see _route_value), among those the fleet can fuel
 # there and back; ties to fewer jumps, then the shorter in-system distance; "" when there is none.
 func _best_trade_partner(fleet: CampaignFleet, home: StationData) -> String:
 	var needs := _home_trade_goods(home, false)
+	var exports := _home_trade_goods(home, true)
 	var best: StationData = null
 	var best_score := 0.0
 	var best_jumps := 0
@@ -899,10 +903,7 @@ func _best_trade_partner(fleet: CampaignFleet, home: StationData) -> String:
 			continue
 		if not NpcJumpPlanner.fuel_allows(fleet, galaxy, galaxy.path(home.system_id, station.system_id)):
 			continue
-		var score := 0.0
-		if station.economy != null:
-			for commodity in needs:
-				score += _trade_surplus(station.economy, commodity)
+		var score := _route_value(home, station, needs, exports)
 		var dist := home.position.distance_to(station.position)
 		if best != null:
 			var tied := is_equal_approx(score, best_score)
@@ -926,7 +927,10 @@ func _home_station_of(fleet: CampaignFleet) -> StationData:
 	return galaxy.station(fleet.home_station_id) if galaxy != null else null
 
 func _is_trade_partner(fleet_faction: CampaignFleet.Faction, owner: CampaignFleet.Faction) -> bool:
-	return owner != CampaignFleet.Faction.PIRATE and not _factions_hostile(fleet_faction, owner)
+	# NPCs never trade or refuel at a player-owned station, so they can't drain the player's stock.
+	if owner == CampaignFleet.Faction.PLAYER or owner == CampaignFleet.Faction.PIRATE:
+		return false
+	return not _factions_hostile(fleet_faction, owner)
 
 func _apply_station_allocation(station: StationData) -> void:
 	var combat_fleets := station_fleets(station, CampaignFleet.Role.COMBAT)
@@ -982,8 +986,9 @@ func _grow_station_fleet(fleets: Array[CampaignFleet], kind: ShipType.Kind) -> v
 			fleet.ship_compositions.append(ShipType.new_composition(kind))
 			return
 
-# Home's surplus (exports true) or needs (false), by its slots' net production. Home's own fleets
-# refuel from its stock, so a home that makes no FUEL also needs it while below TARGET_STOCK.
+# Home's surplus (exports true) or needs (false): goods its slots net-produce or net-consume, plus
+# whatever its stock makes spare (above TARGET_STOCK) or short (see BaseEconomy.is_short_of). Home's own
+# fleets refuel from its stock, so a home that makes no FUEL also needs it while below TARGET_STOCK.
 func _home_trade_goods(home: StationData, exports: bool) -> Array:
 	var goods: Array = []
 	if home.economy == null:
@@ -992,11 +997,45 @@ func _home_trade_goods(home: StationData, exports: bool) -> Array:
 	for commodity in net:
 		if (exports and net[commodity] > 0.0) or (not exports and net[commodity] < 0.0):
 			goods.append(commodity)
+	# A station never hauls in what it makes, nor ships out what it burns.
+	for commodity in Commodity.TARGET_STOCK:
+		var made: float = net.get(commodity, 0.0)
+		if goods.has(commodity) or (made > 0.0 and not exports) or (made < 0.0 and exports):
+			continue
+		var spare: bool = home.economy.stock.get(commodity, 0.0) > Commodity.TARGET_STOCK[commodity]
+		if (exports and spare) or (not exports and home.economy.is_short_of(commodity)):
+			goods.append(commodity)
 	var fuel := Commodity.Type.FUEL
 	var short_of_fuel: bool = net.get(fuel, 0.0) <= 0.0 and home.economy.stock.get(fuel, 0.0) < Commodity.TARGET_STOCK[fuel]
 	if not exports and short_of_fuel and not goods.has(fuel):
 		goods.append(fuel)
 	return goods
+
+# Units a fleet can haul between home and a partner, each weighted by how much dearer the good is at
+# its destination: what home needs from the partner (also weighted by how empty home is of it, so a dry
+# FUEL tank outbids a plentiful Ore run) plus what the partner is short of from home.
+func _route_value(home: StationData, partner: StationData, needs: Array, exports: Array) -> float:
+	if partner.economy == null:
+		return 0.0
+	var value := 0.0
+	for commodity in needs:
+		var emptiness := clampf(1.0 - home.economy.stock.get(commodity, 0.0) / Commodity.TARGET_STOCK[commodity], 0.0, 1.0)
+		value += _trade_surplus(partner.economy, commodity) * _price_pull(partner.economy, home.economy, commodity) * (1.0 + 2.0 * emptiness)
+	for commodity in exports:
+		if partner.economy.is_short_of(commodity):
+			value += _trade_surplus(home.economy, commodity) * _price_pull(home.economy, partner.economy, commodity)
+	return value
+
+# 1.0 plus how much dearer the good is at the destination, in base prices; never below 1.0.
+static func _price_pull(source: BaseEconomy, destination: BaseEconomy, commodity: int) -> float:
+	return 1.0 + maxf(0.0, float(destination.price_for(commodity) - source.price_for(commodity))) / Commodity.BASE_PRICE[commodity]
+
+# The goods the partner is short of, or all of them when it is short of none (a trader still sells).
+func _goods_wanted_by(goods: Array, partner: StationData) -> Array:
+	if partner == null or partner.economy == null:
+		return goods
+	var wanted := goods.filter(func(commodity): return partner.economy.is_short_of(commodity))
+	return wanted if not wanted.is_empty() else goods
 
 # What a trader may take: all of a good the station makes, only the excess over TARGET_STOCK of
 # anything else, and never the station's FUEL reserve.

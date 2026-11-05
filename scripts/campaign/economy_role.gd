@@ -53,5 +53,5 @@ static func trade_hub() -> EconomyRole:
 static func refinery() -> EconomyRole:
 	var role := EconomyRole.new()
 	role.role_type = RoleType.REFINERY
-	role.produces = {Commodity.Type.FUEL: 2.0}
+	role.produces = {Commodity.Type.FUEL: 3.0}
 	return role

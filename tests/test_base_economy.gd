@@ -31,32 +31,57 @@ static func run() -> Array[String]:
 	if industrial_base.deficit_streaks.get(0, 0) != 0:
 		failures.append("tick: expected deficit streak reset to 0 when fully stocked")
 
-	# Deficit: insufficient input drains that slot's inputs to 0 and increments its streak.
+	# Deficit: insufficient input idles that slot, keeps its inputs, and increments its streak.
 	var starved_base := BaseEconomy.new()
 	starved_base.slots = [EconomyRole.industrial()]
 	starved_base.max_slots = 1
 	starved_base.stock = {Commodity.Type.ORE: 1.0, Commodity.Type.FUEL: 10.0}
 	starved_base.tick()
-	if starved_base.stock.get(Commodity.Type.ORE, 0.0) != 0.0:
-		failures.append("tick: expected Ore drained to 0.0 on deficit, got %s" % starved_base.stock.get(Commodity.Type.ORE, 0.0))
-	if starved_base.stock.get(Commodity.Type.FUEL, 0.0) != 0.0:
-		failures.append("tick: expected Fuel also drained to 0.0 (same slot) on deficit, got %s" % starved_base.stock.get(Commodity.Type.FUEL, 0.0))
+	if starved_base.stock.get(Commodity.Type.ORE, 0.0) != 1.0:
+		failures.append("tick: expected Ore kept at 1.0 on deficit, got %s" % starved_base.stock.get(Commodity.Type.ORE, 0.0))
+	if starved_base.stock.get(Commodity.Type.FUEL, 0.0) != 10.0:
+		failures.append("tick: expected Fuel kept at 10.0 on deficit, got %s" % starved_base.stock.get(Commodity.Type.FUEL, 0.0))
 	if starved_base.stock.get(Commodity.Type.WEAPONS, 0.0) != 0.0:
 		failures.append("tick: expected no Weapons produced on a deficit tick")
 	if starved_base.deficit_streaks.get(0, 0) != 1:
 		failures.append("tick: expected deficit streak == 1 after one starved tick, got %s" % starved_base.deficit_streaks.get(0, 0))
 
-	# Slot removal: 5 consecutive starved ticks removes the last slot and resets streaks.
+	# No slot loss: a long starvation keeps every slot, and the slot restarts once supply arrives.
 	var decaying_base := BaseEconomy.new()
 	decaying_base.slots = [EconomyRole.mining(), EconomyRole.population()]
 	decaying_base.max_slots = 2
 	decaying_base.stock = {}
-	for i in 5:
+	for i in 10:
 		decaying_base.tick()
-	if decaying_base.slots.size() != 1:
-		failures.append("tick: expected the last slot removed after 5 consecutive deficits, got %d slots" % decaying_base.slots.size())
-	if decaying_base.deficit_streaks.values().any(func(v): return v != 0):
-		failures.append("tick: expected all deficit streaks reset to 0 after a slot is removed")
+	if decaying_base.slots.size() != 2:
+		failures.append("tick: expected both slots kept after 10 consecutive deficits, got %d slots" % decaying_base.slots.size())
+	if decaying_base.deficit_streaks.get(1, 0) != 10:
+		failures.append("tick: expected the starved slot's streak to keep counting, got %s" % decaying_base.deficit_streaks.get(1, 0))
+	decaying_base.stock[Commodity.Type.FOOD] = 50.0
+	decaying_base.tick()
+	if decaying_base.deficit_streaks.get(1, 0) != 0:
+		failures.append("tick: expected the starved slot to restart once Food arrives")
+
+	# Stock cap: production above STOCK_CAP_FACTOR x target is discarded, and a full-output
+	# consumer idles without burning its inputs.
+	var capped_base := BaseEconomy.new()
+	capped_base.slots = [EconomyRole.mining()]
+	capped_base.stock = {Commodity.Type.ORE: capped_base.stock_cap(Commodity.Type.ORE) - 1.0}
+	capped_base.tick()
+	if capped_base.stock[Commodity.Type.ORE] != capped_base.stock_cap(Commodity.Type.ORE):
+		failures.append("tick: expected Ore clamped to the stock cap, got %s" % capped_base.stock[Commodity.Type.ORE])
+	var full_base := BaseEconomy.new()
+	full_base.slots = [EconomyRole.industrial()]
+	full_base.stock = {Commodity.Type.ORE: 10.0, Commodity.Type.FUEL: 10.0, Commodity.Type.WEAPONS: full_base.stock_cap(Commodity.Type.WEAPONS)}
+	full_base.tick()
+	if full_base.stock[Commodity.Type.ORE] != 10.0 or full_base.stock[Commodity.Type.FUEL] != 10.0:
+		failures.append("tick: expected a full-output industrial slot to keep its inputs")
+
+	# Shortage: below the 0.6 band of target.
+	var short_base := BaseEconomy.new()
+	short_base.stock = {Commodity.Type.ORE: 59.0, Commodity.Type.FUEL: 60.0}
+	if not short_base.is_short_of(Commodity.Type.ORE) or short_base.is_short_of(Commodity.Type.FUEL):
+		failures.append("is_short_of: expected Ore (59) short and Fuel (60) not")
 
 	# Ordering: production for ALL slots must apply before ANY consumption is
 	# evaluated. An earlier-indexed consuming slot (industrial) must see a

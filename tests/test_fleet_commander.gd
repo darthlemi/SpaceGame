@@ -8,6 +8,10 @@ static func run() -> Array[String]:
 	_check_frustum_polygon(failures)
 	_check_hatch_segments(failures)
 	_check_frustum_mounts(failures)
+	_check_order_hold(failures)
+	_check_order_flee_skips_fled(failures)
+	_check_set_formation_emits(failures)
+	_check_selection_changed(failures)
 	return failures
 
 static func _make_ship(pos: Vector2) -> Ship:
@@ -131,3 +135,67 @@ static func _check_frustum_mounts(failures: Array[String]) -> void:
 	armed.free()
 	empty.free()
 	broken.free()
+
+static func _selected_commander(ships: Array[Ship]) -> FleetCommander:
+	var commander := FleetCommander.new()
+	commander.selected_ships = ships
+	return commander
+
+static func _check_order_hold(failures: Array[String]) -> void:
+	var a := _make_ship(Vector2.ZERO)
+	var b := _make_ship(Vector2(50, 0))
+	var commander := _selected_commander([a, b])
+	commander.order_hold()
+	for ship in [a, b]:
+		if ship.current_order == null or ship.current_order.type != Order.Type.HOLD_POSITION:
+			failures.append("order_hold: expected every selected ship on HOLD_POSITION, got %s" % [ship.current_order])
+	if a.current_order != null and a.current_order == b.current_order:
+		failures.append("order_hold: expected each ship to get its own Order")
+	commander.free()
+	a.free()
+	b.free()
+
+static func _check_order_flee_skips_fled(failures: Array[String]) -> void:
+	var live := _make_ship(Vector2.ZERO)
+	var fled := _make_ship(Vector2(50, 0))
+	fled.has_fled = true
+	var commander := _selected_commander([live, fled])
+	commander.order_flee()
+	if live.current_order == null or live.current_order.type != Order.Type.FLEE:
+		failures.append("order_flee: expected the live ship on FLEE, got %s" % [live.current_order])
+	if fled.current_order != null:
+		failures.append("order_flee: expected the fled ship to get no order, got %s" % [fled.current_order])
+	commander.free()
+	live.free()
+	fled.free()
+
+static func _check_set_formation_emits(failures: Array[String]) -> void:
+	var commander := FleetCommander.new()
+	var seen: Array[int] = []
+	commander.formation_changed.connect(func(type: Formation.Type): seen.append(type))
+	commander.set_formation(Formation.Type.WEDGE)
+	if commander.active_formation != Formation.Type.WEDGE or seen != [Formation.Type.WEDGE]:
+		failures.append("set_formation: expected WEDGE active and formation_changed(WEDGE), got %s / %s" % [commander.active_formation, seen])
+	commander.free()
+
+static func _check_selection_changed(failures: Array[String]) -> void:
+	var ship := _make_ship(Vector2.ZERO)
+	var commander := FleetCommander.new()
+	var seen: Array[bool] = []
+	commander.selection_changed.connect(func(has_selection: bool): seen.append(has_selection))
+	var picked: Array[Ship] = [ship]
+	commander.selected_ships = picked
+	commander._on_right_press()
+	if seen != [true, false]:
+		failures.append("selection_changed: expected true on select then false on right click, got %s" % [seen])
+	# A selection holding only fled ships reads as none.
+	var fled := _make_ship(Vector2(10, 0))
+	fled.has_fled = true
+	seen.clear()
+	var only_fled: Array[Ship] = [fled]
+	commander.selected_ships = only_fled
+	if seen != [false]:
+		failures.append("selection_changed: expected false for a selection of only fled ships, got %s" % [seen])
+	commander.free()
+	ship.free()
+	fled.free()

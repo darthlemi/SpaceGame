@@ -235,6 +235,8 @@ func _refresh_engage_block(enemy_fleet: CampaignFleet) -> void:
 
 func _trigger_arrival(area: Area2D) -> void:
 	if area is CampaignFleetIcon and area != player_icon and not engage_prompt.visible:
+		if not CampaignState.can_engage(area.fleet):
+			return
 		_pending_enemy_icon = area
 		_refresh_engage_block(area.fleet)
 		engage_prompt.visible = true
@@ -280,6 +282,7 @@ func _physics_process(delta: float) -> void:
 	CampaignState.tick_economy(delta)
 	CampaignState.tick_warps(delta)
 	CampaignState.tick_npc_jumps(delta)
+	CampaignState.tick_reengage(delta)
 	if _travel_target != null:
 		if not is_instance_valid(_travel_target) or _travel_target.is_queued_for_deletion():
 			_travel_target = null

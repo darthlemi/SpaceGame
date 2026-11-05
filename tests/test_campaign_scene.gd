@@ -292,6 +292,28 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	campaign_state.reset()
 	blocked_scene.queue_free()
 
+	# A fleet fought moments ago raises no prompt and no pause when the player touches it.
+	campaign_state.reset()
+	var delay_scene: Node2D = CampaignSceneScene.instantiate()
+	tree.root.add_child(delay_scene)
+	delay_scene.player_icon.position = Vector2(-9000, -9000)
+	await tree.process_frame
+	tree.paused = false
+	var delay_icon: CampaignFleetIcon = delay_scene.enemy_icons[0]
+	campaign_state.start_engagement(delay_icon.fleet)
+	campaign_state.resolve_engagement(campaign_state.player_fleet.ship_compositions.duplicate(true), delay_icon.fleet.ship_compositions.duplicate(true), true)
+	delay_scene._trigger_arrival(delay_icon)
+	if delay_scene.engage_prompt.visible or tree.paused:
+		failures.append("blocked_fleet_no_prompt: expected no prompt and no pause for a fleet inside the re-engage delay, got visible=%s paused=%s" % [delay_scene.engage_prompt.visible, tree.paused])
+	campaign_state.tick_reengage(CampaignState.REENGAGE_DELAY + 0.1)
+	delay_scene._trigger_arrival(delay_icon)
+	if not delay_scene.engage_prompt.visible:
+		failures.append("blocked_fleet_no_prompt: expected the prompt again once the delay expired")
+	delay_scene.get_node("UILayer/EngagePrompt/DisengageButton").pressed.emit()
+	tree.paused = false
+	campaign_state.reset()
+	delay_scene.queue_free()
+
 	return failures
 
 static func _station_icon(scene: Node2D, campaign_state, station_id: String, role: CampaignFleet.Role) -> CampaignFleetIcon:

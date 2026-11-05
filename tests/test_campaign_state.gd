@@ -852,7 +852,76 @@ static func run() -> Array[String]:
 
 	campaign_state.reset()
 
+	_check_reengage_delay(failures)
 	return failures
+
+static func _reengage_state() -> Array:
+	var state := CampaignState.new()
+	var player := CampaignFleet.new()
+	player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	state.player_fleet = player
+	var enemy := CampaignFleet.new()
+	enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var other := CampaignFleet.new()
+	other.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	state.enemy_fleets.assign([enemy, other])
+	return [state, player, enemy, other]
+
+# Enemy survivors escape, so the enemy fleet stays on the map.
+static func _fight_and_escape(state, player: CampaignFleet, enemy: CampaignFleet) -> void:
+	state.start_engagement(enemy)
+	state.resolve_engagement(player.ship_compositions.duplicate(true), enemy.ship_compositions.duplicate(true), true)
+
+static func _check_reengage_delay(failures: Array[String]) -> void:
+	var parts := _reengage_state()
+	var state = parts[0]
+	var player: CampaignFleet = parts[1]
+	var enemy: CampaignFleet = parts[2]
+	var other: CampaignFleet = parts[3]
+	if not state.can_engage(enemy):
+		failures.append("reengage: expected a fresh fleet to be engageable")
+	_fight_and_escape(state, player, enemy)
+	if state.can_engage(enemy):
+		failures.append("reengage_blocked_after_battle: expected the surviving enemy blocked after a battle")
+	if not state.can_engage(other):
+		failures.append("reengage_other_fleet_unaffected: expected an uninvolved fleet to stay engageable")
+	state.tick_reengage(CampaignState.REENGAGE_DELAY - 1.0)
+	if state.can_engage(enemy):
+		failures.append("reengage: expected the block to hold before REENGAGE_DELAY elapses")
+	state.tick_reengage(1.1)
+	if not state.can_engage(enemy):
+		failures.append("reengage_expires: expected the block to lift after REENGAGE_DELAY")
+
+	var reset_parts := _reengage_state()
+	var reset_state = reset_parts[0]
+	_fight_and_escape(reset_state, reset_parts[1], reset_parts[2])
+	reset_state.reset()
+	if not reset_state.can_engage(reset_parts[2]):
+		failures.append("reengage_cleared_on_reset: expected reset() to clear the block")
+
+	var kill_parts := _reengage_state()
+	var kill_state = kill_parts[0]
+	kill_state.start_engagement(kill_parts[2])
+	var no_survivors: Array[Dictionary] = []
+	kill_state.resolve_engagement(kill_parts[1].ship_compositions.duplicate(true), no_survivors, true)
+	if not kill_state._reengage_block.is_empty():
+		failures.append("destroyed_enemy_not_tracked: expected no block for a destroyed enemy, got %s" % [kill_state._reengage_block])
+
+	var gone_parts := _reengage_state()
+	var gone_state = gone_parts[0]
+	_fight_and_escape(gone_state, gone_parts[1], gone_parts[2])
+	gone_state.enemy_fleets.erase(gone_parts[2])
+	gone_state.tick_reengage(0.1)
+	if not gone_state._reengage_block.is_empty():
+		failures.append("reengage: expected tick_reengage to drop a fleet no longer in enemy_fleets")
+
+	var loss_parts := _reengage_state()
+	var loss_state = loss_parts[0]
+	loss_state.start_engagement(loss_parts[2])
+	var wiped: Array[Dictionary] = []
+	loss_state.resolve_engagement(wiped, loss_parts[2].ship_compositions.duplicate(true), false)
+	if not loss_state._reengage_block.is_empty():
+		failures.append("reengage: expected no block when the player fleet is destroyed")
 
 class SkirmishResolvedTracker:
 	var fired := false

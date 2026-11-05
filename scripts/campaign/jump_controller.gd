@@ -46,7 +46,7 @@ func on_jump_requested(system_id: String) -> void:
 
 # Hostile means running pirate behaviour, so fleeing traders never catch or block the player.
 func is_hostile_icon(area: Area2D) -> bool:
-	return area is CampaignFleetIcon and area != _scene.player_icon and _scene._behavior_for_fleet(area.fleet) == CampaignFleetIcon.BehaviorType.PIRATE
+	return area is CampaignFleetIcon and area != _scene.player_icon and CampaignState.can_engage(area.fleet) and _scene._behavior_for_fleet(area.fleet) == CampaignFleetIcon.BehaviorType.PIRATE
 
 func player_hostile_contact() -> bool:
 	for area in _scene.player_icon.get_overlapping_areas():

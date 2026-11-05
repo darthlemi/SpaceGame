@@ -17,9 +17,18 @@ const FRUSTUM_SEGMENTS := 32
 
 var ships: Array[Ship] = []
 var enemy_group: StringName
-var selected_ships: Array[Ship] = []
+# Reassign rather than mutate: the setter is what tells the order bar.
+var selected_ships: Array[Ship] = []:
+	set(value):
+		selected_ships = value
+		_last_has_selection = _has_live_selection()
+		selection_changed.emit(_last_has_selection)
 var active_formation: Formation.Type = Formation.Type.NONE
 
+signal formation_changed(type: Formation.Type)
+signal selection_changed(has_selection: bool)
+
+var _last_has_selection: bool = false
 var _drag_start: Vector2 = Vector2.ZERO
 var _dragging: bool = false
 
@@ -27,21 +36,38 @@ func setup(p_ships: Array[Ship], p_enemy_group: StringName) -> void:
 	ships = p_ships
 	enemy_group = p_enemy_group
 
+func order_flee() -> void:
+	_order_live_selection(func(): return Order.flee())
+
+func order_hold() -> void:
+	_order_live_selection(func(): return Order.hold_position())
+
+func set_formation(type: Formation.Type) -> void:
+	active_formation = type
+	formation_changed.emit(type)
+
 func _process(_delta: float) -> void:
+	# A selected ship can jump out mid-battle; the bar must notice without a new selection.
+	if _has_live_selection() != _last_has_selection:
+		selected_ships = selected_ships
 	if not selected_ships.is_empty() or _dragging:
 		queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("formation_none"):
-		active_formation = Formation.Type.NONE
+		set_formation(Formation.Type.NONE)
 	elif event.is_action_pressed("formation_line"):
-		active_formation = Formation.Type.LINE
+		set_formation(Formation.Type.LINE)
 	elif event.is_action_pressed("formation_wedge"):
-		active_formation = Formation.Type.WEDGE
+		set_formation(Formation.Type.WEDGE)
 	elif event.is_action_pressed("formation_box"):
-		active_formation = Formation.Type.BOX
+		set_formation(Formation.Type.BOX)
 	elif event.is_action_pressed("formation_circle"):
-		active_formation = Formation.Type.CIRCLE
+		set_formation(Formation.Type.CIRCLE)
+	elif event.is_action_pressed("order_hold"):
+		order_hold()
+	elif event.is_action_pressed("order_flee"):
+		order_flee()
 	elif event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and _dragging:
@@ -59,8 +85,27 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		_on_right_press()
 
+# Untyped: a freed ship fails an Object-typed parameter check.
+func _is_live(ship) -> bool:
+	return is_instance_valid(ship) and not ship.is_queued_for_deletion() and not ship.has_fled
+
+func _has_live_selection() -> bool:
+	for ship in selected_ships:
+		if _is_live(ship):
+			return true
+	return false
+
+func _prune_selection() -> void:
+	selected_ships = selected_ships.filter(_is_live)
+
+# A fresh Order per ship: orders hold per-ship state.
+func _order_live_selection(make_order: Callable) -> void:
+	_prune_selection()
+	for ship in selected_ships:
+		ship.execute_order(make_order.call())
+
 func _issue_order(world_pos: Vector2) -> void:
-	selected_ships = selected_ships.filter(func(s): return is_instance_valid(s) and not s.is_queued_for_deletion() and not s.has_fled)
+	_prune_selection()
 	if selected_ships.is_empty():
 		return
 	var enemy_candidates: Array = get_tree().get_nodes_in_group(enemy_group)

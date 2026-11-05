@@ -23,6 +23,7 @@ const DESERTION_RATE := 0.2
 const RESPAWN_CREDIT_PENALTY := 0.25
 const PIRATE_CREW_REGEN := 1
 const FLEET_RESPAWN_DELAY := 60.0
+const REENGAGE_DELAY := 10.0
 const NPC_SPEED := {CampaignFleet.Role.COMBAT: 100.0, CampaignFleet.Role.TRADER: 80.0}
 const TRADE_RANGE_JUMPS := 2
 # A full tank covers the longest trade trip there and back, so the round-trip fuel rule
@@ -56,6 +57,8 @@ var last_seen: Dictionary = {}
 # Not cleared by reset(), so a seed set before new_game() holds.
 var rng := RandomNumberGenerator.new()
 var _economy_tick_elapsed: float = 0.0
+# Seconds left before a fleet fought moments ago can be engaged again.
+var _reengage_block: Dictionary = {}
 
 func start_engagement(enemy_fleet: CampaignFleet) -> void:
 	_drop_skirmishes_of(enemy_fleet)
@@ -88,6 +91,8 @@ func resolve_engagement(player_survivors: Array[Dictionary], enemy_survivors: Ar
 		else:
 			_settle_player_defeat(enemy, enemy_survivors, captured)
 	player_fleet.ensure_flagship()
+	if enemy != null and enemy_fleets.has(enemy) and not player_fleet.is_destroyed():
+		_reengage_block[enemy] = REENGAGE_DELAY
 
 static func is_damaged(comp: Dictionary) -> bool:
 	if comp["current_hp"] < comp["max_hp"] or comp["current_shield"] < comp["max_shield"]:
@@ -143,10 +148,22 @@ func complete_respawn(kind: ShipType.Kind, buy: bool) -> bool:
 	pending_respawn = false
 	return true
 
+# Game-time only, so it pauses with the game. A fleet that escaped would otherwise be
+# re-engaged the same frame the player is still touching it.
+func can_engage(fleet: CampaignFleet) -> bool:
+	return not _reengage_block.has(fleet)
+
+func tick_reengage(delta: float) -> void:
+	for fleet in _reengage_block.keys():
+		_reengage_block[fleet] -= delta
+		if _reengage_block[fleet] <= 0.0 or not enemy_fleets.has(fleet):
+			_reengage_block.erase(fleet)
+
 func reset() -> void:
 	player_fleet = null
 	enemy_fleets = []
 	active_enemy_fleet = null
+	_reengage_block = {}
 	pending_loot = null
 	pending_respawn = false
 	factions = []

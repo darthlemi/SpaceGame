@@ -160,11 +160,16 @@ func _process_trader() -> void:
 		trader_arrived_at.emit(fleet.dest_station_id)
 
 func _process_pirate() -> void:
-	if player_target != null and is_instance_valid(player_target) and player_target.fleet != null and PirateBehavior.in_detection_range(global_position, player_target.global_position, detection_range):
+	if player_target != null and is_instance_valid(player_target) and player_target.fleet != null and _can_be_engaged() and PirateBehavior.in_detection_range(global_position, player_target.global_position, detection_range):
 		if PirateBehavior.should_intercept(fleet.total_strength(), player_target.fleet.total_strength()):
 			_move_target = _to_local_space(player_target.global_position)
 			return
 	_move_target = PatrolBehavior.next_wander_target(_spawn_point, _move_target, position, wander_radius, arrival_radius)
+
+# Looked up by path: the autoload identifier is unavailable when tests compile this script standalone.
+func _can_be_engaged() -> bool:
+	var state = get_node_or_null("/root/CampaignState")
+	return state == null or state.can_engage(fleet)
 
 # Layers only translate, so a global point maps to this icon's parent space by the layer offset.
 func _to_local_space(global_point: Vector2) -> Vector2:

@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/combat/combat_scene.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/controllers/fleet_commander.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/ui/debug_console.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/speed_controls.tscn" id="4"]
 [ext_resource type="Script" path="res://scripts/combat/combat_camera.gd" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/order_bar.tscn" id="6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal"]
 size = Vector2(2320, 50)
@@ -35,6 +36,8 @@ visible = false
 [node name="DebugConsole" parent="UILayer" instance=ExtResource("3")]
 
 [node name="SpeedControls" parent="UILayer" instance=ExtResource("4")]
+
+[node name="OrderBar" parent="UILayer" instance=ExtResource("6")]
 
 [node name="Bounds" type="Node2D" parent="."]
 

@@ -11,6 +11,7 @@ const ENEMY_GROUP := &"enemy_fleet"
 @onready var combat_camera: CombatCamera = $CombatCamera
 @onready var result_label: Label = $UILayer/ResultLabel
 @onready var debug_console: Control = $UILayer/DebugConsole/Panel
+@onready var order_bar: OrderBar = $UILayer/OrderBar
 
 var player_ships: Array[Ship] = []
 var enemy_ships: Array[Ship] = []
@@ -57,6 +58,11 @@ func _ready() -> void:
 		_wire_ai(ship)
 
 	fleet_commander.setup(player_ships, ENEMY_GROUP)
+	order_bar.hold_pressed.connect(fleet_commander.order_hold)
+	order_bar.flee_pressed.connect(fleet_commander.order_flee)
+	order_bar.formation_picked.connect(fleet_commander.set_formation)
+	fleet_commander.formation_changed.connect(order_bar.show_formation)
+	fleet_commander.selection_changed.connect(order_bar.set_has_selection)
 	fleet_commander.selected_ships = _initial_selection()
 	debug_console.command_entered.connect(_on_debug_command)
 	# An unarmed side loses before a shot is fired.

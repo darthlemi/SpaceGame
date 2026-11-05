@@ -48,7 +48,11 @@ var _loiter_timer: float = 0.0
 var _run_phase: CombatTactics.RunPhase = CombatTactics.RunPhase.INBOUND
 # Cleared every tick, so a ship that stops fighting drops out of its allies' spread.
 var _engaged_target: Node2D = null
+# Whether that engage parked; allies spread only around parked ships, not sweeping runs.
+var _parking: bool = false
 var _run_target_id: int = 0
+# Latched at the break, as an offset from the target so a moving target carries it.
+var _run_break_offset: Vector2 = Vector2.ZERO
 # What idle HOLD is engaging, re-picked every RETARGET_INTERVAL.
 var _idle_target: Node2D = null
 var _retarget_timer: float = 0.0
@@ -145,6 +149,9 @@ func threat_range() -> float:
 func engaging_target() -> Node2D:
 	return _engaged_target if is_instance_valid(_engaged_target) else null
 
+func is_parking() -> bool:
+	return _parking and engaging_target() != null
+
 # What idle HOLD is currently engaging, or null.
 func idle_target() -> Node2D:
 	return _idle_target if is_instance_valid(_idle_target) else null
@@ -214,6 +221,7 @@ func resolve_component_hit(impact_pos: Vector2) -> ShipComponent:
 
 func _physics_process(delta: float) -> void:
 	_engaged_target = null
+	_parking = false
 	_process_order_movement(delta)
 	move_and_slide()
 	_process_weapons()
@@ -258,6 +266,7 @@ func _engage(target: Node2D, delta: float) -> void:
 	if CombatTactics.tactic_for(weapons, engine.turn_rate) == CombatTactics.Tactic.RUN:
 		_run_at(target, weapons, delta)
 	else:
+		_parking = true
 		_park_at(target, standoff, delta)
 
 # Fixed forward guns can't track: fly at the target, then peel off and come round again.
@@ -268,16 +277,29 @@ func _run_at(target: Node2D, weapons: Array[Weapon], delta: float) -> void:
 		_run_target_id = target.get_instance_id()
 		_run_phase = CombatTactics.RunPhase.INBOUND
 	var run_range := Ship.best_engagement_range(weapons)
-	var hull_floor := hit_radius + ENGAGE_HULL_GAP
-	_run_phase = CombatTactics.next_run_phase(_run_phase, CombatTactics.edge_distance(global_position, target), run_range, hull_floor)
+	var away := global_position - target_pos
+	var away_dir := away.normalized() if away.length() > 0.01 else Vector2.LEFT.rotated(rotation)
+	var body := target as CharacterBody2D
+	var target_velocity := body.velocity if body != null else Vector2.ZERO
+	var closing_speed := maxf((velocity - target_velocity).dot(-away_dir), 0.0)
+	var break_floor := hit_radius + ENGAGE_HULL_GAP + closing_speed * CombatTactics.RUN_BREAK_LEAD_TIME
+	var phase := CombatTactics.next_run_phase(_run_phase, CombatTactics.edge_distance(global_position, target), run_range, break_floor)
+	if phase == CombatTactics.RunPhase.BREAK and _run_phase == CombatTactics.RunPhase.INBOUND:
+		# A point re-aimed off the current bearing every tick pulls the ship into an orbit.
+		var side := 1.0 if get_instance_id() % 2 == 0 else -1.0
+		# Run range is an edge distance, so add the radius to land at it.
+		_run_break_offset = away_dir.rotated(side * PI / 3.0) * (run_range + _hit_radius_of(target))
+	var break_point := target_pos + _run_break_offset
+	# A point past a wall would strand the ship against it.
+	var inner := arena_rect.grow(-2.0 * hit_radius)
+	if arena_rect.has_area() and inner.size.x > 0.0 and inner.size.y > 0.0:
+		break_point = break_point.clamp(inner.position, inner.end)
+	if phase == CombatTactics.RunPhase.BREAK and global_position.distance_to(break_point) <= CombatTactics.RUN_BREAK_ARRIVAL_RADIUS:
+		phase = CombatTactics.RunPhase.INBOUND
+	_run_phase = phase
 	if _run_phase == CombatTactics.RunPhase.INBOUND:
 		_steer_to(target_pos, delta)
 		return
-	var away := global_position - target_pos
-	var away_dir := away.normalized() if away.length() > 0.01 else Vector2.LEFT.rotated(rotation)
-	var side := 1.0 if get_instance_id() % 2 == 0 else -1.0
-	# Run range is an edge distance, so add the radius to land at it.
-	var break_point := target_pos + away_dir.rotated(side * PI / 3.0) * (run_range + _hit_radius_of(target))
 	_steer_to(break_point, delta)
 
 # Holds the standoff on the line from target to ship, nose on the target so fixed and
@@ -329,7 +351,7 @@ func _live_allies() -> Array[Ship]:
 func _attackers_of(target: Node2D, allies: Array[Ship]) -> Array[Ship]:
 	var attackers: Array[Ship] = []
 	for ally in allies:
-		if ally == self or ally.engaging_target() == target:
+		if ally == self or (ally.is_parking() and ally.engaging_target() == target):
 			attackers.append(ally)
 	if not attackers.has(self):
 		attackers.append(self)

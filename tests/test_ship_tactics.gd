@@ -9,6 +9,8 @@ const PdLaser = preload("res://resources/weapons/pd_laser_turret.tres")
 const Railgun = preload("res://resources/weapons/railgun.tres")
 
 const TEST_GROUP := &"test_tactics_targets"
+# Long enough for two railgun passes (4 s cooldown).
+const RUN_CHECK_TICKS := 720
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
@@ -17,6 +19,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await _check_hold_idle_capital(tree, failures)
 	await _check_pd_only(tree, failures)
 	await _check_run(tree, failures)
+	await _check_run_near_wall(tree, failures)
 	await _check_park(tree, failures)
 	await _check_kite(tree, failures)
 	await _check_spread(tree, failures)
@@ -96,26 +99,55 @@ static func _check_pd_only(tree: SceneTree, failures: Array[String]) -> void:
 static func _check_run(tree: SceneTree, failures: Array[String]) -> void:
 	var capital := await _spawn_dummy(tree, CapitalScene, Vector2(1000.0, 0.0), null)
 	var ship := await _spawn(tree, CorvetteScene, Vector2.ZERO, Railgun)
-	ship.execute_order(Order.attack_target(capital))
-	var break_edge := CombatTactics.RUN_BREAK_FRACTION * Railgun.weapon_range
-	var went_close := false
-	var reopened := false
-	for i in 600:
+	await _expect_repeated_runs(tree, ship, capital, "run_ship_repeats_passes", failures)
+	ship.queue_free()
+	capital.queue_free()
+
+# Approached along a wall from the side whose break point lies past it, so the latched point
+# must be clamped inside the arena for the runs to go on.
+static func _check_run_near_wall(tree: SceneTree, failures: Array[String]) -> void:
+	var capital := await _spawn_dummy(tree, CapitalScene, Vector2(1000.0, 100.0), null)
+	var ship := await _spawn(tree, CorvetteScene, Vector2.ZERO, Railgun)
+	var side := 1.0 if ship.get_instance_id() % 2 == 0 else -1.0
+	ship.global_position = capital.global_position + Vector2(-900.0 * side, 0.0)
+	ship.rotation = 0.0 if side > 0.0 else PI
+	ship.arena_rect = Rect2(0.0, 0.0, 2000.0, 1200.0)
+	await tree.physics_frame
+	await _expect_repeated_runs(tree, ship, capital, "run_ship_repeats_passes_near_wall", failures)
+	ship.queue_free()
+	capital.queue_free()
+
+# Two shots and a turn back in prove a second pass; a ship orbiting after one pass never
+# bears its fixed gun again. Shots show as the mount's cooldown jumping up.
+static func _expect_repeated_runs(tree: SceneTree, ship: Ship, target: Ship, label: String, failures: Array[String]) -> void:
+	ship.execute_order(Order.attack_target(target))
+	var hull_floor := ship.hit_radius + Ship.ENGAGE_HULL_GAP
+	var shots := 0
+	var returns := 0
+	var min_edge := INF
+	var left_arena := false
+	var last_cooldown := 0.0
+	var last_phase := ship._run_phase
+	for i in RUN_CHECK_TICKS:
 		await tree.physics_frame
 		if not is_instance_valid(ship):
 			break
-		var edge := CombatTactics.edge_distance(ship.global_position, capital)
-		if edge < break_edge:
-			went_close = true
-		elif went_close and edge > break_edge:
-			reopened = true
-			break
-	if not went_close:
-		failures.append("run_ship_closes_then_breaks: never closed inside %s" % break_edge)
-	elif not reopened:
-		failures.append("run_ship_closes_then_breaks: closed in but never opened out again")
-	ship.queue_free()
-	capital.queue_free()
+		min_edge = minf(min_edge, CombatTactics.edge_distance(ship.global_position, target))
+		if ship.arena_rect.has_area() and not ship.arena_rect.has_point(ship.global_position):
+			left_arena = true
+		if last_phase == CombatTactics.RunPhase.BREAK and ship._run_phase == CombatTactics.RunPhase.INBOUND:
+			returns += 1
+		last_phase = ship._run_phase
+		var cooldown: float = ship.weapon_mounts[0].cooldown_remaining
+		if cooldown > last_cooldown:
+			shots += 1
+		last_cooldown = cooldown
+	if returns < 1 or shots < 2:
+		failures.append("%s: expected a turn back in and 2 shots in %d ticks, got %d returns, %d shots" % [label, RUN_CHECK_TICKS, returns, shots])
+	if min_edge < hull_floor:
+		failures.append("%s: closed to edge %s, inside the hull floor %s" % [label, min_edge, hull_floor])
+	if left_arena:
+		failures.append("%s: left the arena" % label)
 
 static func _check_park(tree: SceneTree, failures: Array[String]) -> void:
 	var capital := await _spawn_dummy(tree, CapitalScene, Vector2(700.0, 0.0), null)

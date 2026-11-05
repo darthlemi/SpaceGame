@@ -14,6 +14,10 @@ const RUN_MIN_TURN_RATE := 3.0
 const RUN_BREAK_FRACTION := 0.35
 # Turn back in once the ship has opened out to this fraction of run range.
 const RUN_RESET_FRACTION := 0.9
+# Seconds of closing speed added to the break distance: a fast ship turns away before it rams.
+const RUN_BREAK_LEAD_TIME := 0.8
+# Within this many pixels of its latched break point, a ship counts as out and turns back in.
+const RUN_BREAK_ARRIVAL_RADIUS := 40.0
 # Extra room beyond the enemy's reach when kiting.
 const KITE_MARGIN := 40.0
 # Radians between neighbouring attackers' approach bearings.

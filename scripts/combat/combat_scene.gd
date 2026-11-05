@@ -178,7 +178,8 @@ func _fleet_centroid(fleet: Array[Ship]) -> Vector2:
 	var sum := Vector2.ZERO
 	var count := 0
 	for ship in fleet:
-		if is_instance_valid(ship):
+		# A fled ship is hidden where it jumped, so spawning there looks like thin air.
+		if is_instance_valid(ship) and not ship.has_fled:
 			sum += ship.global_position
 			count += 1
 	return sum / count if count > 0 else Vector2(500, 300)

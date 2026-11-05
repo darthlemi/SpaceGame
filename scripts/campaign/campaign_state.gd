@@ -20,9 +20,10 @@ const RESPAWN_CREDIT_PENALTY := 0.25
 const PIRATE_CREW_REGEN := 1
 const FLEET_RESPAWN_DELAY := 60.0
 const NPC_SPEED := {CampaignFleet.Role.COMBAT: 100.0, CampaignFleet.Role.TRADER: 80.0}
-# Task 5 raises this once traders can jump.
-const TRADE_RANGE_JUMPS := 0
-const NPC_FUEL_TARGET_JUMPS := 3
+const TRADE_RANGE_JUMPS := 2
+# A full tank covers the longest trade trip there and back, so the round-trip fuel rule
+# (NpcJumpPlanner.fuel_allows) never keeps a hauler home from a partner in range.
+const NPC_FUEL_TARGET_JUMPS := 2 * TRADE_RANGE_JUMPS
 const NPC_SPAWN_SCATTER := 40.0
 const PLAYER_SPEED := 120.0
 const PLAYER_STARTING_FUEL := 30.0
@@ -230,7 +231,69 @@ func complete_warp(fleet: CampaignFleet) -> void:
 	if fleet == player_fleet:
 		record_visit(from_id)
 		record_visit(dest.id)
+	else:
+		_advance_npc_route(fleet, dest.id)
 	fleet_jumped.emit(fleet, from_id)
+
+# Game time, like tick_warps. A fleet in a countdown or a skirmish makes no decisions.
+func tick_npc_jumps(delta: float) -> void:
+	if galaxy == null:
+		return
+	for fleet in enemy_fleets:
+		if fleet.is_warping() or _in_skirmish(fleet):
+			continue
+		fleet.jump_cooldown -= delta
+		if fleet.jump_cooldown > 0.0:
+			continue
+		_decide_npc_jump(fleet)
+		fleet.jump_cooldown = NpcJumpPlanner.DECISION_INTERVAL + rng.randf() * NpcJumpPlanner.DECISION_JITTER
+
+# Free, from the station's FUEL stock, up to NPC_FUEL_TARGET_JUMPS jumps; a short stock gives what it has.
+func refuel_npc(fleet: CampaignFleet, station: StationData) -> void:
+	if station == null or station.economy == null:
+		return
+	var wanted := NPC_FUEL_TARGET_JUMPS * JumpRules.jump_cost(fleet) - fleet.fuel_amount()
+	var taken := minf(wanted, station.economy.stock.get(Commodity.Type.FUEL, 0.0))
+	if taken <= 0.0:
+		return
+	station.economy.stock[Commodity.Type.FUEL] -= taken
+	fleet.cargo[Commodity.Type.FUEL] = fleet.fuel_amount() + taken
+
+# A stored route resumes while fuel allows; otherwise replan, falling back to home, then to staying.
+func _decide_npc_jump(fleet: CampaignFleet) -> void:
+	if not fleet.jump_path.is_empty() and galaxy.are_linked(fleet.system_id, fleet.jump_path[0]) and NpcJumpPlanner.fuel_allows(fleet, galaxy, fleet.jump_path):
+		fleet.start_warp(fleet.jump_path[0])
+		return
+	var path := NpcJumpPlanner.plan(fleet, galaxy, enemy_fleets, are_hostile)
+	if not NpcJumpPlanner.fuel_allows(fleet, galaxy, path):
+		path = NpcJumpPlanner.path_home(fleet, galaxy)
+		if not NpcJumpPlanner.fuel_allows(fleet, galaxy, path):
+			path.clear()
+	fleet.jump_path = path
+	if not path.is_empty():
+		fleet.start_warp(path[0])
+
+# Pops the hop just made; a stale route (the warp wasn't its next hop) is dropped.
+func _advance_npc_route(fleet: CampaignFleet, arrived_id: String) -> void:
+	if not fleet.jump_path.is_empty() and fleet.jump_path[0] == arrived_id:
+		fleet.jump_path.remove_at(0)
+	else:
+		fleet.jump_path.clear()
+	if not fleet.jump_path.is_empty():
+		fleet.jump_cooldown = NpcJumpPlanner.HOP_DELAY
+
+func _in_skirmish(fleet: CampaignFleet) -> bool:
+	for skirmish in active_skirmishes:
+		if skirmish.fleet_winner == fleet or skirmish.fleet_loser == fleet:
+			return true
+	return false
+
+# Every NPC in its home system tops up there, so one that docked while the stock was short isn't stuck.
+func _refuel_npcs_at_home() -> void:
+	for fleet in enemy_fleets:
+		var home := _home_station_of(fleet)
+		if home != null and fleet.system_id == home.system_id:
+			refuel_npc(fleet, home)
 
 # Buys exactly the shortfall for a jump at the distress premium; false when the quote isn't ok.
 func send_distress() -> bool:
@@ -255,6 +318,7 @@ func tick_economy(delta: float) -> void:
 					if _is_power_faction(station.owner):
 						_apply_station_allocation(station)
 				_tick_station_respawns(station, ECONOMY_TICK_INTERVAL)
+		_refuel_npcs_at_home()
 		_refill_npc_crew()
 
 static func fleet_faction_for(owner: CampaignFleet.Faction, role: CampaignFleet.Role) -> CampaignFleet.Faction:
@@ -702,6 +766,8 @@ func run_npc_trade_at(fleet: CampaignFleet, station: StationData) -> void:
 		if amount > 0.0:
 			station.economy.stock[commodity] = station.economy.stock.get(commodity, 0.0) + amount
 	fleet.cargo = {}
+	# After the unload, which takes the fuel too, so the fleet always leaves fuelled.
+	refuel_npc(fleet, station)
 	_load_qualifying_commodities(fleet, home.economy.net_commodities(), station == home, station.economy.stock)
 
 # Home after every away stop. From home: the in-range partner best stocked with what home needs,

@@ -14,6 +14,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	_check_growth(failures)
 	_check_trade_at(failures)
 	_check_next_destination(failures)
+	_check_trade_range(failures)
 	_check_crew_refill(failures)
 	await tree.process_frame
 	return failures
@@ -231,6 +232,9 @@ static func _check_trade_at(failures: Array[String]) -> void:
 	if trader.cargo_total() <= 0.0:
 		failures.append("run_npc_trade_at(home): expected surplus loaded")
 	for commodity in trader.cargo:
+		# Jump fuel is topped up at every stop (refuel_npc), surplus or not.
+		if commodity == Commodity.Type.FUEL:
+			continue
 		if trader.cargo[commodity] > 0.0 and home_net.get(commodity, 0.0) <= 0.0:
 			failures.append("run_npc_trade_at(home): expected only surplus goods loaded, got %s" % [trader.cargo])
 			break
@@ -270,8 +274,8 @@ static func _check_trade_at(failures: Array[String]) -> void:
 
 static func _check_next_destination(failures: Array[String]) -> void:
 	var state := _fresh_state()
-	if CampaignStateScript.TRADE_RANGE_JUMPS != 0:
-		failures.append("next_trade_destination: these checks assume TRADE_RANGE_JUMPS 0")
+	if CampaignStateScript.TRADE_RANGE_JUMPS != 2:
+		failures.append("next_trade_destination: these checks assume TRADE_RANGE_JUMPS 2")
 	var greenreach: StationData = state.galaxy.station("greenreach")
 	var gr_trader: CampaignFleet = state.station_fleets(greenreach, TRADER)[0]
 	gr_trader.dest_station_id = "greenreach_fields"
@@ -285,11 +289,13 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	if state.next_trade_destination(gr_trader) != "near_post":
 		failures.append("next_trade_destination: expected the nearest candidate when every score is 0, got '%s'" % state.next_trade_destination(gr_trader))
 
+	# Beside a pirate base, a neutral hauler still finds a neutral partner within range.
 	var depot: StationData = state.galaxy.station("marrow_depot")
 	var depot_trader: CampaignFleet = state.station_fleets(depot, TRADER)[0]
 	depot_trader.dest_station_id = "marrow_depot"
-	if state.next_trade_destination(depot_trader) != "":
-		failures.append("next_trade_destination: expected no destination beside a pirate base, got '%s'" % state.next_trade_destination(depot_trader))
+	var in_range: StationData = state.galaxy.station(state.next_trade_destination(depot_trader))
+	if in_range == null or in_range.owner != CampaignFleet.Faction.NEUTRAL or state.galaxy.jump_distance("marrow", in_range.system_id) > CampaignStateScript.TRADE_RANGE_JUMPS:
+		failures.append("next_trade_destination: expected a neutral partner within range of marrow_depot, got '%s'" % (in_range.id if in_range != null else ""))
 
 	# Scoring: the stock of goods home needs (Ore, Fuel, Food for Bastion) beats distance.
 	var bastion: StationData = state.galaxy.station("bastion")
@@ -324,6 +330,20 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	var neutral_target: StationData = state.galaxy.station(state.next_trade_destination(n_trader))
 	if neutral_target == null or neutral_target.owner != CampaignFleet.Faction.NEUTRAL:
 		failures.append("next_trade_destination: expected a neutral trader to pick a neutral station over richer ones, got '%s'" % (neutral_target.id if neutral_target != null else ""))
+	state.free()
+
+# Range: Bastion (which needs Ore) takes a rich partner 2 jumps out (haven), never a richer one 3 out (tollgate).
+static func _check_trade_range(failures: Array[String]) -> void:
+	var state := _fresh_state()
+	var bastion: StationData = state.galaxy.station("bastion")
+	var trader: CampaignFleet = state.station_fleets(bastion, TRADER)[0]
+	trader.dest_station_id = "bastion"
+	state.galaxy.add_station(_extra_station("far_post", "tollgate", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e7}))
+	state.galaxy.add_station(_extra_station("edge_post", "haven", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e6}))
+	if state.galaxy.jump_distance("bastion", "haven") != 2 or state.galaxy.jump_distance("bastion", "tollgate") != 3:
+		failures.append("trade range: test setup expected haven 2 and tollgate 3 jumps from bastion")
+	if state.next_trade_destination(trader) != "edge_post":
+		failures.append("trade range: expected edge_post (2 jumps) over far_post (3 jumps), got '%s'" % state.next_trade_destination(trader))
 	state.free()
 
 static func _check_crew_refill(failures: Array[String]) -> void:

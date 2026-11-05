@@ -192,7 +192,8 @@ static func run() -> Array[String]:
 	for commodity in cargo_before_dump:
 		if player_home.economy.stock.get(commodity, 0.0) < cargo_before_dump[commodity]:
 			failures.append("run_npc_trade_at: expected carried cargo dumped into the away station's stock")
-	if hauler.cargo_total() != 0.0:
+	# The only cargo is the jump fuel refuel_npc tops up from the station after the unload.
+	if hauler.cargo_total() - hauler.fuel_amount() != 0.0:
 		failures.append("run_npc_trade_at: expected no deficit cargo loaded for a home with no consuming slots, got cargo=%s" % hauler.cargo)
 
 	# A home with a deficit (Dominion needs Ore/Fuel/Food) loads from the

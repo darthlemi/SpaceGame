@@ -164,7 +164,8 @@ func _setup_enemy_icon(fleet: CampaignFleet) -> CampaignFleetIcon:
 	_aim_trader(icon)
 	return icon
 
-# TODO: Task 5 adds AI jumping; until then a destination in another system leaves the trader idle.
+# A destination in another system leaves the trader idle here until CampaignState.tick_npc_jumps
+# jumps it there; the jump controller re-aims it on arrival.
 func _aim_trader(icon: CampaignFleetIcon) -> void:
 	var dest: StationData = CampaignState.galaxy.station(icon.fleet.dest_station_id)
 	icon.has_destination = dest != null and dest.system_id == icon.fleet.system_id
@@ -251,6 +252,7 @@ func _physics_process(delta: float) -> void:
 	CampaignState.tick_skirmishes(delta)
 	CampaignState.tick_economy(delta)
 	CampaignState.tick_warps(delta)
+	CampaignState.tick_npc_jumps(delta)
 	if _travel_target != null:
 		if not is_instance_valid(_travel_target) or _travel_target.is_queued_for_deletion():
 			_travel_target = null

@@ -48,6 +48,7 @@ func _run_all() -> void:
 		preload("res://tests/test_galaxy_data.gd"),
 		preload("res://tests/test_jump_rules.gd"),
 		preload("res://tests/test_danger_tier.gd"),
+		preload("res://tests/test_npc_jump_planner.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:
@@ -145,6 +146,12 @@ func _run_all() -> void:
 	for f in campaign_jumping_failures:
 		print("FAIL [%s]: %s" % [campaign_jumping_test.resource_path, f])
 	total_failures += campaign_jumping_failures.size()
+
+	var campaign_ai_jumps_test = load("res://tests/test_campaign_ai_jumps.gd")
+	var campaign_ai_jumps_failures: Array[String] = await campaign_ai_jumps_test.run_async(self)
+	for f in campaign_ai_jumps_failures:
+		print("FAIL [%s]: %s" % [campaign_ai_jumps_test.resource_path, f])
+	total_failures += campaign_ai_jumps_failures.size()
 
 	var jump_map_panel_test = load("res://tests/test_jump_map_panel.gd")
 	var jump_map_panel_failures: Array[String] = await jump_map_panel_test.run_async(self)

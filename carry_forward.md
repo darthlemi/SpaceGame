@@ -25,16 +25,26 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
   decisions below are made.
 
 ## Next steps
-1. **Waiting on the user: Home Base fuel.** NPC refuels drain it to 14-830 at 1 h (was 1492), so
-   a respawned player may find no fuel. One line either way. Recommended: NPCs never refuel at
-   PLAYER-owned stations. Alternative: a player-only FUEL reserve at Home Base.
-2. **Waiting on the user: the Dominion economy.** All 7 Dominion stations reach 0 slots in ~5 min.
-   5 of 7 have no ORE source within `TRADE_RANGE_JUMPS` (2), and slot loss is permanent.
-   Meanwhile Cinder Market holds 7809 ORE. Options:
-   - add a mining station near Dominion space (data);
-   - let stations regrow slots;
-   - widen the trade range;
-   - optionally, let trade hubs give up goods they neither make nor use (they keep 100 now).
+1. **AI economy rebalance: built 2026-11-05 (`da2bec4`), for the user to playtest.** Replaces the
+   old Home Base fuel and Dominion economy items:
+   - a starved slot idles and keeps its inputs, no slot is ever lost; a 3x-target stock cap idles
+     full-output consumers;
+   - trade goods follow stock (short = below the 0.6 band, spare = above target); a maker never
+     wants its own product, a burner never ships out its input;
+   - `_best_trade_partner` scores `_route_value`: surplus x price pull, x (1 + 2 x emptiness) at
+     home, plus deliveries to partners short of what home has spare. Removed the per-jump divisor
+     and the cargo cap (they let a same-system Ore quarry beat the fuel run);
+   - NPCs never trade or refuel at player-owned stations (`_is_trade_partner`); Home Base sits at
+     the 300 cap at 1 h;
+   - refinery FUEL 2 -> 3, and three Dominion quarries (Bastion Quarry, Ironhold Quarry, Kestrel
+     Mines: mining + refinery, TRADER 1);
+   - probes, seeds 7 and 11, 1 h: jump rate flat at ~1.15/s, 0 stranded, 5-7 fleets dry at home
+     (was 22 before the refinery bump), no slot loss. Suite: only the pirate-targeting flake
+     (7-9 failures this run).
+   Open: pirate stations cap at 300 FUEL that nobody can reach (pirates only trade with pirates);
+   many core stations still sit at 0 FUEL, since NPC refuels are free (no prices); neutral hubs
+   (Aurum Bazaar, Freeport, Haven Exchange, Marrow Depot) make no fuel, so their fleets depend
+   on hauls; the 3 and the quarry count are placeholders to tune.
 3. **Neutral patrols vs pirates: fixed 2026-11-05.** `_factions_hostile` now makes
    NEUTRAL and PIRATE hostile, so neutral patrols hunt and skirmish pirates. Neutral haulers
    (`TRADER`) are still never pirate prey: open question for the user.

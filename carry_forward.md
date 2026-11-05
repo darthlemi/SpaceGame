@@ -111,7 +111,7 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 ## Open backlog (deduplicated from older entries)
 
 ### Playtest and tune (waiting on the user)
-- **Combat ranges:** sprites doubled but weapon ranges didn't, so guns reach about half as far
+- **Combat ranges (parked by the user 2026-11-05, keep marked):** sprites doubled but weapon ranges didn't, so guns reach about half as far
   relative to the hulls.
 - **Frustum hatch:** is the 20%-opacity red hatch visible on dark space? Tune
   `FRUSTUM_HATCH_COLOR`.

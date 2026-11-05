@@ -52,9 +52,10 @@ static func _fleet(faction: CampaignFleet.Faction, role: CampaignFleet.Role, hom
 static func _hostile() -> Callable:
 	return func(x: CampaignFleet, y: CampaignFleet) -> bool:
 		var power := [CampaignFleet.Faction.DOMINION, FREEHOLD]
-		if x.faction == PIRATE and power.has(y.faction):
+		var patrols := power + [CampaignFleet.Faction.NEUTRAL]
+		if x.faction == PIRATE and patrols.has(y.faction):
 			return true
-		if y.faction == PIRATE and power.has(x.faction):
+		if y.faction == PIRATE and patrols.has(x.faction):
 			return true
 		return power.has(x.faction) and power.has(y.faction) and x.faction != y.faction
 

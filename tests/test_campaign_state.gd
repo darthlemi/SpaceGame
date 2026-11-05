@@ -895,6 +895,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	pirate_fleet.faction = CampaignFleet.Faction.PIRATE
 	if not state.are_hostile(pirate_fleet, dominion_fleet):
 		failures.append("are_hostile: expected a pirate and a power faction to be hostile")
+	var neutral_patrol := CampaignFleet.new()
+	neutral_patrol.faction = CampaignFleet.Faction.NEUTRAL
+	if not state.are_hostile(neutral_patrol, pirate_fleet) or not state.are_hostile(pirate_fleet, neutral_patrol):
+		failures.append("are_hostile: expected a neutral patrol and a pirate to be hostile either way round")
+	if state.are_hostile(neutral_patrol, dominion_fleet) or state.are_hostile(neutral_patrol, trader_fleet):
+		failures.append("are_hostile: expected a neutral patrol to be non-hostile to power factions and traders")
+	if state.are_hostile(pirate_fleet, trader_fleet) or state.are_hostile(pirate_fleet, pirate_fleet):
+		failures.append("are_hostile: expected a pirate to be non-hostile to neutral traders and pirates")
 
 	# start_skirmish + tick_skirmishes: stronger fleet wins, loser removed,
 	# winner damaged proportionally, loser icon freed, winner icon unfrozen.

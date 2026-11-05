@@ -35,9 +35,9 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
    - let stations regrow slots;
    - widen the trade range;
    - optionally, let trade hubs give up goods they neither make nor use (they keep 100 now).
-3. **Waiting on the user: neutral patrols vs pirates.** `_factions_hostile` makes NEUTRAL and
-   PIRATE non-hostile, so the Farhaven, Frostline, Northgate and Tollgate patrols never hunt. The
-   spec says they should. Fixing it changes combat hostility.
+3. **Neutral patrols vs pirates: fixed 2026-11-05.** `_factions_hostile` now makes
+   NEUTRAL and PIRATE hostile, so neutral patrols hunt and skirmish pirates. Neutral haulers
+   (`TRADER`) are still never pirate prey: open question for the user.
 4. **Parked minors from the final review:**
    - `campaign_scene.gd` is at 412 lines, and `_icon_of` duplicates `_icon_for_fleet`;
    - the FUEL reserve is 0 at stations that burn no FUEL, so homes like Thornfield and Farhaven

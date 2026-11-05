@@ -684,12 +684,13 @@ func pay_fine(faction_enum: CampaignFleet.Faction) -> bool:
 func are_hostile(fleet_a: CampaignFleet, fleet_b: CampaignFleet) -> bool:
 	return _factions_hostile(fleet_a.faction, fleet_b.faction)
 
+# Pirates fight every patrol, power or NEUTRAL. A NEUTRAL fleet is always a patrol: neutral haulers
+# are TRADER (fleet_faction_for).
 func _factions_hostile(a: CampaignFleet.Faction, b: CampaignFleet.Faction) -> bool:
 	var pirate := CampaignFleet.Faction.PIRATE
-	if a == pirate and _is_power_faction(b):
-		return true
-	if b == pirate and _is_power_faction(a):
-		return true
+	if a == pirate or b == pirate:
+		var other := b if a == pirate else a
+		return _is_power_faction(other) or other == CampaignFleet.Faction.NEUTRAL
 	if _is_power_faction(a) and _is_power_faction(b) and a != b:
 		return factions_at_war
 	return false

@@ -27,6 +27,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	_check_links(editor, failures)
 	_check_add_mode(editor, failures)
 	_check_lists(editor, failures)
+	await _check_station_editor(tree, editor, failures)
+	_check_presets_tab(editor, failures)
 	_check_save_blocked(editor, failures)
 	_check_save_and_load(editor, failures)
 	await _check_layout(tree, editor, failures)
@@ -157,3 +159,118 @@ static func _check_layout(tree: SceneTree, editor: MapEditor, failures: Array[St
 	await tree.process_frame
 	await tree.process_frame
 	UiLayoutCheck.check_panel_layout(editor, failures)
+
+static func _economy_matches(se: StationEditor, editor: MapEditor, label: String, failures: Array[String]) -> void:
+	var index := editor.model.station_index(se.station_id)
+	var built := GalaxyData._make_station(editor.model.doc["stations"][index], editor.model.doc["presets"])
+	if se.preview_net() != built.economy.net_commodities() or se.preview_housing() != built.economy.population_capacity():
+		failures.append("%s: expected the preview to match the economy, got %s / %s vs %s / %s" % [
+			label, se.preview_net(), se.preview_housing(), built.economy.net_commodities(), built.economy.population_capacity()])
+
+static func _slot_of(editor: MapEditor, station_id: String, index: int):
+	return editor.model.doc["stations"][editor.model.station_index(station_id)]["slots"][index]
+
+static func _check_station_editor(tree: SceneTree, editor: MapEditor, failures: Array[String]) -> void:
+	editor.load_document(Validator.doc())
+	editor.select_station("post_b")
+	var se: StationEditor = editor.station_box
+	if not se.visible or se.station_id != "post_b":
+		failures.append("station editor: expected it shown for post_b")
+		return
+	_economy_matches(se, editor, "station editor start", failures)
+
+	se.set_slot_preset(1, "agriculture")
+	if _slot_of(editor, "post_b", 1) != "agriculture" or se.preview_net().get(Commodity.Type.FOOD, 0.0) != 5.0:
+		failures.append("slot preset: expected agriculture in slot 2 and +5 Food, got %s / %s" % [_slot_of(editor, "post_b", 1), se.preview_net()])
+	_economy_matches(se, editor, "slot preset", failures)
+
+	se.set_produce(0, "ORE", 9.0)
+	var slot = _slot_of(editor, "post_b", 0)
+	if typeof(slot) != TYPE_DICTIONARY or slot["overrides"].get("produces", {}) != {"ORE": 9.0} or not se.is_overridden(0, "produces"):
+		failures.append("override: expected a produces override of ORE 9, got %s" % [slot])
+	if not se.marker_visible(0, "produces") or se.marker_visible(0, "consumes"):
+		failures.append("override: expected only the produces marker visible")
+	if se.preview_net().get(Commodity.Type.ORE, 0.0) != 9.0:
+		failures.append("override: expected the preview to show +9 Ore, got %s" % [se.preview_net()])
+	_economy_matches(se, editor, "override", failures)
+	se.set_produce(0, "ORE", 5.0)
+	if _slot_of(editor, "post_b", 0) != "mining":
+		failures.append("override: setting the preset's own value back should drop the override, got %s" % [_slot_of(editor, "post_b", 0)])
+	se.set_produce(0, "ORE", 9.0)
+	se.reset_override(0, "produces")
+	if _slot_of(editor, "post_b", 0) != "mining" or se.is_overridden(0, "produces") or se.marker_visible(0, "produces"):
+		failures.append("reset: expected the preset value back with no marker, got %s" % [_slot_of(editor, "post_b", 0)])
+	se.get_node("Slot0").find_child("Housing", true, false).value = 450.0
+	if not se.is_overridden(0, "housing") or _slot_of(editor, "post_b", 0)["overrides"]["housing"] != 450.0:
+		failures.append("housing: expected a housing override of 450 from the spin box")
+	_economy_matches(se, editor, "housing", failures)
+	se.reset_override(0, "housing")
+
+	var stock: Dictionary = editor.model.doc["stations"][editor.model.station_index("post_b")]["stock"]
+	if not se.set_stock_text("ORE", "") or stock.has("ORE"):
+		failures.append("stock: expected a blank to remove the key")
+	if not se.set_stock_text("FUEL", "12.5") or stock.get("FUEL", -1.0) != 12.5:
+		failures.append("stock: expected FUEL 12.5, got %s" % [stock])
+	if se.set_stock_text("FUEL", "abc") or se.set_stock_text("FUEL", "-3") or stock.get("FUEL", -1.0) != 12.5:
+		failures.append("stock: expected non-numbers and negatives refused with no change, got %s" % [stock])
+
+	se.find_child("Quota_COMBAT", true, false).value = 2.0
+	var quota: Dictionary = editor.model.doc["stations"][editor.model.station_index("post_b")]["quota"]
+	if quota.get("COMBAT", 0) != 2:
+		failures.append("quota: expected COMBAT 2 from the spin box, got %s" % [quota])
+
+	if not se.add_extra("mood", "calm") or se.add_extra("  ", "x"):
+		failures.append("extras: expected a key to add and a blank key to be refused")
+	var back: Dictionary = GalaxyDocument.parse(GalaxyDocument.serialize(editor.model.doc))["doc"]
+	var found := false
+	for st in back["stations"]:
+		if st["name"] == "Post B" and st["extra"].get("mood", "") == "calm":
+			found = true
+	if not found:
+		failures.append("extras: expected mood to survive a serialise and parse")
+	se.remove_extra("mood")
+	if editor.model.doc["stations"][editor.model.station_index("post_b")]["extra"].has("mood"):
+		failures.append("extras: expected mood removed")
+
+	se.duplicate_button.pressed.emit()
+	if editor.model.station_index("post_b_copy") < 0 or editor.selected_station != "post_b_copy":
+		failures.append("duplicate: expected post_b_copy created and selected, got '%s'" % editor.selected_station)
+	editor.station_box.delete_button.pressed.emit()
+	editor._on_confirmed()
+	if editor.model.station_index("post_b_copy") >= 0:
+		failures.append("delete: expected post_b_copy removed after confirming")
+
+	editor.select_station("home_base")
+	if not editor.station_box.duplicate_button.disabled or not editor.station_box.delete_button.disabled:
+		failures.append("player station: expected Duplicate and Delete disabled")
+
+	editor.select_station("post_b")
+	editor.station_box.set_slot_preset(0, "mining")
+	await tree.process_frame
+
+static func _check_presets_tab(editor: MapEditor, failures: Array[String]) -> void:
+	editor.load_document(Validator.doc())
+	var pe: PresetEditor = editor.preset_editor
+	pe.select_preset("mining")
+	pe.set_produce("mining", "ORE", 8.0)
+	pe.set_consume("mining", "FOOD", 1.0)
+	pe.set_housing("mining", 900.0)
+	var mining: Dictionary = editor.model.doc["presets"]["mining"]
+	if mining["produces"] != {"ORE": 8.0} or mining["consumes"] != {"FOOD": 1.0} or mining["housing"] != 900.0:
+		failures.append("presets tab: expected the mining edits stored, got %s" % [mining])
+	editor.select_station("post_b")
+	var se: StationEditor = editor.station_box
+	_economy_matches(se, editor, "presets tab", failures)
+	if not pe.add_preset("scrapyard") or pe.add_preset("scrapyard"):
+		failures.append("presets tab: expected one new preset and a refusal for a duplicate")
+	if not editor.model.doc["presets"].has("scrapyard") or not editor.model.dirty:
+		failures.append("presets tab: expected scrapyard in the document")
+	var options := se.find_children("PresetOption", "OptionButton", true, false)
+	if options.size() != 2:
+		failures.append("presets tab: expected a dropdown per slot, got %d" % options.size())
+	for option in options:
+		var names: Array[String] = []
+		for i in option.item_count:
+			names.append(option.get_item_text(i))
+		if not names.has("scrapyard") or names.size() != 7:
+			failures.append("presets tab: expected the new preset in every slot dropdown, got %s" % [names])

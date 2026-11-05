@@ -196,10 +196,10 @@ func _slot_at(station_id: String, slot_index: int) -> Array:
 	return st["slots"]
 
 # A slot is a bare preset name, or {"preset", "overrides"} once something is overridden.
-static func _slot_preset(slot) -> String:
+static func slot_preset_name(slot) -> String:
 	return str(slot if typeof(slot) == TYPE_STRING else slot.get("preset", ""))
 
-static func _slot_overrides(slot) -> Dictionary:
+static func slot_overrides_of(slot) -> Dictionary:
 	return {} if typeof(slot) == TYPE_STRING else slot.get("overrides", {})
 
 static func _make_slot(preset: String, overrides: Dictionary):
@@ -234,19 +234,32 @@ func set_override(station_id: String, slot_index: int, key: String, value) -> vo
 	var slots := _slot_at(station_id, slot_index)
 	if slots.is_empty():
 		return
-	var overrides := _slot_overrides(slots[slot_index]).duplicate(true)
+	var overrides := slot_overrides_of(slots[slot_index]).duplicate(true)
 	overrides[key] = value
-	slots[slot_index] = _make_slot(_slot_preset(slots[slot_index]), overrides)
+	slots[slot_index] = _make_slot(slot_preset_name(slots[slot_index]), overrides)
 	_touch()
 
 func reset_override(station_id: String, slot_index: int, key: String) -> void:
 	var slots := _slot_at(station_id, slot_index)
 	if slots.is_empty():
 		return
-	var overrides := _slot_overrides(slots[slot_index]).duplicate(true)
+	var overrides := slot_overrides_of(slots[slot_index]).duplicate(true)
 	if not overrides.erase(key):
 		return
-	slots[slot_index] = _make_slot(_slot_preset(slots[slot_index]), overrides)
+	slots[slot_index] = _make_slot(slot_preset_name(slots[slot_index]), overrides)
+	_touch()
+
+# value null removes the key.
+func set_station_extra(station_id: String, key: String, value) -> void:
+	var st := _station(station_id)
+	if st.is_empty():
+		return
+	if not st.has("extra"):
+		st["extra"] = {}
+	if value == null:
+		st["extra"].erase(key)
+	else:
+		st["extra"][key] = value
 	_touch()
 
 # --- stock, quota, presets ---

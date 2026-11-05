@@ -169,10 +169,15 @@ static func _check_unknown_keys(failures: Array[String]) -> void:
 	m.set_override("post_b", 0, "housing", 5.0)
 	m.set_stock("post_b", "FUEL", 1.0)
 	m.set_quota("post_b", "COMBAT", 1)
+	m.set_station_extra("post_b", "note", "tense")
+	m.set_station_extra("post_b", "note", null)
+	m.set_station_extra("post_b", "tag", "x")
 	var dup := m.duplicate_station("post_b")
 	if m.doc["systems"][1].get("zz", {}).get("keep", false) != true:
 		failures.append("unknown keys: system key lost")
 	var st: Dictionary = m.doc["stations"][m.station_index("post_b")]
+	if st["extra"].get("tag", "") != "x" or st["extra"].has("mood") == false:
+		failures.append("set_station_extra: expected tag added and the existing mood kept, got %s" % [st["extra"]])
 	if st.get("zz", -1) != 5 or st["extra"].get("mood", "") != "calm":
 		failures.append("unknown keys: station key or extra lost")
 	var copy: Dictionary = m.doc["stations"][m.station_index(dup)]

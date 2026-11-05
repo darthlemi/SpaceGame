@@ -4,7 +4,6 @@ extends Control
 # Standalone galaxy editor (see tools\map_editor.bat). A thin view: every edit goes through
 # MapEditModel and is checked by GalaxyValidator; Save is blocked while blockers exist.
 
-const ART_DIR := "res://assets/sprites/stations"
 const INSPECTOR_WIDTH := 380.0
 const ERRORS_HEIGHT := 96.0
 const STATION_LIST_HEIGHT := 110.0
@@ -22,7 +21,8 @@ var selected_station: String = ""
 var canvas: MapCanvas
 var errors_list: ItemList
 var station_list: ItemList
-var station_box: VBoxContainer
+var station_box: StationEditor
+var preset_editor: PresetEditor
 var system_fields_box: VBoxContainer
 var all_stations_toggle: CheckButton
 var save_button: Button
@@ -147,6 +147,16 @@ func _build_ui() -> void:
 	tabs.add_child(map_tab)
 	map_tab.add_child(_build_left_column())
 	map_tab.add_child(_build_inspector())
+	preset_editor = PresetEditor.new()
+	preset_editor.name = "Presets"
+	preset_editor.edited.connect(_on_presets_edited)
+	var preset_scroll := ScrollContainer.new()
+	preset_scroll.name = "PresetsTab"
+	preset_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	preset_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preset_scroll.add_child(preset_editor)
+	tabs.add_child(preset_scroll)
+	tabs.set_tab_title(1, "Presets")
 	_confirm = ConfirmationDialog.new()
 	_confirm.confirmed.connect(_on_confirmed)
 	add_child(_confirm)
@@ -242,9 +252,13 @@ func _build_inspector() -> ScrollContainer:
 	add_station.text = "+ Add station"
 	add_station.pressed.connect(_on_add_station_pressed)
 	box.add_child(add_station)
-	station_box = VBoxContainer.new()
+	station_box = StationEditor.new()
 	station_box.name = "StationEditorBox"
 	station_box.visible = false
+	station_box.edited.connect(_after_edit.bind(false))
+	station_box.station_renamed.connect(func(new_id: String) -> void: selected_station = new_id)
+	station_box.duplicate_requested.connect(_on_duplicate_station)
+	station_box.delete_requested.connect(_on_delete_station_pressed)
 	box.add_child(station_box)
 	return scroll
 
@@ -255,6 +269,7 @@ func _refresh_all() -> void:
 	_rebuild_system_fields()
 	_rebuild_station_list()
 	_rebuild_station_box()
+	_rebuild_preset_editor()
 	_update_dirty()
 	validate()
 
@@ -273,28 +288,6 @@ func _clear(box: Node) -> void:
 		box.remove_child(child)
 		child.queue_free()
 
-func _choices_for(spec: Dictionary) -> Array:
-	var choices = spec.get("choices", [])
-	if typeof(choices) == TYPE_ARRAY:
-		return choices
-	match choices:
-		"systems":
-			var ids: Array = []
-			for sys in model.doc["systems"]:
-				ids.append(sys["id"])
-			ids.sort()
-			return ids
-		"owners":
-			return CampaignFleet.Faction.keys()
-		"art":
-			var names: Array = []
-			for file in DirAccess.get_files_at(ART_DIR):
-				if file.ends_with(".png"):
-					names.append(file.get_basename())
-			names.sort()
-			return names
-	return []
-
 func _rebuild_system_fields() -> void:
 	_clear(system_fields_box)
 	var index := _system_index(selected_system)
@@ -302,7 +295,7 @@ func _rebuild_system_fields() -> void:
 		return
 	var entry: Dictionary = model.doc["systems"][index]
 	for spec in EditorFields.SYSTEM_FIELDS:
-		system_fields_box.add_child(EditorFields.make_row(spec, EditorFields.value_of(entry, spec), _choices_for(spec),
+		system_fields_box.add_child(EditorFields.make_row(spec, EditorFields.value_of(entry, spec), EditorFields.choices_for(spec, model.doc),
 				func(value) -> void: _on_system_field_changed(spec, value)))
 
 func _rebuild_station_list() -> void:
@@ -320,25 +313,14 @@ func _rebuild_station_list() -> void:
 		if id == selected_station:
 			station_list.select(row)
 
-# Task 4 replaces the read-only slot text with the full station editor.
 func _rebuild_station_box() -> void:
-	_clear(station_box)
-	var index := model.station_index(selected_station)
-	station_box.visible = index >= 0
-	if index < 0:
+	if model.station_index(selected_station) < 0:
+		station_box.visible = false
 		return
-	var entry: Dictionary = model.doc["stations"][index]
-	var title := Label.new()
-	title.name = "StationTitle"
-	title.text = "Station: %s" % entry["name"]
-	station_box.add_child(title)
-	for spec in EditorFields.STATION_FIELDS:
-		station_box.add_child(EditorFields.make_row(spec, EditorFields.value_of(entry, spec), _choices_for(spec),
-				func(value) -> void: _on_station_field_changed(spec, value)))
-	var slots := Label.new()
-	slots.name = "SlotsLabel"
-	slots.text = "Slots: %s" % ", ".join(entry["slots"].map(func(s): return str(s if typeof(s) == TYPE_STRING else s["preset"])))
-	station_box.add_child(slots)
+	station_box.bind(model, selected_station)
+
+func _rebuild_preset_editor() -> void:
+	preset_editor.bind(model)
 
 func _show_findings() -> void:
 	errors_list.clear()
@@ -396,6 +378,30 @@ func _on_add_requested(map: Vector2) -> void:
 	var id := model.add_system(NEW_SYSTEM_NAME, map)
 	_after_edit(false)
 	select_system(id)
+
+func _on_presets_edited() -> void:
+	_after_edit(false)
+	# Slot dropdowns and previews in the station editor depend on the presets.
+	_rebuild_station_box()
+
+func _on_duplicate_station(id: String) -> void:
+	var copy := model.duplicate_station(id)
+	if copy == "":
+		_set_status("Cannot duplicate this station")
+		return
+	_after_edit(false)
+	select_station(copy)
+
+func _on_delete_station_pressed(id: String) -> void:
+	_ask("Delete station '%s'?" % id, func() -> void: _delete_station(id))
+
+func _delete_station(id: String) -> void:
+	if not model.delete_station(id):
+		_set_status("Cannot delete the player station")
+		return
+	selected_station = ""
+	_after_edit(false)
+	_rebuild_station_box()
 
 func _on_add_station_pressed() -> void:
 	if selected_system == "":

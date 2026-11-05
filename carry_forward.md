@@ -87,13 +87,34 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 - **Distress signal:** 3x the base fuel price, delivered instantly; hidden whenever a connected
   jump is affordable.
 - **Pirate citadels** (Ashfall, Deadreach) switched from `population` to `agriculture` so they
-  don't starve. The user may re-tune `galaxy_data.gd`, which now also takes an optional `tier`
-  key per system.
+  don't starve. The user may re-tune `data\galaxy.json` (see "Map editor"); a system may carry an
+  optional `tier` key.
 - **NPC tuning:** fuel for 4 jumps, raids and hunts end after 75 s away (`RAID_DWELL`,
   `HUNT_DWELL`), a 90 s rest at home (`HOME_REST`), a station FUEL reserve of 5 ticks of its own
   burn.
 - **Neutral traders** trade only with neutral stations (the spec's rule).
 - `assets\sprites\bases\` is unused but kept.
+
+## Map editor (built 2026-11-05, plan `docs\superpowers\plans\2026-11-05-map-editor.md`)
+- The galaxy is data now: `data\galaxy.json` (26 systems, 40 stations, 40 links). `GalaxyData.build()`
+  reads it and hard-fails on a missing or corrupt file (that path is untested: the assert would abort
+  the run). Schema and decisions: `docs\superpowers\specs\2026-11-05-map-editor-design.md`.
+- Balancing now happens by editing `data\galaxy.json` (presets, per-slot overrides, stock, quotas) or
+  in the editor. The file is canonical: two-space JSON, fixed key order, systems and stations sorted
+  by id, so a Save of an unchanged galaxy writes nothing and a one-system move is a one-line diff.
+- Launch: `tools\map_editor.bat` (`GODOT_EXE` overrides the Steam path). Move / Link / Add System
+  modes, Validate / Load / Save; Save is blocked while the errors list has a `[BLOCK]` item (click it
+  to select the system or station). The Presets tab edits the six built-in presets and adds new ones.
+- No player access: no game scene references the editor. **When `export_presets.cfg` is created, add
+  the exclusion filter `scenes/editor/*, scripts/editor/*, tools/*`.** `data/galaxy.json` must ship.
+- Station ids are the lower-cased name with spaces as `_`; renaming a station changes its id. No
+  save games exist yet: flag it again when saving is built. No undo (Load re-reads the file).
+- Unknown JSON keys survive load and save, but a whole number inside an unknown key comes back as
+  `1.0` (Godot parses every JSON number as a float); `version`, `tier` and quota counts stay ints.
+- Extending: a new per-system or per-station field is one entry in `EditorFields.SYSTEM_FIELDS` /
+  `STATION_FIELDS`, plus the runtime code that reads it in `GalaxyData._make_system` / `_make_station`.
+- `tests\test_campaign_scene.gd` failed in 2 of about 12 runs on the trader cargo checks (NPC jump
+  cooldowns are unseeded random); not reproduced in 16 more. Treat it as a flake unless it recurs.
 
 ## Open ideas
 - **Neutral vs pirate station services:** what makes them different to visit (black-market

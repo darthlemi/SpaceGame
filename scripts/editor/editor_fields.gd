@@ -20,6 +20,9 @@ const STATION_FIELDS: Array[Dictionary] = [
 	{"key": "pos", "label": "Position x / y", "type": "vector2", "default": Vector2(580.0, 350.0), "min": 0.0, "max": 1200.0, "step": 1.0},
 ]
 
+const ART_DIR := "res://assets/sprites/stations"
+const AMOUNT_MAX := 100000.0
+const AMOUNT_STEP := 0.5
 const LABEL_WIDTH := 130.0
 const DEFAULT_MIN := -1000000.0
 const DEFAULT_MAX := 1000000.0
@@ -112,3 +115,57 @@ static func _line_edit(text: String, on_change: Callable) -> LineEdit:
 	edit.text_submitted.connect(commit)
 	edit.focus_exited.connect(func() -> void: commit.call(edit.text))
 	return edit
+
+# Enum choices: the descriptor's own Array, or "systems" / "owners" / "art" resolved from the document.
+static func choices_for(spec: Dictionary, doc: Dictionary) -> Array:
+	var choices = spec.get("choices", [])
+	if typeof(choices) == TYPE_ARRAY:
+		return choices
+	match choices:
+		"systems":
+			var ids: Array = []
+			for sys in doc["systems"]:
+				ids.append(sys["id"])
+			ids.sort()
+			return ids
+		"owners":
+			return CampaignFleet.Faction.keys()
+		"art":
+			var names: Array = []
+			for file in DirAccess.get_files_at(ART_DIR):
+				if file.ends_with(".png"):
+					names.append(file.get_basename())
+			names.sort()
+			return names
+	return []
+
+# A Commodity x (produces, consumes) grid of spin boxes named Produces_<NAME> / Consumes_<NAME>.
+# Callbacks get (commodity name, amount) on a user edit.
+static func commodity_grid(produces: Dictionary, consumes: Dictionary, on_produce: Callable, on_consume: Callable) -> GridContainer:
+	var grid := GridContainer.new()
+	grid.name = "CommodityGrid"
+	grid.columns = 3
+	for heading in ["", "Produces", "Consumes"]:
+		var label := Label.new()
+		label.text = heading
+		label.custom_minimum_size.x = LABEL_WIDTH if heading == "" else SPIN_WIDTH
+		grid.add_child(label)
+	for commodity in Commodity.Type.keys():
+		var name_label := Label.new()
+		name_label.text = commodity.capitalize()
+		grid.add_child(name_label)
+		grid.add_child(_amount_spin("Produces_%s" % commodity, float(produces.get(commodity, 0.0)),
+				func(value: float) -> void: on_produce.call(commodity, value)))
+		grid.add_child(_amount_spin("Consumes_%s" % commodity, float(consumes.get(commodity, 0.0)),
+				func(value: float) -> void: on_consume.call(commodity, value)))
+	return grid
+
+static func _amount_spin(spin_name: String, value: float, on_change: Callable) -> SpinBox:
+	var spin := SpinBox.new()
+	spin.name = spin_name
+	spin.max_value = AMOUNT_MAX
+	spin.step = AMOUNT_STEP
+	spin.value = value
+	spin.custom_minimum_size.x = SPIN_WIDTH
+	spin.value_changed.connect(on_change)
+	return spin

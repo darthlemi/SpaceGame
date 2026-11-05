@@ -17,8 +17,8 @@ func can_fire() -> bool:
 
 # Range is to the target's hull edge, so big hulls are hittable from their standoff.
 # Range and arc only; cooldown and damage are can_fire's job.
-func can_engage(target: Node2D) -> bool:
-	if weapon == null or target == null or not is_instance_valid(target):
+func can_engage(target) -> bool:
+	if weapon == null or not Ship._is_live_target(target):
 		return false
 	if CombatTactics.edge_distance(global_position, target) > weapon.weapon_range:
 		return false

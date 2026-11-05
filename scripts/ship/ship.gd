@@ -163,6 +163,9 @@ func get_hit_radius() -> float:
 	return hit_radius
 
 func receive_damage(amount: float, impact_position: Vector2 = Vector2.INF) -> void:
+	# Projectiles in flight at the jump still reach the hidden ship by distance.
+	if has_fled:
+		return
 	var overflow := shield.absorb(amount)
 	if overflow <= 0.0:
 		return
@@ -175,6 +178,8 @@ func receive_damage(amount: float, impact_position: Vector2 = Vector2.INF) -> vo
 		hull.apply_damage(overflow)
 
 func receive_weapon_damage(weapon: Weapon, impact_position: Vector2 = Vector2.INF) -> void:
+	if has_fled:
+		return
 	var pierce_damage: float = weapon.damage * weapon.pierce_pct
 	var absorbable_damage: float = weapon.damage - pierce_damage
 	var effective_shield_hit: float = absorbable_damage * weapon.shield_mult
@@ -223,7 +228,7 @@ func _process_order_movement(delta: float) -> void:
 			else:
 				_steer_to(current_order.target_position, delta)
 		Order.Type.ATTACK_TARGET:
-			if not is_instance_valid(current_order.target_ship):
+			if not _is_live_target(current_order.target_ship):
 				execute_order(Order.hold())
 				return
 			_engage(current_order.target_ship, delta)
@@ -356,12 +361,15 @@ func _process_hold(delta: float, candidates: Array) -> void:
 
 # Stays on the anchor and turns to the best enemy in reach; never moves toward one.
 func _process_hold_position(delta: float, candidates: Array) -> void:
-	var reach := attack_range()
-	var in_reach: Array = []
-	for candidate in candidates:
-		if _is_live_target(candidate) and candidate is Node2D and CombatTactics.edge_distance(global_position, candidate) <= reach:
-			in_reach.append(candidate)
-	_idle_target = CombatTactics.pick_target(self, in_reach, _idle_target)
+	_retarget_timer -= delta
+	if _retarget_timer <= 0.0 or (_idle_target != null and not _is_live_target(_idle_target)):
+		var reach := attack_range()
+		var in_reach: Array = []
+		for candidate in candidates:
+			if _is_live_target(candidate) and candidate is Node2D and CombatTactics.edge_distance(global_position, candidate) <= reach:
+				in_reach.append(candidate)
+		_idle_target = CombatTactics.pick_target(self, in_reach, _idle_target)
+		_retarget_timer = CombatTactics.RETARGET_INTERVAL
 	var face := global_position + Vector2.RIGHT.rotated(rotation) * 100.0
 	if _idle_target != null:
 		face = _idle_target.global_position
@@ -395,7 +403,9 @@ func _jump_out() -> void:
 		return
 	has_fled = true
 	for group in get_groups():
-		remove_from_group(group)
+		# Engine-internal groups start with an underscore.
+		if not String(group).begins_with("_"):
+			remove_from_group(group)
 	hide()
 	collision_layer = 0
 	collision_mask = 0
@@ -433,9 +443,10 @@ func _process_loiter(delta: float) -> void:
 			_loiter_timer = loiter_interval
 	_steer_to(_loiter_target, delta)
 
-# A target freed this frame is still valid until the queue is flushed, so check both.
-func _is_live_target(target) -> bool:
-	return is_instance_valid(target) and not target.is_queued_for_deletion()
+# A target freed this frame is still valid until the queue is flushed, so check both. A fled
+# ship is hidden but kept in the tree, so it is not a target either.
+static func _is_live_target(target) -> bool:
+	return is_instance_valid(target) and not target.is_queued_for_deletion() and not (target is Ship and target.has_fled)
 
 func _process_weapons() -> void:
 	if weapon_mounts.is_empty():
@@ -485,7 +496,7 @@ static func nearest_in_range(candidates: Array, own_position: Vector2, max_range
 
 static func pick_autofire_target(order: Order, candidates: Array, own_position: Vector2, max_range: float, idle: Node2D = null) -> Node2D:
 	if order.type == Order.Type.ATTACK_TARGET:
-		return order.target_ship if is_instance_valid(order.target_ship) else null
+		return order.target_ship if Ship._is_live_target(order.target_ship) else null
 	if (order.type == Order.Type.HOLD or order.type == Order.Type.HOLD_POSITION) and idle != null and CombatTactics.edge_distance(own_position, idle) <= max_range:
 		return idle
 	return Ship.nearest_in_range(candidates, own_position, max_range)

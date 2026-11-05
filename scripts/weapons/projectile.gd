@@ -29,6 +29,11 @@ func _physics_process(delta: float) -> void:
 	var step := travel_direction * speed * delta
 	global_position += step
 	_distance_traveled += step.length()
+	# A target that jumped out is gone: fly on and expire like a miss.
+	if target is Ship and target.has_fled:
+		if _distance_traveled >= max_travel:
+			queue_free()
+		return
 	var effective_hit_radius: float = target.get_hit_radius() if target.has_method("get_hit_radius") else HIT_RADIUS
 	if global_position.distance_to(target.global_position) < effective_hit_radius:
 		_hit()

@@ -802,6 +802,89 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(keep_scene) and not keep_scene.is_queued_for_deletion():
 		keep_scene.queue_free()
 
+	# Only armed ships jumping out make a Withdrew: a disarmed one fleeing, then the last armed
+	# player ship dying, is a Defeat.
+	campaign_state.reset()
+	var disarmed_player := CampaignFleet.new()
+	disarmed_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var disarmed_enemy := CampaignFleet.new()
+	disarmed_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([disarmed_enemy])
+	campaign_state.player_fleet = disarmed_player
+	campaign_state.start_engagement(disarmed_enemy)
+
+	var disarmed_scene: Node2D = CombatSceneScene.instantiate()
+	disarmed_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	tree.root.add_child(disarmed_scene)
+	await tree.process_frame
+	await tree.process_frame
+	var disarmed_ship: Ship = disarmed_scene.player_ships[0]
+	for mount in disarmed_ship.weapon_mounts:
+		mount.apply_damage(mount.max_hp)
+	disarmed_ship.execute_order(Order.flee())
+	disarmed_ship._flee_spool = Ship.FLEE_SPOOL_TIME[disarmed_ship.ship_type]
+	await tree.physics_frame
+	await tree.physics_frame
+	if not disarmed_ship.has_fled:
+		failures.append("disarmed_flee_then_loss_is_defeat: setup expected the disarmed ship to have jumped out")
+	var armed_ship: Ship = disarmed_scene.player_ships[1]
+	armed_ship.hull.invulnerable = false
+	armed_ship.hull.apply_damage(armed_ship.hull.max_hp)
+	if disarmed_scene.result_label.text != "Defeat":
+		failures.append("disarmed_flee_then_loss_is_defeat: expected 'Defeat', got '%s'" % disarmed_scene.result_label.text)
+	await _take_leaked_scene(tree, disarmed_scene)
+	tree.paused = false
+	campaign_state.reset()
+	if is_instance_valid(disarmed_scene) and not disarmed_scene.is_queued_for_deletion():
+		disarmed_scene.queue_free()
+
+	# Fled and non-fled losers mixed: the fled one escapes without a draw and the others draw
+	# exactly what they would have with no fled ship present.
+	campaign_state.reset()
+	var mixed_player := CampaignFleet.new()
+	mixed_player.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	var mixed_enemy := CampaignFleet.new()
+	mixed_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	campaign_state.enemy_fleets.assign([mixed_enemy])
+	campaign_state.player_fleet = mixed_player
+	campaign_state.start_engagement(mixed_enemy)
+
+	var mixed_scene: Node2D = CombatSceneScene.instantiate()
+	mixed_scene.escape_rng = _seeded_rng(ESCAPE_SEED)
+	tree.root.add_child(mixed_scene)
+	await tree.process_frame
+	await tree.process_frame
+	if mixed_scene.enemy_ships.size() != 3:
+		failures.append("mixed_fled_and_caught_escape_rolls: expected 3 enemy ships, got %d" % mixed_scene.enemy_ships.size())
+	else:
+		var mixed_speeds: Array[float] = []
+		for k in [1, 2]:
+			mixed_speeds.append(mixed_scene.enemy_ships[k].engine.effective_max_speed())
+			for mount in mixed_scene.enemy_ships[k].weapon_mounts:
+				mount.apply_damage(mount.max_hp)
+		var reference_rng := _seeded_rng(ESCAPE_SEED)
+		var expected_rolls := BattleResolution.roll_escapes(mixed_speeds, mixed_scene.player_ships[0].engine.effective_max_speed(), reference_rng)
+		var expected_survivors := 1
+		for rolled in expected_rolls:
+			if rolled:
+				expected_survivors += 1
+		var fleeing: Ship = mixed_scene.enemy_ships[0]
+		fleeing.execute_order(Order.flee())
+		fleeing._flee_spool = Ship.FLEE_SPOOL_TIME[fleeing.ship_type]
+		await tree.physics_frame
+		await tree.physics_frame
+		if mixed_scene.result_label.text != "Victory":
+			failures.append("mixed_fled_and_caught_escape_rolls: expected 'Victory', got '%s'" % mixed_scene.result_label.text)
+		await _take_leaked_scene(tree, mixed_scene)
+		if mixed_scene.escape_rng.state != reference_rng.state:
+			failures.append("mixed_fled_and_caught_escape_rolls: expected exactly the two draws of the non-fled ships")
+		if mixed_enemy.ship_compositions.size() != expected_survivors:
+			failures.append("mixed_fled_and_caught_escape_rolls: expected %d escapers (fled one plus rolled), got %d" % [expected_survivors, mixed_enemy.ship_compositions.size()])
+	tree.paused = false
+	campaign_state.reset()
+	if is_instance_valid(mixed_scene) and not mixed_scene.is_queued_for_deletion():
+		mixed_scene.queue_free()
+
 	return failures
 
 static func kept_player_count_wrong(kept_hp: Array[float]) -> bool:

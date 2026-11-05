@@ -25,7 +25,7 @@ func _physics_process(delta: float) -> void:
 	_retarget_timer -= delta
 	var candidates: Array = get_tree().get_nodes_in_group(enemy_group)
 	# A target freed this frame stays valid until the queue flushes, so check both.
-	var target_gone := not is_instance_valid(_target) or _target.is_queued_for_deletion()
+	var target_gone := not Ship._is_live_target(_target)
 	if _retarget_timer <= 0.0 or target_gone:
 		_target = CombatTactics.pick_target(ship, candidates, _target)
 		_retarget_timer = CombatTactics.RETARGET_INTERVAL

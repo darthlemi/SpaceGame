@@ -184,7 +184,7 @@ func _toggle_god_mode() -> void:
 
 func _kill_all_enemies() -> void:
 	for ship in enemy_ships.duplicate():
-		if is_instance_valid(ship):
+		if is_instance_valid(ship) and not ship.has_fled:
 			ship.hull.invulnerable = false
 			ship.hull.apply_damage(ship.hull.max_hp)
 
@@ -202,7 +202,7 @@ func _check_battle_end() -> void:
 	if _resolved:
 		return
 	if not _has_armed_active_ship(PLAYER_GROUP):
-		_show_result("Withdrew" if _any_fled(player_ships) else "Defeat")
+		_show_result("Withdrew" if _any_armed_fled(player_ships) else "Defeat")
 	elif not _has_armed_active_ship(ENEMY_GROUP):
 		_player_won = true
 		_show_result("Victory")
@@ -216,10 +216,14 @@ func _has_armed_active_ship(group: StringName) -> bool:
 				return true
 	return false
 
-func _any_fled(ships: Array[Ship]) -> bool:
+# A ship that jumped out with no working mount left is no withdrawal, just a lost fleet.
+func _any_armed_fled(ships: Array[Ship]) -> bool:
 	for ship in ships:
-		if is_instance_valid(ship) and ship.has_fled:
-			return true
+		if not is_instance_valid(ship) or not ship.has_fled:
+			continue
+		for mount in ship.weapon_mounts:
+			if mount.weapon != null and not mount.is_destroyed():
+				return true
 	return false
 
 # The flagship, or the first deployed ship when it was held back or there's no campaign.

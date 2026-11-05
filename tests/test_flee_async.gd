@@ -18,6 +18,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await _check_hold_position_no_chase(tree, failures)
 	await _check_hold_position_fires(tree, failures)
 	await _check_unarmed_safe(tree, failures)
+	await _check_fled_ship_untargetable(tree, failures)
 	return failures
 
 static func _spawn(tree: SceneTree, pos: Vector2, weapon: Weapon, group: StringName = ALLY_GROUP) -> Ship:
@@ -172,3 +173,30 @@ static func _check_unarmed_safe(tree: SceneTree, failures: Array[String]) -> voi
 	if not is_instance_valid(ship):
 		failures.append("unarmed_hold_position_safe: ship vanished")
 	await _cleanup(tree, [ship, enemy])
+
+# A fled ship stays in the tree (combat_scene reads its state) but must not be hit or chased.
+static func _check_fled_ship_untargetable(tree: SceneTree, failures: Array[String]) -> void:
+	var target := await _spawn_dummy(tree, Vector2(700.0, 500.0))
+	target.shield.max_shield = 0.0
+	target.shield.current_shield = 0.0
+	var attacker := await _spawn(tree, Vector2(500.0, 500.0), Railgun)
+	attacker.execute_order(Order.attack_target(target))
+	await _run_for(tree, 0.5)
+	target._jump_out()
+	var hull_before := target.hull.current_hp
+	var mount_before := target.weapon_mounts[0].current_hp
+	var engine_before := target.engine.current_hp
+	await _run_for(tree, 2.0)
+	if not is_instance_valid(target):
+		failures.append("fled_ship_untargetable: the fled ship was freed")
+	elif target.hull.current_hp != hull_before or target.weapon_mounts[0].current_hp != mount_before or target.engine.current_hp != engine_before:
+		failures.append("fled_ship_untargetable: the fled ship took damage after jumping out")
+	if attacker.current_order.type == Order.Type.ATTACK_TARGET:
+		failures.append("fled_ship_untargetable: the attacker still chases the fled ship")
+	# The damage entry points are guarded at the root, for projectiles already in flight.
+	if is_instance_valid(target):
+		target.receive_weapon_damage(Railgun)
+		target.receive_damage(100.0)
+		if target.hull.current_hp != hull_before:
+			failures.append("fled_ship_untargetable: direct damage landed on a fled ship")
+	await _cleanup(tree, [attacker, target])

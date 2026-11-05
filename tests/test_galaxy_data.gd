@@ -22,6 +22,8 @@ static func run() -> Array[String]:
 			failures.append("system %s: unreachable from haven" % id)
 		if galaxy.stations_in(id).is_empty():
 			failures.append("system %s: has no stations" % id)
+	if galaxy.stations.size() != 40:
+		failures.append("station count: expected 40, got %d" % galaxy.stations.size())
 	if link_entries != 80:
 		failures.append("link entries: expected 80 (40 pairs), got %d" % link_entries)
 
@@ -71,12 +73,12 @@ static func run() -> Array[String]:
 	return failures
 
 static func _check_optional_keys(failures: Array[String]) -> void:
-	var sys := GalaxyData._make_system({"id": "x", "name": "X", "map": Vector2.ZERO, "tier": 4})
+	var sys := GalaxyData._make_system({"id": "x", "name": "X", "map": [0.0, 0.0], "tier": 4})
 	if sys.tier_override != 4:
 		failures.append("optional tier: expected tier_override 4 from the data, got %d" % sys.tier_override)
-	if GalaxyData._make_system({"id": "y", "name": "Y", "map": Vector2.ZERO}).tier_override != 0:
+	if GalaxyData._make_system({"id": "y", "name": "Y", "map": [0.0, 0.0]}).tier_override != 0:
 		failures.append("optional tier: expected no override when the key is absent")
-	var entry := {"name": "Test Post", "system": "x", "owner": CampaignFleet.Faction.NEUTRAL, "pos": Vector2.ZERO, "art": "ring_2", "roles": ["mining"], "quota": {}, "stock": {Commodity.Type.ORE: 7.0}}
-	var st := GalaxyData._make_station(entry)
+	var entry := {"name": "Test Post", "system": "x", "owner": "NEUTRAL", "pos": [0.0, 0.0], "art": "ring_2", "slots": ["mining"], "quota": {}, "stock": {"ORE": 7.0}}
+	var st := GalaxyData._make_station(entry, GalaxyData.default_presets())
 	if st.starting_stock.get(Commodity.Type.ORE, -1.0) != 7.0:
 		failures.append("optional stock: expected starting ORE 7 from the data, got %s" % [st.starting_stock])

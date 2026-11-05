@@ -1,0 +1,684 @@
+{
+  "version": 1,
+  "start_system": "haven",
+  "presets": {
+    "agriculture": {
+      "kind": "AGRICULTURE",
+      "produces": {"FOOD": 5.0},
+      "consumes": {},
+      "housing": 1200.0
+    },
+    "industrial": {
+      "kind": "INDUSTRIAL",
+      "produces": {"WEAPONS": 2.0},
+      "consumes": {"FUEL": 2.0, "ORE": 3.0},
+      "housing": 1500.0
+    },
+    "mining": {
+      "kind": "MINING",
+      "produces": {"ORE": 5.0},
+      "consumes": {},
+      "housing": 800.0
+    },
+    "population": {
+      "kind": "POPULATION",
+      "produces": {},
+      "consumes": {"FOOD": 4.0},
+      "housing": 5000.0
+    },
+    "refinery": {
+      "kind": "REFINERY",
+      "produces": {"FUEL": 3.0},
+      "consumes": {},
+      "housing": 800.0
+    },
+    "trade_hub": {
+      "kind": "TRADE_HUB",
+      "produces": {},
+      "consumes": {},
+      "housing": 2000.0
+    }
+  },
+  "systems": [
+    {
+      "id": "ashfall",
+      "name": "Ashfall",
+      "map": [0.97, 0.08],
+      "extra": {}
+    },
+    {
+      "id": "aurum",
+      "name": "Aurum",
+      "map": [0.71, 0.8],
+      "extra": {}
+    },
+    {
+      "id": "bastion",
+      "name": "Bastion",
+      "map": [0.74, 0.61],
+      "extra": {}
+    },
+    {
+      "id": "blackwake",
+      "name": "Blackwake",
+      "map": [0.67, 0.19],
+      "extra": {}
+    },
+    {
+      "id": "cinder",
+      "name": "Cinder",
+      "map": [0.36, 0.34],
+      "extra": {}
+    },
+    {
+      "id": "crownspire",
+      "name": "Crownspire",
+      "map": [0.92, 0.26],
+      "extra": {}
+    },
+    {
+      "id": "deadreach",
+      "name": "Deadreach",
+      "map": [0.04, 0.08],
+      "extra": {}
+    },
+    {
+      "id": "farhaven",
+      "name": "Farhaven",
+      "map": [0.08, 0.26],
+      "extra": {}
+    },
+    {
+      "id": "freeport",
+      "name": "Freeport",
+      "map": [0.17, 0.42],
+      "extra": {}
+    },
+    {
+      "id": "frostline",
+      "name": "Frostline",
+      "map": [0.46, 0.07],
+      "extra": {}
+    },
+    {
+      "id": "gallows",
+      "name": "Gallows",
+      "map": [0.33, 0.13],
+      "extra": {}
+    },
+    {
+      "id": "greenreach",
+      "name": "Greenreach",
+      "map": [0.27, 0.58],
+      "extra": {}
+    },
+    {
+      "id": "haven",
+      "name": "Haven",
+      "map": [0.51, 0.5],
+      "extra": {}
+    },
+    {
+      "id": "ironhold",
+      "name": "Ironhold",
+      "map": [0.83, 0.42],
+      "extra": {}
+    },
+    {
+      "id": "kestrel",
+      "name": "Kestrel",
+      "map": [0.64, 0.45],
+      "extra": {}
+    },
+    {
+      "id": "marrow",
+      "name": "Marrow",
+      "map": [0.56, 0.66],
+      "extra": {}
+    },
+    {
+      "id": "northgate",
+      "name": "Northgate",
+      "map": [0.55, 0.21],
+      "extra": {}
+    },
+    {
+      "id": "redtide",
+      "name": "Redtide",
+      "map": [0.82, 0.9],
+      "extra": {}
+    },
+    {
+      "id": "saltmarsh",
+      "name": "Saltmarsh",
+      "map": [0.18, 0.9],
+      "extra": {}
+    },
+    {
+      "id": "slagfall",
+      "name": "Slagfall",
+      "map": [0.66, 0.3],
+      "extra": {}
+    },
+    {
+      "id": "southdeep",
+      "name": "Southdeep",
+      "map": [0.45, 0.78],
+      "extra": {}
+    },
+    {
+      "id": "thornfield",
+      "name": "Thornfield",
+      "map": [0.3, 0.76],
+      "extra": {}
+    },
+    {
+      "id": "tollgate",
+      "name": "Tollgate",
+      "map": [0.44, 0.38],
+      "extra": {}
+    },
+    {
+      "id": "voidmouth",
+      "name": "Voidmouth",
+      "map": [0.62, 0.03],
+      "extra": {}
+    },
+    {
+      "id": "wexford",
+      "name": "Wexford",
+      "map": [0.37, 0.54],
+      "extra": {}
+    },
+    {
+      "id": "wreckyard",
+      "name": "Wreckyard",
+      "map": [0.53, 0.92],
+      "extra": {}
+    }
+  ],
+  "links": [
+    ["ashfall", "crownspire"],
+    ["aurum", "bastion"],
+    ["aurum", "redtide"],
+    ["aurum", "southdeep"],
+    ["bastion", "ironhold"],
+    ["bastion", "kestrel"],
+    ["bastion", "marrow"],
+    ["blackwake", "crownspire"],
+    ["blackwake", "northgate"],
+    ["blackwake", "slagfall"],
+    ["blackwake", "voidmouth"],
+    ["cinder", "freeport"],
+    ["cinder", "gallows"],
+    ["cinder", "tollgate"],
+    ["cinder", "wexford"],
+    ["crownspire", "ironhold"],
+    ["deadreach", "farhaven"],
+    ["farhaven", "freeport"],
+    ["farhaven", "gallows"],
+    ["freeport", "greenreach"],
+    ["frostline", "northgate"],
+    ["frostline", "voidmouth"],
+    ["gallows", "northgate"],
+    ["greenreach", "marrow"],
+    ["greenreach", "thornfield"],
+    ["greenreach", "wexford"],
+    ["haven", "kestrel"],
+    ["haven", "marrow"],
+    ["haven", "tollgate"],
+    ["haven", "wexford"],
+    ["ironhold", "slagfall"],
+    ["kestrel", "slagfall"],
+    ["marrow", "southdeep"],
+    ["northgate", "tollgate"],
+    ["redtide", "wreckyard"],
+    ["saltmarsh", "thornfield"],
+    ["saltmarsh", "wreckyard"],
+    ["slagfall", "tollgate"],
+    ["southdeep", "thornfield"],
+    ["southdeep", "wreckyard"]
+  ],
+  "stations": [
+    {
+      "name": "Ashfall Citadel",
+      "system": "ashfall",
+      "owner": "PIRATE",
+      "pos": [850.0, 420.0],
+      "art": "ring_2",
+      "slots": ["refinery", "agriculture"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Ashfall Yard",
+      "system": "ashfall",
+      "owner": "PIRATE",
+      "pos": [300.0, 250.0],
+      "art": "cross_3",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 1},
+      "extra": {}
+    },
+    {
+      "name": "Aurum Bazaar",
+      "system": "aurum",
+      "owner": "NEUTRAL",
+      "pos": [850.0, 420.0],
+      "art": "cross_2",
+      "slots": ["trade_hub", "population"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Aurum Spire",
+      "system": "aurum",
+      "owner": "DOMINION",
+      "pos": [300.0, 250.0],
+      "art": "spoke_3",
+      "slots": ["industrial", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Bastion",
+      "system": "bastion",
+      "owner": "DOMINION",
+      "pos": [580.0, 350.0],
+      "art": "ring_4",
+      "slots": ["industrial", "population"],
+      "stock": {},
+      "quota": {"COMBAT": 2, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Bastion Quarry",
+      "system": "bastion",
+      "owner": "DOMINION",
+      "pos": [300.0, 250.0],
+      "art": "truss_5",
+      "slots": ["mining", "refinery"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Bastion Yards",
+      "system": "bastion",
+      "owner": "DOMINION",
+      "pos": [850.0, 500.0],
+      "art": "truss_6",
+      "slots": ["industrial", "refinery"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Blackwake Den",
+      "system": "blackwake",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "spoke_4",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Cinder Market",
+      "system": "cinder",
+      "owner": "NEUTRAL",
+      "pos": [850.0, 420.0],
+      "art": "cross_2",
+      "slots": ["trade_hub", "population"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Cinder Works",
+      "system": "cinder",
+      "owner": "FREEHOLD",
+      "pos": [300.0, 250.0],
+      "art": "truss_5",
+      "slots": ["mining", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Crownspire",
+      "system": "crownspire",
+      "owner": "DOMINION",
+      "pos": [580.0, 350.0],
+      "art": "ring_3",
+      "slots": ["industrial", "population"],
+      "stock": {},
+      "quota": {"COMBAT": 2, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Deadreach Citadel",
+      "system": "deadreach",
+      "owner": "PIRATE",
+      "pos": [300.0, 250.0],
+      "art": "truss_1",
+      "slots": ["refinery", "agriculture"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Deadreach Yard",
+      "system": "deadreach",
+      "owner": "PIRATE",
+      "pos": [850.0, 420.0],
+      "art": "spoke_4",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 1},
+      "extra": {}
+    },
+    {
+      "name": "Farhaven",
+      "system": "farhaven",
+      "owner": "NEUTRAL",
+      "pos": [580.0, 350.0],
+      "art": "arcs_2",
+      "slots": ["agriculture", "mining"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Freehold Watch",
+      "system": "freeport",
+      "owner": "FREEHOLD",
+      "pos": [850.0, 420.0],
+      "art": "truss_1",
+      "slots": ["mining", "agriculture"],
+      "stock": {},
+      "quota": {"COMBAT": 1},
+      "extra": {}
+    },
+    {
+      "name": "Freeport",
+      "system": "freeport",
+      "owner": "NEUTRAL",
+      "pos": [300.0, 250.0],
+      "art": "cross_1",
+      "slots": ["trade_hub", "population"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Frostline Relay",
+      "system": "frostline",
+      "owner": "NEUTRAL",
+      "pos": [580.0, 350.0],
+      "art": "ring_4",
+      "slots": ["mining", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Gallows Roost",
+      "system": "gallows",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "truss_3",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Greenreach",
+      "system": "greenreach",
+      "owner": "FREEHOLD",
+      "pos": [580.0, 350.0],
+      "art": "ring_3",
+      "slots": ["mining", "agriculture"],
+      "stock": {},
+      "quota": {"COMBAT": 2, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Greenreach Fields",
+      "system": "greenreach",
+      "owner": "FREEHOLD",
+      "pos": [300.0, 500.0],
+      "art": "arcs_2",
+      "slots": ["agriculture", "population"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Haven Exchange",
+      "system": "haven",
+      "owner": "NEUTRAL",
+      "pos": [300.0, 250.0],
+      "art": "cross_1",
+      "slots": ["trade_hub", "population"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Home Base",
+      "system": "haven",
+      "owner": "PLAYER",
+      "pos": [600.0, 400.0],
+      "art": "ring_2",
+      "slots": ["trade_hub", "refinery"],
+      "stock": {},
+      "quota": {},
+      "extra": {}
+    },
+    {
+      "name": "Ironhold",
+      "system": "ironhold",
+      "owner": "DOMINION",
+      "pos": [580.0, 350.0],
+      "art": "ring_2",
+      "slots": ["industrial", "population"],
+      "stock": {},
+      "quota": {"COMBAT": 2, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Ironhold Quarry",
+      "system": "ironhold",
+      "owner": "DOMINION",
+      "pos": [300.0, 250.0],
+      "art": "truss_3",
+      "slots": ["mining", "refinery"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Kestrel Mines",
+      "system": "kestrel",
+      "owner": "DOMINION",
+      "pos": [850.0, 420.0],
+      "art": "spoke_4",
+      "slots": ["mining", "refinery"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Kestrel Picket",
+      "system": "kestrel",
+      "owner": "DOMINION",
+      "pos": [300.0, 250.0],
+      "art": "spoke_2",
+      "slots": ["industrial", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Marrow Depot",
+      "system": "marrow",
+      "owner": "NEUTRAL",
+      "pos": [300.0, 250.0],
+      "art": "truss_3",
+      "slots": ["agriculture", "trade_hub"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Marrow Hideout",
+      "system": "marrow",
+      "owner": "PIRATE",
+      "pos": [850.0, 420.0],
+      "art": "spoke_3",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 1},
+      "extra": {}
+    },
+    {
+      "name": "Northgate Hub",
+      "system": "northgate",
+      "owner": "NEUTRAL",
+      "pos": [580.0, 350.0],
+      "art": "arcs_3",
+      "slots": ["trade_hub", "population"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Redtide Lair",
+      "system": "redtide",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "spoke_3",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Saltmarsh Den",
+      "system": "saltmarsh",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "truss_6",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Slagfall Exchange",
+      "system": "slagfall",
+      "owner": "NEUTRAL",
+      "pos": [300.0, 250.0],
+      "art": "cross_3",
+      "slots": ["trade_hub", "agriculture"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Slagfall Foundry",
+      "system": "slagfall",
+      "owner": "DOMINION",
+      "pos": [850.0, 420.0],
+      "art": "spoke_4",
+      "slots": ["industrial", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Southdeep Den",
+      "system": "southdeep",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "spoke_2",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Thornfield",
+      "system": "thornfield",
+      "owner": "FREEHOLD",
+      "pos": [580.0, 350.0],
+      "art": "arcs_1",
+      "slots": ["agriculture", "population"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Tollgate Station",
+      "system": "tollgate",
+      "owner": "NEUTRAL",
+      "pos": [580.0, 520.0],
+      "art": "arcs_1",
+      "slots": ["trade_hub", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Voidmouth Hold",
+      "system": "voidmouth",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "arcs_3",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 2},
+      "extra": {}
+    },
+    {
+      "name": "Wexford Outpost",
+      "system": "wexford",
+      "owner": "FREEHOLD",
+      "pos": [850.0, 420.0],
+      "art": "truss_1",
+      "slots": ["mining", "refinery"],
+      "stock": {},
+      "quota": {"COMBAT": 1, "TRADER": 1},
+      "extra": {}
+    },
+    {
+      "name": "Wreckyard Roost",
+      "system": "wreckyard",
+      "owner": "PIRATE",
+      "pos": [850.0, 420.0],
+      "art": "spoke_2",
+      "slots": ["refinery", "trade_hub"],
+      "stock": {},
+      "quota": {"COMBAT": 1},
+      "extra": {}
+    },
+    {
+      "name": "Wreckyard Salvage",
+      "system": "wreckyard",
+      "owner": "NEUTRAL",
+      "pos": [300.0, 250.0],
+      "art": "truss_5",
+      "slots": ["industrial", "trade_hub"],
+      "stock": {},
+      "quota": {"TRADER": 1},
+      "extra": {}
+    }
+  ]
+}

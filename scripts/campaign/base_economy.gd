@@ -115,7 +115,7 @@ func net_commodities() -> Dictionary:
 func population_capacity() -> float:
 	var sum := 0.0
 	for slot in slots:
-		sum += EconomyRole.housing_for(slot.role_type)
+		sum += slot.housing
 	return sum
 
 func wealth_level() -> WealthLevel:

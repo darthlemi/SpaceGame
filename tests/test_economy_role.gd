@@ -52,5 +52,29 @@ static func run() -> Array[String]:
 			failures.append("housing_for: expected positive housing for role %s" % role_type)
 	if EconomyRole.housing_for(EconomyRole.RoleType.POPULATION) <= EconomyRole.housing_for(EconomyRole.RoleType.MINING):
 		failures.append("housing_for: expected POPULATION to house more than MINING")
-
+	_check_presets(failures)
 	return failures
+
+static func _check_presets(failures: Array[String]) -> void:
+	var preset := {"kind": "REFINERY", "produces": {"FUEL": 3.0}, "consumes": {}, "housing": 800.0}
+	var role := EconomyRole.from_preset("refinery", preset, {"produces": {"FUEL": 4.0}})
+	if role.produces != {Commodity.Type.FUEL: 4.0}:
+		failures.append("from_preset: expected the FUEL override 4.0, got %s" % [role.produces])
+	if role.role_type != EconomyRole.RoleType.REFINERY or role.housing != 800.0 or role.preset != "refinery":
+		failures.append("from_preset: expected REFINERY / 800 / refinery, got %s / %s / %s" % [role.role_type, role.housing, role.preset])
+	var plain := EconomyRole.from_preset("refinery", preset, {})
+	if plain.produces != {Commodity.Type.FUEL: 3.0}:
+		failures.append("from_preset: expected the preset FUEL 3.0 with no overrides, got %s" % [plain.produces])
+	var housed := EconomyRole.from_preset("refinery", preset, {"housing": 100.0})
+	if housed.housing != 100.0:
+		failures.append("from_preset: expected the housing override 100, got %s" % housed.housing)
+	var built_ins := {"agriculture": EconomyRole.agriculture(), "industrial": EconomyRole.industrial(),
+			"mining": EconomyRole.mining(), "population": EconomyRole.population(),
+			"refinery": EconomyRole.refinery(), "trade_hub": EconomyRole.trade_hub()}
+	for name in built_ins:
+		var built: EconomyRole = built_ins[name]
+		if built.preset != name:
+			failures.append("%s factory: expected preset %s, got %s" % [name, name, built.preset])
+		if built.housing != EconomyRole.housing_for(built.role_type):
+			failures.append("%s factory: expected housing %s, got %s" % [name, EconomyRole.housing_for(built.role_type), built.housing])
+

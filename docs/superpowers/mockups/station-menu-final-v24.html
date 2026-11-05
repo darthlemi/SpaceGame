@@ -1,0 +1,123 @@
+<style>
+.stagewrap{width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;background:#03060b;border:1px solid #23415c}
+.stage{width:1280px;height:720px;position:absolute;left:0;top:0;transform-origin:0 0;display:flex;align-items:center;justify-content:center}
+.sg{width:540px;height:370px;display:flex;flex-direction:column;zoom:1.5;background:radial-gradient(ellipse at 20% 0%,#10243a 0%,#080d16 70%);border:1px solid #2a4a6a;border-radius:6px;color:#bcd3e6;font-family:Consolas,monospace;font-size:11px;box-shadow:0 0 30px rgba(40,120,200,.15) inset;overflow:hidden}
+.sg-top{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #2a4a6a;background:linear-gradient(90deg,#0c1d30,#0a1320);letter-spacing:3px;color:#6fd0ff;font-size:12px}
+.sg-body{display:flex;flex:1;min-height:0}
+.sg-tree{width:31%;direction:rtl;overflow-y:scroll;scrollbar-color:#3a8fd0 #0c1d30;scrollbar-width:thin;border-right:1px solid #2a4a6a;padding:6px 0;background:rgba(5,10,18,.6)}
+.sg-sys{display:flex;align-items:center;gap:5px;padding:5px 6px;color:#8fe0ff;letter-spacing:1px;font-size:10px;text-transform:uppercase;}
+.sg-sys>div{min-width:0;overflow-wrap:anywhere;line-height:12px}
+.sg-sys small{display:block;color:#4f7a96;letter-spacing:0;font-size:9px;text-transform:none}
+.tg{flex:none;display:block;width:10px;height:10px;margin-top:1px;align-self:flex-start}
+.sg-st{overflow-wrap:anywhere;font-size:10px;padding:4px 4px 4px 19px;color:#9ab4c8;border-left:3px solid transparent;display:flex;align-items:flex-start;gap:6px}
+.sg-st.sel{background:linear-gradient(90deg,rgba(60,150,255,.28),rgba(60,150,255,0));border-left-color:#4fb4ff;color:#fff}
+.dot{flex:none;margin-top:3px;width:9px;height:9px;border-radius:50%;display:inline-block}
+.sg-detail{flex:1;overflow-y:auto;scrollbar-color:#3a8fd0 #0c1d30;scrollbar-width:thin;padding:10px 14px}
+.sg-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #2a4a6a;padding-bottom:6px;margin-bottom:8px}
+.sg-name{font-size:15px;color:#fff;letter-spacing:2px}
+.sg-sub{color:#5f87a3;font-size:11px;margin-top:3px}
+.badge{border:1px solid #3a8fd0;color:#6fd0ff;padding:2px 10px;font-size:11px;letter-spacing:2px;border-radius:2px}
+.stale{color:#e0b04f;font-size:11px;text-align:right}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px}
+.tile{display:flex;align-items:baseline;gap:6px;white-space:nowrap;background:rgba(20,45,70,.45);border:1px solid #23415c;padding:3px 7px;border-radius:3px}
+.tile .k{font-size:9px;letter-spacing:1px;color:#5f87a3}
+.tile .v{font-size:12px;color:#e8f4ff}
+.sec{font-size:11px;letter-spacing:3px;color:#6fd0ff;margin:8px 0 2px;display:flex;align-items:center;gap:10px}
+.sec:after{content:"";flex:1;height:1px;background:#23415c}
+.sg table{width:100%;border-collapse:collapse}
+.sg th{font-size:10px;letter-spacing:2px;color:#5f87a3;text-align:left;font-weight:normal;padding:2px 14px 2px 6px;border-bottom:1px solid #23415c}
+.sg td{padding:2px 14px 2px 6px;border-bottom:1px solid rgba(35,65,92,.4)}
+.sg td.r,.sg th.r{text-align:right}
+.sur{color:#5fe08a}.def{color:#ff7a6a}
+.tag{font-size:10px;letter-spacing:1px;padding:1px 6px;border-radius:2px}
+.tag.sur{background:rgba(95,224,138,.14);border:1px solid #2f8f55}
+.tag.def{background:rgba(255,122,106,.14);border:1px solid #9a4337}
+.grp{display:flex;align-items:center;gap:8px;margin:6px 0 2px;font-size:12px;letter-spacing:3px}
+.grp.sur{color:#5fe08a}.grp.def{color:#ff7a6a}
+.grp .bar{width:3px;height:14px;background:currentColor}
+.sg-tree::-webkit-scrollbar,.sg-detail::-webkit-scrollbar{width:8px}.sg-tree::-webkit-scrollbar-track,.sg-detail::-webkit-scrollbar-track{background:#0c1d30}.sg-tree::-webkit-scrollbar-thumb,.sg-detail::-webkit-scrollbar-thumb{background:#3a8fd0;border-radius:4px}
+.tile .v.sur{color:#5fe08a}.tile .v.def{color:#ff7a6a}
+.sg th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.sg th.sortable:hover{color:#8fe0ff}
+.sg th.active{color:#8fe0ff}
+.sg th .lbl{position:relative}
+.sg th .arr{position:absolute;left:100%;top:50%;margin:-2px 0 0 5px;width:0;height:0;border-left:3.5px solid transparent;border-right:3.5px solid transparent}
+.sg th.asc .arr{border-bottom:5px solid #8fe0ff}
+.sg th.desc .arr{border-top:5px solid #8fe0ff}
+.sg table{table-layout:fixed}
+.sg th,.sg td,.sg th.r,.sg td.r{text-align:center;padding:2px 4px}
+</style>
+
+<h2>Layout B v24: Day capitalised</h2>
+<p class="subtitle">Resize the window: the whole menu scales with the stage. Numbers are made up.</p>
+
+<div class="stagewrap" id="sw"><div class="stage" id="st">
+<div class="sg">
+  <div class="sg-top"><span>SYSTEMS &amp; STATIONS</span><span>6 LOGGED</span></div>
+  <div class="sg-body">
+    <div class="sg-tree"><div style="direction:ltr">
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Helios<small>Stations - 3</small></div></div>
+      <div class="sg-st sel"><span class="dot" style="background:#4fb4ff"></span>Helios Prime</div>
+      <div class="sg-st"><span class="dot" style="background:#ff5a4f"></span>Helios Dock 9</div>
+      <div class="sg-st"><span class="dot" style="background:#9aa5b0"></span>Ember Yard</div>
+      <div class="sg-sys" style="margin-top:8px"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5M5 2.5V7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Kestrel<small>Stations - 1</small></div></div>
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Vanta<small>Stations - 2</small></div></div>
+      <div class="sg-st"><span class="dot" style="background:#4fb4ff"></span>Vanta Orbital</div>
+      <div class="sg-st"><span class="dot" style="background:#e0b04f"></span>Ashfall Relay</div>
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5M5 2.5V7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Orrin<small>Stations - 1</small></div></div>
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5M5 2.5V7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Tarsis<small>Stations - 1</small></div></div>
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5M5 2.5V7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Kell<small>Stations - 1</small></div></div>
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5M5 2.5V7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Nadir<small>Stations - 1</small></div></div>
+      <div class="sg-sys"><svg class="tg" viewBox="0 0 10 10" width="10" height="10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="#4f7a96" stroke-width=".8"/><path d="M2.5 5H7.5M5 2.5V7.5" stroke="#8fe0ff" stroke-width=".8" fill="none"/></svg><div>Wren<small>Stations - 1</small></div></div>
+    </div></div>
+    <div class="sg-detail">
+      <div class="sg-head">
+        <div><div class="sg-name">HELIOS PRIME</div><div class="sg-sub">System: Helios</div></div>
+        <div><div class="badge">TERRAN UNION</div><div class="stale" style="margin-top:6px">Visited: Day 42 (13 days ago)</div></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="k">POPULATION</div><div class="v sur">+12,400</div></div>
+        <div class="tile"><div class="k">WEALTH</div><div class="v">Wealthy</div></div>
+        <div class="tile"><div class="k">REPUTATION</div><div class="v">+34</div></div>
+      </div>
+      <div class="sec">MARKET (AS LAST SEEN)</div>
+      <div class="grp sur"><span class="bar"></span>PRODUCES</div>
+      <table><colgroup><col style="width:34%"><col style="width:22%"><col style="width:22%"><col style="width:22%"></colgroup>
+        <tr><th class="sortable"><span class="lbl">COMMODITY<span class="arr"></span></span></th><th class="sortable r"><span class="lbl">STOCK<span class="arr"></span></span></th><th class="sortable r"><span class="lbl">BUY<span class="arr"></span></span></th><th class="sortable r"><span class="lbl">SELL<span class="arr"></span></span></th></tr>
+        <tr><td>Food</td><td class="r sur">+12</td><td class="r">8</td><td class="r">6</td></tr>
+        <tr><td>Fuel</td><td class="r sur">+6</td><td class="r">14</td><td class="r">11</td></tr>
+      </table>
+      <div class="grp def"><span class="bar"></span>CONSUMES</div>
+      <table><colgroup><col style="width:34%"><col style="width:22%"><col style="width:22%"><col style="width:22%"></colgroup>
+        <tr><th class="sortable"><span class="lbl">COMMODITY<span class="arr"></span></span></th><th class="sortable r"><span class="lbl">STOCK<span class="arr"></span></span></th><th class="sortable r"><span class="lbl">BUY<span class="arr"></span></span></th><th class="sortable r"><span class="lbl">SELL<span class="arr"></span></span></th></tr>
+        <tr><td>Ore</td><td class="r def">-7</td><td class="r">22</td><td class="r">18</td></tr>
+        <tr><td>Parts</td><td class="r def">-9</td><td class="r">40</td><td class="r">33</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+</div></div>
+<script>
+(function(){var w=document.getElementById("sw"),s=document.getElementById("st");
+function f(){s.style.transform="scale("+(w.clientWidth/1280)+")";}
+f();window.addEventListener("resize",f);new ResizeObserver(f).observe(w);})();
+
+(function(){
+  function val(tr,i){var t=tr.cells[i].textContent.trim();var n=parseFloat(t.replace("+",""));return isNaN(n)?t.toLowerCase():n;}
+  document.querySelectorAll(".sg table").forEach(function(tb){
+    var col=-1,dir=1;
+    Array.prototype.forEach.call(tb.rows[0].cells,function(th,i){
+      th.addEventListener("click",function(){
+        if(col===i){dir=-dir;}else{col=i;dir=1;}
+        var rows=Array.prototype.slice.call(tb.rows,1);
+        rows.sort(function(a,b){var x=val(a,col),y=val(b,col);return (x<y?-1:x>y?1:0)*dir;});
+        rows.forEach(function(r){tb.tBodies[0].appendChild(r);});
+        Array.prototype.forEach.call(tb.rows[0].cells,function(h,j){
+          h.classList.remove("asc","desc","active");
+          if(j===col){h.classList.add("active",dir===1?"asc":"desc");}
+        });
+      });
+    });
+  });
+})();
+</script>

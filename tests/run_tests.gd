@@ -53,7 +53,6 @@ func _run_all() -> void:
 		preload("res://tests/test_galaxy_document.gd"),
 		preload("res://tests/test_galaxy_validator.gd"),
 		preload("res://tests/test_map_edit_model.gd"),
-		preload("res://tests/test_galaxy_document.gd"),
 	]
 	var total_failures := 0
 	for script in test_scripts:
@@ -257,6 +256,12 @@ func _run_all() -> void:
 	for f in base_overview_panel_failures:
 		print("FAIL [%s]: %s" % [base_overview_panel_test.resource_path, f])
 	total_failures += base_overview_panel_failures.size()
+
+	var map_editor_test = load("res://tests/test_map_editor.gd")
+	var map_editor_failures: Array[String] = await map_editor_test.run_async(self)
+	for f in map_editor_failures:
+		print("FAIL [%s]: %s" % [map_editor_test.resource_path, f])
+	total_failures += map_editor_failures.size()
 
 	var game_over_test = preload("res://tests/test_game_over.gd")
 	var game_over_failures: Array[String] = await game_over_test.run_async(self)

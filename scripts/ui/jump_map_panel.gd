@@ -132,7 +132,9 @@ func _system_line(id: String) -> String:
 	if not _state.visited.has(id):
 		return "Unknown system"
 	var seen: Dictionary = _state.last_seen.get(id, {})
-	var line := "%s - %s - %d stations - Danger %d" % [_state.galaxy.system(id).display_name, owner_text(seen.get("owners", [])), seen.get("stations", 0), seen.get("tier", 0)]
+	var count: int = seen.get("stations", 0)
+	var stations := "1 station" if count == 1 else "%d stations" % count
+	var line := "%s - %s - %s - Danger %d" % [_state.galaxy.system(id).display_name, owner_text(seen.get("owners", [])), stations, seen.get("tier", 0)]
 	if seen.get("pirates_seen", false):
 		line += ", pirates seen"
 	return line

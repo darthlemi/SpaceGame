@@ -239,8 +239,11 @@ static func _check_trade_at(failures: Array[String]) -> void:
 			failures.append("run_npc_trade_at(home): expected only surplus goods loaded, got %s" % [trader.cargo])
 			break
 
-	# Away: cargo unloads into that station, then goods home needs (net < 0) load from it.
+	# Away: cargo unloads into that station, then goods home needs (net < 0) load from its surplus
+	# only. Kestrel Picket burns Ore and Fuel itself, so only stock above TARGET_STOCK is spare.
 	var away: StationData = state.galaxy.station("kestrel_picket")
+	away.economy.stock[Commodity.Type.ORE] = Commodity.TARGET_STOCK[Commodity.Type.ORE] + 30.0
+	away.economy.stock[Commodity.Type.FOOD] = Commodity.TARGET_STOCK[Commodity.Type.FOOD] + 30.0
 	trader.cargo = {Commodity.Type.WEAPONS: 4.0}
 	var away_before: Dictionary = away.economy.stock.duplicate()
 	var home_weapons_before: float = bastion.economy.stock.get(Commodity.Type.WEAPONS, 0.0)
@@ -258,10 +261,15 @@ static func _check_trade_at(failures: Array[String]) -> void:
 			failures.append("run_npc_trade_at(away): expected only goods home needs, got %s" % [trader.cargo])
 			break
 		needed_loaded += 1
+		if commodity == Commodity.Type.FUEL:
+			continue
 		if not is_equal_approx(away.economy.stock.get(commodity, 0.0), away_before.get(commodity, 0.0) - amount):
 			failures.append("run_npc_trade_at(away): expected %s drawn from the away station's stock" % Commodity.NAMES[commodity])
+		if away.economy.stock.get(commodity, 0.0) < Commodity.TARGET_STOCK[commodity] - CrewRules.ROUND_EPSILON:
+			failures.append("run_npc_trade_at(away): expected %s taken only above TARGET_STOCK, left %.1f" % [Commodity.NAMES[commodity], away.economy.stock.get(commodity, 0.0)])
 	if needed_loaded < 2:
 		failures.append("run_npc_trade_at(away): expected cargo split across the needed goods, got %s" % [trader.cargo])
+	_check_trade_surplus_only(state, trader, bastion, failures)
 
 	# A fleet with no known home station is a no-op.
 	var orphan := CampaignFleet.new()
@@ -271,6 +279,23 @@ static func _check_trade_at(failures: Array[String]) -> void:
 	if not is_equal_approx(orphan.cargo.get(Commodity.Type.ORE, 0.0), 3.0):
 		failures.append("run_npc_trade_at: expected a homeless fleet left untouched")
 	state.free()
+
+# A partner that consumes a good keeps it all up to TARGET_STOCK; one that makes it gives all it has.
+static func _check_trade_surplus_only(state, trader: CampaignFleet, home: StationData, failures: Array[String]) -> void:
+	var yards: StationData = state.galaxy.station("bastion_yards")
+	yards.economy.stock[Commodity.Type.ORE] = Commodity.TARGET_STOCK[Commodity.Type.ORE]
+	trader.cargo = {}
+	state.run_npc_trade_at(trader, yards)
+	if trader.cargo.get(Commodity.Type.ORE, 0.0) > 0.0 or yards.economy.stock[Commodity.Type.ORE] < Commodity.TARGET_STOCK[Commodity.Type.ORE]:
+		failures.append("surplus only: expected no Ore taken from bastion_yards, which burns it, got cargo %s" % [trader.cargo])
+	var depot: StationData = state.galaxy.station("marrow_depot")
+	depot.economy.stock[Commodity.Type.FOOD] = 20.0
+	trader.cargo = {}
+	state.run_npc_trade_at(trader, depot)
+	if not is_equal_approx(trader.cargo.get(Commodity.Type.FOOD, 0.0), 20.0) or not is_zero_approx(depot.economy.stock[Commodity.Type.FOOD]):
+		failures.append("surplus only: expected all 20 Food taken from marrow_depot, which farms it, got cargo %s" % [trader.cargo])
+	if home.economy.net_commodities().get(Commodity.Type.FOOD, 0.0) >= 0.0:
+		failures.append("surplus only: test setup expected bastion to need Food")
 
 static func _check_next_destination(failures: Array[String]) -> void:
 	var state := _fresh_state()
@@ -311,9 +336,11 @@ static func _check_next_destination(failures: Array[String]) -> void:
 	if state.next_trade_destination(b_trader) != "enemy_hoard":
 		failures.append("next_trade_destination: expected a power faction at peace to be a candidate, got '%s'" % state.next_trade_destination(b_trader))
 	state.factions_at_war = true
+	# Once far_rich is empty, scores are surplus: Bastion Yards burns the Ore Bastion needs, so it
+	# offers none, and Marrow Depot's Food (it farms) wins at 1 jump.
 	far_rich.economy.stock = {}
-	if state.next_trade_destination(b_trader) != "bastion_yards":
-		failures.append("next_trade_destination: expected bastion_yards once far_rich is empty, got '%s'" % state.next_trade_destination(b_trader))
+	if state.next_trade_destination(b_trader) != "marrow_depot":
+		failures.append("next_trade_destination: expected marrow_depot's food surplus once far_rich is empty, got '%s'" % state.next_trade_destination(b_trader))
 
 	# A neutral trader (TRADER faction) only targets neutral stations, however rich the others are.
 	var bazaar: StationData = state.galaxy.station("aurum_bazaar")

@@ -76,6 +76,8 @@ func _ready() -> void:
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
 	CampaignState.fleet_role_changed.connect(_on_fleet_role_changed)
 	CampaignState.faction_reputation_changed.connect(_on_faction_reputation_changed)
+	CampaignState.fleet_retired.connect(_on_fleet_retired)
+	CampaignState.trade_destination_changed.connect(_on_trade_destination_changed)
 
 	respawn_panel.finished.connect(_on_respawn_finished)
 	if CampaignState.pending_respawn:
@@ -183,6 +185,27 @@ func _on_fleet_role_changed(fleet: CampaignFleet) -> void:
 			_aim_trader(icon)
 			break
 
+func _on_trade_destination_changed(fleet: CampaignFleet) -> void:
+	var icon := _icon_of(fleet)
+	if icon != null:
+		_aim_trader(icon)
+
+# The fleet already left the roster; its icon goes, and the player stops steering at it.
+func _on_fleet_retired(fleet: CampaignFleet) -> void:
+	var icon := _icon_of(fleet)
+	if icon == null:
+		return
+	if _travel_target == icon:
+		_travel_target = null
+	icon.queue_free()
+	_drop_freed_icons()
+
+func _icon_of(fleet: CampaignFleet) -> CampaignFleetIcon:
+	for icon in enemy_icons:
+		if is_instance_valid(icon) and not icon.is_queued_for_deletion() and icon.fleet == fleet:
+			return icon
+	return null
+
 func _on_trader_arrived_at(station_id: String, icon: CampaignFleetIcon) -> void:
 	CampaignState.run_npc_trade_at(icon.fleet, CampaignState.galaxy.station(station_id))
 	icon.fleet.dest_station_id = CampaignState.next_trade_destination(icon.fleet)
@@ -240,6 +263,10 @@ func _on_enemy_area_entered(other: Area2D, icon: CampaignFleetIcon) -> void:
 			CampaignState.start_skirmish(icon, other)
 
 func _on_skirmish_resolved(_winner_fleet: CampaignFleet, _loser_fleet: CampaignFleet) -> void:
+	_drop_freed_icons()
+
+# Prunes queued-for-deletion icons and closes an engage prompt whose fleet is gone.
+func _drop_freed_icons() -> void:
 	enemy_icons = enemy_icons.filter(func(icon): return is_instance_valid(icon) and not icon.is_queued_for_deletion())
 	if _pending_enemy_icon != null and (not is_instance_valid(_pending_enemy_icon) or _pending_enemy_icon.is_queued_for_deletion()):
 		_pending_enemy_icon = null

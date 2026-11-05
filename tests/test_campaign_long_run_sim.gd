@@ -1,13 +1,14 @@
 extends RefCounted
 
-# Runs the real campaign scene on a new_game() galaxy forward 5 and 20 simulated minutes via
+# Runs the real campaign scene on a new_game() galaxy forward 20 simulated minutes via
 # manual physics-stepping (not real time): the scene's own tick (skirmishes, economy, warps,
 # NPC jumps) plus every icon's movement. A real physics frame is awaited every few simulated
 # seconds so Area2D contacts (skirmishes) register and freed icons leave the roster; more often
 # costs suite time (each await is a real ~16 ms frame).
 #
 # Intent: the galaxy stays alive over a long run -- fleets keep existing and moving between
-# systems, and every station's economy keeps stock and population.
+# systems at a rate that doesn't decay, traders never sit at home on a trip they can't make, and
+# station economies keep their slots.
 #
 # The pirate-engagement assertion is EXPECTED TO FAIL today: pirates only ever
 # target the player, never other fleets. This is a known, documented gap (see
@@ -27,13 +28,28 @@ extends RefCounted
 
 const CampaignSceneScene = preload("res://scenes/campaign/campaign_scene.tscn")
 
-const SIM_DURATIONS_SECONDS: Array[float] = [300.0, 1200.0]  # 5 min, 20 min
+# One 20 min run: a shorter one would only repeat its first part.
+const SIM_DURATIONS_SECONDS: Array[float] = [1200.0]
 const STEP_DELTA := 1.0 / 60.0
 const STEPS_PER_REAL_FRAME := 300
 const ENGAGEMENT_EPSILON := 1.0
 const RNG_SEED := 7
 # Respawn refills quotas after FLEET_RESPAWN_DELAY, so the roster should never fall far.
 const MIN_FLEET_FRACTION := 0.5
+# The first third burns down every station's seeded stock, so some fall-off is expected. Measured at
+# 0.50-0.59 after the final-review fixes; the frozen galaxy they fixed measured 0.35.
+const MIN_JUMP_RATE_KEPT := 0.4
+# A trader with a destination elsewhere decides within DECISION_INTERVAL + DECISION_JITTER.
+const MAX_TRADER_IDLE_AT_HOME := 120.0
+# Stations that lose slots on today's data (expected; see the 2026-11-04 final-fix-report). The
+# Dominion industrial stations have no Ore producer within TRADE_RANGE_JUMPS, and these
+# trade-hub populations eat more Food than one hauler brings. Any other station losing a slot is a
+# regression. Shrink this list when the economy data is rebalanced.
+const KNOWN_SLOT_LOSS: Array[String] = [
+	"aurum_bazaar", "aurum_spire", "bastion", "bastion_yards", "cinder_market", "crownspire",
+	"freeport", "haven_exchange", "ironhold", "kestrel_picket", "northgate_hub", "slagfall_foundry",
+	"wreckyard_salvage",
+]
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
@@ -44,11 +60,18 @@ static func run_async(tree: SceneTree) -> Array[String]:
 		campaign_state.rng.seed = RNG_SEED
 		campaign_state.new_game()
 		var start_fleets: int = campaign_state.enemy_fleets.size()
-		var npc_jumps := [0]
+		var seeded_slots := {}
+		for station in campaign_state.galaxy.stations:
+			seeded_slots[station.id] = station.economy.slots.size()
+		# NPC jumps per third of the run; sim_time is shared with the step loop.
+		var jumps_by_third := [0, 0, 0]
+		var sim_time := [0.0]
 		var on_jumped := func(fleet: CampaignFleet, _from: String):
 			if fleet != campaign_state.player_fleet:
-				npc_jumps[0] += 1
+				jumps_by_third[mini(2, int(sim_time[0] / (duration / 3.0)))] += 1
 		campaign_state.fleet_jumped.connect(on_jumped)
+		var idle_since := {}
+		var max_idle := [0.0, ""]
 
 		var scene: Node2D = CampaignSceneScene.instantiate()
 		tree.root.add_child(scene)
@@ -93,7 +116,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 				tree.paused = false
 				icons = _live_icons(scene)
 				prey = _prey(campaign_state, pirate_icon, others)
+				_track_idle_traders(campaign_state, sim_time[0], idle_since, max_idle)
 			scene._physics_process(STEP_DELTA)
+			sim_time[0] += STEP_DELTA
 			for icon in icons:
 				icon._physics_process(STEP_DELTA)
 			for icon in icons:
@@ -124,7 +149,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			if opportunity_seen[other] and not engaged[other]:
 				failures.append("[sim %0.0fs] pirate never targeted %s despite coming within detection range" % [duration, other_label])
 
-		_check_alive(campaign_state, duration, start_fleets, npc_jumps[0], failures)
+		_check_alive(campaign_state, duration, start_fleets, jumps_by_third, failures)
+		_check_economy_and_traders(campaign_state, duration, seeded_slots, max_idle, failures)
 		campaign_state.fleet_jumped.disconnect(on_jumped)
 		scene.queue_free()
 		await tree.process_frame
@@ -133,27 +159,46 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	campaign_state.reset()
 	return failures
 
-static func _check_alive(campaign_state, duration: float, start_fleets: int, npc_jumps: int, failures: Array[String]) -> void:
+static func _check_alive(campaign_state, duration: float, start_fleets: int, jumps_by_third: Array, failures: Array[String]) -> void:
 	var fleets: int = campaign_state.enemy_fleets.size()
 	var systems_with_fleets := {}
 	for fleet in campaign_state.enemy_fleets:
 		systems_with_fleets[fleet.system_id] = true
-	print("[sim %0.0fs] fleets %d (started %d), NPC jumps %d, systems with fleets %d/%d" % [duration, fleets, start_fleets, npc_jumps, systems_with_fleets.size(), campaign_state.galaxy.systems.size()])
+	print("[sim %0.0fs] fleets %d (started %d), NPC jumps by third %s, systems with fleets %d/%d" % [duration, fleets, start_fleets, jumps_by_third, systems_with_fleets.size(), campaign_state.galaxy.systems.size()])
 	if fleets < start_fleets * MIN_FLEET_FRACTION:
 		failures.append("[sim %0.0fs] expected at least %d fleets alive, got %d" % [duration, ceili(start_fleets * MIN_FLEET_FRACTION), fleets])
-	if npc_jumps <= 0:
-		failures.append("[sim %0.0fs] expected NPC fleets to jump between systems, saw none" % duration)
+	if jumps_by_third[0] <= 0 or jumps_by_third[2] < jumps_by_third[0] * MIN_JUMP_RATE_KEPT:
+		failures.append("[sim %0.0fs] expected NPC jumps in the last third at least %.0f%% of the first, got %s" % [duration, 100.0 * MIN_JUMP_RATE_KEPT, jumps_by_third])
+
+static func _check_economy_and_traders(campaign_state, duration: float, seeded_slots: Dictionary, max_idle: Array, failures: Array[String]) -> void:
+	var lost: Array[String] = []
 	for station in campaign_state.galaxy.stations:
 		var economy: BaseEconomy = station.economy
 		if economy == null:
 			continue
-		var stock_total := 0.0
-		for amount in economy.stock.values():
-			stock_total += amount
-		if stock_total <= 0.0:
-			failures.append("[sim %0.0fs] expected %s to keep some stock, it has none" % [duration, station.id])
-		if economy.population_capacity() > 0.0 and economy.population <= 0.0:
-			failures.append("[sim %0.0fs] expected %s to keep its population, it has none" % [duration, station.id])
+		if economy.slots.size() < seeded_slots[station.id]:
+			lost.append(station.id)
+			if not KNOWN_SLOT_LOSS.has(station.id):
+				failures.append("[sim %0.0fs] expected %s to keep its %d slots, it has %d" % [duration, station.id, seeded_slots[station.id], economy.slots.size()])
+	print("[sim %0.0fs] stations below their seeded slots: %s; longest trader idle at home with a destination: %.0f s (%s)" % [duration, lost, max_idle[0], max_idle[1]])
+	if max_idle[0] > MAX_TRADER_IDLE_AT_HOME:
+		failures.append("[sim %0.0fs] expected no trader idle at home over %.0f s with a destination, %s waited %.0f s" % [duration, MAX_TRADER_IDLE_AT_HOME, max_idle[1], max_idle[0]])
+
+# Idle: in its home system, not warping, with a destination station in another system.
+static func _track_idle_traders(campaign_state, now: float, idle_since: Dictionary, max_idle: Array) -> void:
+	for fleet in campaign_state.enemy_fleets:
+		var home: StationData = campaign_state.galaxy.station(fleet.home_station_id)
+		var dest: StationData = campaign_state.galaxy.station(fleet.dest_station_id)
+		var idle: bool = fleet.role == CampaignFleet.Role.TRADER and home != null and dest != null \
+				and fleet.system_id == home.system_id and dest.system_id != fleet.system_id and not fleet.is_warping()
+		if not idle:
+			idle_since.erase(fleet)
+			continue
+		if not idle_since.has(fleet):
+			idle_since[fleet] = now
+		if now - idle_since[fleet] > max_idle[0]:
+			max_idle[0] = now - idle_since[fleet]
+			max_idle[1] = fleet.home_station_id
 
 # Live icons the pirate is hostile to; empty once the pirate itself is gone.
 static func _prey(campaign_state, pirate_icon, others: Array) -> Array:

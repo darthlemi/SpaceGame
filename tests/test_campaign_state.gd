@@ -197,11 +197,11 @@ static func run() -> Array[String]:
 		failures.append("run_npc_trade_at: expected no deficit cargo loaded for a home with no consuming slots, got cargo=%s" % hauler.cargo)
 
 	# A home with a deficit (Dominion needs Ore/Fuel/Food) loads from the
-	# away station's stock.
+	# away station's surplus: stock above TARGET_STOCK of goods it doesn't make.
 	var dominion_home := _test_station("dominion_home", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
 	dominion_home.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
 	trade_route_state.galaxy.add_station(dominion_home)
-	player_home.economy.stock[Commodity.Type.ORE] = 30.0
+	player_home.economy.stock[Commodity.Type.ORE] = Commodity.TARGET_STOCK[Commodity.Type.ORE] + 30.0
 
 	var deficit_hauler := CampaignFleet.new()
 	deficit_hauler.faction = CampaignFleet.Faction.DOMINION
@@ -218,16 +218,16 @@ static func run() -> Array[String]:
 	# qualifying commodities, not raced for by whichever one net_commodities()
 	# happens to enumerate first. Dominion's industrial+population slots net
 	# WEAPONS +2, ORE -3, FUEL -2, FOOD -4 -- a single-ship hauler (capacity
-	# 20) arriving at a station stocked well above capacity in all three must
-	# come away with more than just Ore, including Fuel.
+	# 20) arriving at a station whose surplus is well above capacity in all
+	# three must come away with more than just Ore, including Fuel past its tank.
 	var split_deficit_state := CampaignState.new()
 	var split_deficit_home := _test_station("split_home", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
 	split_deficit_home.economy.slots = [EconomyRole.industrial(), EconomyRole.population()]
 	var split_deficit_away := _test_station("split_away", CampaignFleet.Faction.PLAYER, BaseEconomy.new())
 	split_deficit_away.economy.stock = {
-		Commodity.Type.ORE: 100.0,
-		Commodity.Type.FUEL: 100.0,
-		Commodity.Type.FOOD: 100.0,
+		Commodity.Type.ORE: 200.0,
+		Commodity.Type.FUEL: 200.0,
+		Commodity.Type.FOOD: 200.0,
 	}
 	split_deficit_state.galaxy = _test_galaxy([split_deficit_home, split_deficit_away])
 	var split_deficit_hauler := CampaignFleet.new()
@@ -243,8 +243,9 @@ static func run() -> Array[String]:
 			split_deficit_commodities_loaded += 1
 	if split_deficit_commodities_loaded <= 1:
 		failures.append("run_npc_trade_at: expected cargo space to be split across all deficit commodities, not just one, got cargo=%s" % split_deficit_hauler.cargo)
-	if split_deficit_hauler.cargo.get(Commodity.Type.FUEL, 0.0) <= 0.0:
-		failures.append("run_npc_trade_at: expected Fuel (a deficit commodity) to actually be picked up, not starved by a greedy first commodity")
+	var split_tank: float = split_deficit_state.NPC_FUEL_TARGET_JUMPS * JumpRules.jump_cost(split_deficit_hauler)
+	if split_deficit_hauler.fuel_amount() <= split_tank + CrewRules.ROUND_EPSILON:
+		failures.append("run_npc_trade_at: expected Fuel (a deficit commodity) to actually be picked up past the jump tank, not starved by a greedy first commodity")
 
 	# Symmetric case on the export side: a home with multiple surplus
 	# commodities and capacity too small to carry all of them fully should

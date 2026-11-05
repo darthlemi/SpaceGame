@@ -12,7 +12,8 @@ const HOME := CampaignFleet.Faction.PLAYER
 const COMBAT := CampaignFleet.Role.COMBAT
 const TRADER := CampaignFleet.Role.TRADER
 
-# Jump-map position is normalised 0..1. Tier is the jump distance from START_SYSTEM_ID.
+# Jump-map position is normalised 0..1. Tier is the jump distance from START_SYSTEM_ID unless an
+# entry sets an optional "tier" (1..5).
 const SYSTEMS := [
 	{"id": "aurum", "name": "Aurum", "map": Vector2(0.70, 0.76)},
 	{"id": "ashfall", "name": "Ashfall", "map": Vector2(0.97, 0.08)},
@@ -42,11 +43,12 @@ const SYSTEMS := [
 	{"id": "wreckyard", "name": "Wreckyard", "map": Vector2(0.50, 0.92)},
 ]
 
-# roles are EconomyRole factory names; quota maps Role -> target fleet count.
+# roles are EconomyRole factory names; quota maps Role -> target fleet count. An optional "stock"
+# maps Commodity.Type -> starting units; unlisted goods start at Commodity.TARGET_STOCK.
 const STATIONS := [
 	{"name": "Aurum Spire", "system": "aurum", "owner": D, "pos": Vector2(300, 250), "art": "spoke_3", "roles": ["industrial", "refinery"], "quota": {COMBAT: 1, TRADER: 1}},
 	{"name": "Aurum Bazaar", "system": "aurum", "owner": N, "pos": Vector2(850, 420), "art": "cross_2", "roles": ["trade_hub", "population"], "quota": {TRADER: 1}},
-	{"name": "Ashfall Citadel", "system": "ashfall", "owner": P, "pos": Vector2(850, 420), "art": "ring_2", "roles": ["refinery", "population"], "quota": {COMBAT: 2}},
+	{"name": "Ashfall Citadel", "system": "ashfall", "owner": P, "pos": Vector2(850, 420), "art": "ring_2", "roles": ["refinery", "agriculture"], "quota": {COMBAT: 2}},
 	{"name": "Ashfall Yard", "system": "ashfall", "owner": P, "pos": Vector2(300, 250), "art": "cross_3", "roles": ["refinery", "trade_hub"], "quota": {COMBAT: 1}},
 	{"name": "Bastion", "system": "bastion", "owner": D, "pos": Vector2(580, 350), "art": "ring_4", "roles": ["industrial", "population"], "quota": {COMBAT: 2, TRADER: 1}},
 	{"name": "Bastion Yards", "system": "bastion", "owner": D, "pos": Vector2(850, 500), "art": "truss_6", "roles": ["industrial", "refinery"], "quota": {TRADER: 1}},
@@ -54,7 +56,7 @@ const STATIONS := [
 	{"name": "Cinder Works", "system": "cinder", "owner": F, "pos": Vector2(300, 250), "art": "truss_5", "roles": ["mining", "refinery"], "quota": {COMBAT: 1, TRADER: 1}},
 	{"name": "Cinder Market", "system": "cinder", "owner": N, "pos": Vector2(850, 420), "art": "cross_2", "roles": ["trade_hub", "population"], "quota": {TRADER: 1}},
 	{"name": "Crownspire", "system": "crownspire", "owner": D, "pos": Vector2(580, 350), "art": "ring_3", "roles": ["industrial", "population"], "quota": {COMBAT: 2, TRADER: 1}},
-	{"name": "Deadreach Citadel", "system": "deadreach", "owner": P, "pos": Vector2(300, 250), "art": "truss_1", "roles": ["refinery", "population"], "quota": {COMBAT: 2}},
+	{"name": "Deadreach Citadel", "system": "deadreach", "owner": P, "pos": Vector2(300, 250), "art": "truss_1", "roles": ["refinery", "agriculture"], "quota": {COMBAT: 2}},
 	{"name": "Deadreach Yard", "system": "deadreach", "owner": P, "pos": Vector2(850, 420), "art": "spoke_4", "roles": ["refinery", "trade_hub"], "quota": {COMBAT: 1}},
 	{"name": "Farhaven", "system": "farhaven", "owner": N, "pos": Vector2(580, 350), "art": "arcs_2", "roles": ["agriculture", "mining"], "quota": {COMBAT: 1, TRADER: 1}},
 	{"name": "Freeport", "system": "freeport", "owner": N, "pos": Vector2(300, 250), "art": "cross_1", "roles": ["trade_hub", "population"], "quota": {TRADER: 1}},
@@ -106,10 +108,7 @@ static func build() -> Galaxy:
 	var galaxy := Galaxy.new()
 	galaxy.start_system_id = START_SYSTEM_ID
 	for entry in SYSTEMS:
-		var sys := StarSystem.new()
-		sys.id = entry["id"]
-		sys.display_name = entry["name"]
-		sys.map_position = entry["map"]
+		var sys := _make_system(entry)
 		galaxy.systems[sys.id] = sys
 	for entry in STATIONS:
 		galaxy.add_station(_make_station(entry))
@@ -117,6 +116,14 @@ static func build() -> Galaxy:
 		galaxy.link(pair[0], pair[1])
 	galaxy.assign_tiers()
 	return galaxy
+
+static func _make_system(entry: Dictionary) -> StarSystem:
+	var sys := StarSystem.new()
+	sys.id = entry["id"]
+	sys.display_name = entry["name"]
+	sys.map_position = entry["map"]
+	sys.tier_override = entry.get("tier", 0)
+	return sys
 
 static func _make_station(entry: Dictionary) -> StationData:
 	var st := StationData.new()
@@ -127,6 +134,7 @@ static func _make_station(entry: Dictionary) -> StationData:
 	st.owner = entry["owner"]
 	st.art = entry["art"]
 	st.fleet_quota = entry["quota"].duplicate()
+	st.starting_stock = entry.get("stock", {}).duplicate()
 	st.economy = BaseEconomy.new()
 	for role_name in entry["roles"]:
 		st.economy.slots.append(_make_role(role_name))

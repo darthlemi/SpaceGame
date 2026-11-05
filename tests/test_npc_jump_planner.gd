@@ -14,6 +14,7 @@ static func run() -> Array[String]:
 	_check_patrols(galaxy, failures)
 	_check_traders(galaxy, failures)
 	_check_planner_respects_round_trip_fuel(galaxy, failures)
+	_check_dwell_limits(galaxy, failures)
 	return failures
 
 static func _build() -> Galaxy:
@@ -140,3 +141,37 @@ static func _check_planner_respects_round_trip_fuel(galaxy: Galaxy, failures: Ar
 		failures.append("round trip: expected path_home ['h'] from a, got %s" % [NpcJumpPlanner.path_home(away, galaxy)])
 	if not NpcJumpPlanner.path_home(pirate, galaxy).is_empty():
 		failures.append("round trip: expected an empty path_home at home")
+
+# Away fleets never fight in-system, so raids and hunts end on away_time, not on contact.
+static func _check_dwell_limits(galaxy: Galaxy, failures: Array[String]) -> void:
+	var raider := _fleet(PIRATE, COMBAT, "h_den", "a")
+	var prey := _fleet(FREEHOLD, TRADER, "a_post", "a")
+	var fleets: Array[CampaignFleet] = [raider, prey]
+	raider.away_time = NpcJumpPlanner.RAID_DWELL - 1.0
+	var got := _plan(raider, galaxy, fleets)
+	if not got.is_empty():
+		failures.append("dwell: expected a raider with prey to stay before RAID_DWELL, got %s" % [got])
+	raider.away_time = NpcJumpPlanner.RAID_DWELL
+	got = _plan(raider, galaxy, fleets)
+	if got != ["h"]:
+		failures.append("dwell: expected a raider past RAID_DWELL to head home ['h'] despite prey, got %s" % [got])
+
+	var hunter := _fleet(FREEHOLD, COMBAT, "a_post", "b")
+	var quarry := _fleet(PIRATE, COMBAT, "h_den", "b")
+	fleets = [hunter, quarry]
+	hunter.away_time = NpcJumpPlanner.HUNT_DWELL - 1.0
+	got = _plan(hunter, galaxy, fleets)
+	if not got.is_empty():
+		failures.append("dwell: expected a hunting patrol to hold before HUNT_DWELL, got %s" % [got])
+	hunter.away_time = NpcJumpPlanner.HUNT_DWELL
+	got = _plan(hunter, galaxy, fleets)
+	if got != ["a"]:
+		failures.append("dwell: expected a patrol past HUNT_DWELL to head home ['a'] despite the pirate, got %s" % [got])
+	# At home the dwell never applies: a patrol holds its own system against a raider.
+	var home_guard := _fleet(FREEHOLD, COMBAT, "a_post", "a")
+	var raiding := _fleet(PIRATE, COMBAT, "h_den", "a")
+	fleets = [home_guard, raiding]
+	home_guard.away_time = NpcJumpPlanner.HUNT_DWELL * 2.0
+	got = _plan(home_guard, galaxy, fleets)
+	if not got.is_empty():
+		failures.append("dwell: expected a patrol at home to hold against a raider, got %s" % [got])

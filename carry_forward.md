@@ -141,9 +141,11 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
   and read it; piping a backgrounded run through `grep` can look like a hang.
 - New `class_name` files and new PNGs need one `--headless --editor --quit` warm pass before a
   `--script` run sees them. The pass rewrites `.import` files with CRLF-only diffs.
-- **Known flake:** `test_campaign_long_run_sim.gd`, 5-6 pirate-targeting failures. A clean suite
-  is that flake only, with no `SCRIPT ERROR`. Always grep for `SCRIPT ERROR`: one inside an async
-  test aborts it without a FAIL line.
+- **Known flake:** `test_campaign_long_run_sim.gd`, 3-4 pirate-targeting failures (3, 3 and 4 in
+  three runs after the 2026-11-04 final fix round; the count varies run to run). Any other FAIL in
+  that file is real: jump-rate decay, a trader idling at home, or a station outside
+  `KNOWN_SLOT_LOSS` losing a slot. A clean suite is that flake only, with no `SCRIPT ERROR`.
+  Always grep for `SCRIPT ERROR`: one inside an async test aborts it without a FAIL line.
 - `test_ai_controller_targeting.gd` is sensitive to test ordering. Put new async checks in their
   own file registered after it.
 - A parse error can hang a `--script` run. Write stubs before a red run. Kill only your own

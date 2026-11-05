@@ -5,6 +5,10 @@ signal fleet_spawn_requested(fleet: CampaignFleet)
 signal fleet_role_changed(fleet: CampaignFleet)
 signal faction_reputation_changed(faction_enum: CampaignFleet.Faction)
 signal fleet_jumped(fleet: CampaignFleet, from_system: String)
+# The fleet has already left enemy_fleets; its icon should go too.
+signal fleet_retired(fleet: CampaignFleet)
+# A trader re-picked its destination outside an arrival; its icon must re-aim.
+signal trade_destination_changed(fleet: CampaignFleet)
 
 const FINE_PER_KILL := 150
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
@@ -24,6 +28,9 @@ const TRADE_RANGE_JUMPS := 2
 # A full tank covers the longest trade trip there and back, so the round-trip fuel rule
 # (NpcJumpPlanner.fuel_allows) never keeps a hauler home from a partner in range.
 const NPC_FUEL_TARGET_JUMPS := 2 * TRADE_RANGE_JUMPS
+# Economy ticks of a station's own FUEL use held back from NPC refuels and trade loads, so they never
+# starve its slots (an industrial slot burns 2 a tick). A station that burns none keeps no reserve.
+const STATION_FUEL_RESERVE_TICKS := 5
 const NPC_SPAWN_SCATTER := 40.0
 const PLAYER_SPEED := 120.0
 const PLAYER_STARTING_FUEL := 30.0
@@ -51,17 +58,21 @@ var rng := RandomNumberGenerator.new()
 var _economy_tick_elapsed: float = 0.0
 
 func start_engagement(enemy_fleet: CampaignFleet) -> void:
-	for skirmish in active_skirmishes.duplicate():
-		if skirmish.fleet_winner == enemy_fleet or skirmish.fleet_loser == enemy_fleet:
-			active_skirmishes.erase(skirmish)
-			var other: CampaignFleetIcon = skirmish.icon_loser if skirmish.fleet_winner == enemy_fleet else skirmish.icon_winner
-			if is_instance_valid(other):
-				other.frozen = false
+	_drop_skirmishes_of(enemy_fleet)
 	# Combat interrupts a countdown on either side, as a skirmish does.
 	enemy_fleet.cancel_warp()
 	if player_fleet != null:
 		player_fleet.cancel_warp()
 	active_enemy_fleet = enemy_fleet
+
+# Ends the fleet's skirmishes unresolved and frees the other side to move.
+func _drop_skirmishes_of(fleet: CampaignFleet) -> void:
+	for skirmish in active_skirmishes.duplicate():
+		if skirmish.fleet_winner == fleet or skirmish.fleet_loser == fleet:
+			active_skirmishes.erase(skirmish)
+			var other: CampaignFleetIcon = skirmish.icon_loser if skirmish.fleet_winner == fleet else skirmish.icon_winner
+			if is_instance_valid(other):
+				other.frozen = false
 
 # Survivors are each side's ships left after escape rolls; captured are the losing side's
 # caught comps. The legacy 2-arg call (enemy wiped out) still loots and erases the enemy.
@@ -153,7 +164,7 @@ func new_game() -> void:
 	reset()
 	galaxy = GalaxyData.build()
 	for station in galaxy.stations:
-		_seed_economy(station.economy)
+		_seed_economy(station.economy, station.starting_stock)
 	var home := galaxy.home_station()
 	home_base_economy = home.economy
 	factions.assign([_new_power_faction(CampaignFleet.Faction.DOMINION, "Dominion"), _new_power_faction(CampaignFleet.Faction.FREEHOLD, "Freehold")])
@@ -224,6 +235,12 @@ func complete_warp(fleet: CampaignFleet) -> void:
 	if origin == null or dest == null:
 		fleet.cancel_warp()
 		return
+	# Fuel can fall (jettison) or the cost rise (a grown ship) during the countdown: no jump on fumes.
+	if not JumpRules.can_afford(fleet):
+		fleet.cancel_warp()
+		if fleet != player_fleet:
+			fleet.jump_path.clear()
+		return
 	fleet.cargo[Commodity.Type.FUEL] = maxf(0.0, fleet.fuel_amount() - JumpRules.jump_cost(fleet))
 	fleet.system_id = dest.id
 	fleet.position = JumpRules.arrival_point(origin.map_position, dest.map_position, rng)
@@ -239,7 +256,10 @@ func complete_warp(fleet: CampaignFleet) -> void:
 func tick_npc_jumps(delta: float) -> void:
 	if galaxy == null:
 		return
+	var stranded: Array[CampaignFleet] = []
 	for fleet in enemy_fleets:
+		var home := _home_station_of(fleet)
+		fleet.away_time = fleet.away_time + delta if home != null and fleet.system_id != home.system_id else 0.0
 		if fleet.is_warping() or _in_skirmish(fleet):
 			continue
 		fleet.jump_cooldown -= delta
@@ -247,23 +267,64 @@ func tick_npc_jumps(delta: float) -> void:
 			continue
 		_decide_npc_jump(fleet)
 		fleet.jump_cooldown = NpcJumpPlanner.DECISION_INTERVAL + rng.randf() * NpcJumpPlanner.DECISION_JITTER
+		if not fleet.is_warping() and _is_stranded(fleet):
+			stranded.append(fleet)
+	for fleet in stranded:
+		retire_npc(fleet)
 
-# Free, from the station's FUEL stock, up to NPC_FUEL_TARGET_JUMPS jumps; a short stock gives what it has.
+# A fleet that can never act again leaves the roster, so its station's respawn replaces it.
+func retire_npc(fleet: CampaignFleet) -> void:
+	if fleet == active_enemy_fleet or not enemy_fleets.has(fleet):
+		return
+	_drop_skirmishes_of(fleet)
+	fleet.cancel_warp()
+	enemy_fleets.erase(fleet)
+	fleet_retired.emit(fleet)
+
+# Away, short of the fuel home, and in a system with no station it may ever refuel at.
+func _is_stranded(fleet: CampaignFleet) -> bool:
+	var home := _home_station_of(fleet)
+	if home == null or fleet.system_id == home.system_id:
+		return false
+	if NpcJumpPlanner.fuel_allows(fleet, galaxy, NpcJumpPlanner.path_home(fleet, galaxy)):
+		return false
+	for station in galaxy.stations_in(fleet.system_id):
+		if can_refuel_at(fleet, station):
+			return false
+	return true
+
+# Pirates refuel only at pirate stations; every other NPC at any station it may trade with.
+func can_refuel_at(fleet: CampaignFleet, station: StationData) -> bool:
+	if fleet.faction == CampaignFleet.Faction.PIRATE:
+		return station.owner == CampaignFleet.Faction.PIRATE
+	return _is_trade_partner(fleet.faction, station.owner)
+
+# Free, from the station's FUEL above its reserve, up to NPC_FUEL_TARGET_JUMPS jumps;
+# a short stock gives what it can spare.
 func refuel_npc(fleet: CampaignFleet, station: StationData) -> void:
 	if station == null or station.economy == null:
 		return
 	var wanted := NPC_FUEL_TARGET_JUMPS * JumpRules.jump_cost(fleet) - fleet.fuel_amount()
-	var taken := minf(wanted, station.economy.stock.get(Commodity.Type.FUEL, 0.0))
+	var spare: float = station.economy.stock.get(Commodity.Type.FUEL, 0.0) - _fuel_reserve(station.economy)
+	var taken := minf(wanted, spare)
 	if taken <= 0.0:
 		return
 	station.economy.stock[Commodity.Type.FUEL] -= taken
 	fleet.cargo[Commodity.Type.FUEL] = fleet.fuel_amount() + taken
+
+static func _fuel_reserve(economy: BaseEconomy) -> float:
+	var per_tick := 0.0
+	for slot in economy.slots:
+		per_tick += slot.consumes.get(Commodity.Type.FUEL, 0.0)
+	return per_tick * STATION_FUEL_RESERVE_TICKS
 
 # A stored route resumes while fuel allows; otherwise replan, falling back to home, then to staying.
 func _decide_npc_jump(fleet: CampaignFleet) -> void:
 	if not fleet.jump_path.is_empty() and galaxy.are_linked(fleet.system_id, fleet.jump_path[0]) and NpcJumpPlanner.fuel_allows(fleet, galaxy, fleet.jump_path):
 		fleet.start_warp(fleet.jump_path[0])
 		return
+	if fleet.role == CampaignFleet.Role.TRADER:
+		_repick_trade_destination(fleet)
 	var path := NpcJumpPlanner.plan(fleet, galaxy, enemy_fleets, are_hostile)
 	if not NpcJumpPlanner.fuel_allows(fleet, galaxy, path):
 		path = NpcJumpPlanner.path_home(fleet, galaxy)
@@ -273,6 +334,19 @@ func _decide_npc_jump(fleet: CampaignFleet) -> void:
 	if not path.is_empty():
 		fleet.start_warp(path[0])
 
+# At home, a trader with no destination, or one it can't fuel, picks again rather than wait for ever.
+func _repick_trade_destination(fleet: CampaignFleet) -> void:
+	var home := _home_station_of(fleet)
+	if home == null or fleet.system_id != home.system_id or fleet.dest_station_id == home.id:
+		return
+	var dest: StationData = galaxy.station(fleet.dest_station_id)
+	if dest != null and NpcJumpPlanner.fuel_allows(fleet, galaxy, galaxy.path(fleet.system_id, dest.system_id)):
+		return
+	var picked := _best_trade_partner(fleet, home)
+	if picked != fleet.dest_station_id:
+		fleet.dest_station_id = picked
+		trade_destination_changed.emit(fleet)
+
 # Pops the hop just made; a stale route (the warp wasn't its next hop) is dropped.
 func _advance_npc_route(fleet: CampaignFleet, arrived_id: String) -> void:
 	if not fleet.jump_path.is_empty() and fleet.jump_path[0] == arrived_id:
@@ -281,6 +355,10 @@ func _advance_npc_route(fleet: CampaignFleet, arrived_id: String) -> void:
 		fleet.jump_path.clear()
 	if not fleet.jump_path.is_empty():
 		fleet.jump_cooldown = NpcJumpPlanner.HOP_DELAY
+		return
+	var home := _home_station_of(fleet)
+	if fleet.role == CampaignFleet.Role.COMBAT and home != null and arrived_id == home.system_id:
+		fleet.jump_cooldown = NpcJumpPlanner.HOME_REST
 
 func _in_skirmish(fleet: CampaignFleet) -> bool:
 	for skirmish in active_skirmishes:
@@ -288,12 +366,25 @@ func _in_skirmish(fleet: CampaignFleet) -> bool:
 			return true
 	return false
 
-# Every NPC in its home system tops up there, so one that docked while the stock was short isn't stuck.
-func _refuel_npcs_at_home() -> void:
+# Every NPC tops up at the stations it may use in its system, home first, so one that docked while
+# a stock was short, or that ran low away from home, isn't stuck.
+func _refuel_npcs() -> void:
+	if galaxy == null:
+		return
 	for fleet in enemy_fleets:
 		var home := _home_station_of(fleet)
 		if home != null and fleet.system_id == home.system_id:
 			refuel_npc(fleet, home)
+		for station in galaxy.stations_in(fleet.system_id):
+			if station != home and can_refuel_at(fleet, station):
+				refuel_npc(fleet, station)
+
+# Free and instant, like crew: a fleet that limped home can raid or patrol again.
+func _repair_npcs_at_home() -> void:
+	for fleet in enemy_fleets:
+		var home := _home_station_of(fleet)
+		if home != null and fleet.system_id == home.system_id and not _in_skirmish(fleet):
+			fleet.repair_to_full()
 
 # Buys exactly the shortfall for a jump at the distress premium; false when the quote isn't ok.
 func send_distress() -> bool:
@@ -318,7 +409,8 @@ func tick_economy(delta: float) -> void:
 					if _is_power_faction(station.owner):
 						_apply_station_allocation(station)
 				_tick_station_respawns(station, ECONOMY_TICK_INTERVAL)
-		_refuel_npcs_at_home()
+		_refuel_npcs()
+		_repair_npcs_at_home()
 		_refill_npc_crew()
 
 static func fleet_faction_for(owner: CampaignFleet.Faction, role: CampaignFleet.Role) -> CampaignFleet.Faction:
@@ -336,6 +428,8 @@ func spawn_station_fleet(station: StationData, role: CampaignFleet.Role) -> Camp
 	fleet.speed = NPC_SPEED[role]
 	fleet.position = station.position + Vector2(rng.randf_range(-NPC_SPAWN_SCATTER, NPC_SPAWN_SCATTER), rng.randf_range(-NPC_SPAWN_SCATTER, NPC_SPAWN_SCATTER))
 	fleet.cargo = {Commodity.Type.FUEL: NPC_FUEL_TARGET_JUMPS * JumpRules.jump_cost(fleet)}
+	# Staggered, so a new galaxy's fleets don't all make their first jump decision in one frame.
+	fleet.jump_cooldown = rng.randf() * NpcJumpPlanner.DECISION_INTERVAL
 	enemy_fleets.append(fleet)
 	fleet_spawn_requested.emit(fleet)
 	return fleet
@@ -386,9 +480,9 @@ func _new_power_faction(faction_enum: CampaignFleet.Faction, display_name: Strin
 	faction.reputation = 60.0
 	return faction
 
-func _seed_economy(economy: BaseEconomy) -> void:
+func _seed_economy(economy: BaseEconomy, starting_stock: Dictionary) -> void:
 	for commodity in Commodity.Type.values():
-		economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
+		economy.stock[commodity] = float(starting_stock.get(commodity, Commodity.TARGET_STOCK[commodity]))
 	economy.population = economy.population_capacity() * STARTING_POPULATION_FRACTION
 	economy.crew_pool = economy.crew_pool_cap()
 
@@ -756,34 +850,38 @@ func _apply_reputation_loss(defeated_faction: CampaignFleet.Faction) -> void:
 			power_faction.fine_reputation += loss
 			faction_reputation_changed.emit(defeated_faction)
 
-# At home: unload everything, then load home's surplus. Elsewhere: unload there, then load what home needs.
+# At home: unload everything, then load home's surplus. Elsewhere: unload there, then load what home
+# needs out of that station's own surplus, so a trader never strips a partner of what it consumes.
 func run_npc_trade_at(fleet: CampaignFleet, station: StationData) -> void:
 	var home := _home_station_of(fleet)
 	if home == null or station == null or home.economy == null or station.economy == null:
 		return
+	# The jump tank stays aboard; only hauled FUEL above it unloads, so a stop below its reserve can't
+	# keep the fuel the trader needs to get home.
+	var tank := minf(fleet.fuel_amount(), NPC_FUEL_TARGET_JUMPS * JumpRules.jump_cost(fleet))
 	for commodity in fleet.cargo:
 		var amount: float = fleet.cargo[commodity]
+		if commodity == Commodity.Type.FUEL:
+			amount -= tank
 		if amount > 0.0:
 			station.economy.stock[commodity] = station.economy.stock.get(commodity, 0.0) + amount
-	fleet.cargo = {}
-	# After the unload, which takes the fuel too, so the fleet always leaves fuelled.
+	fleet.cargo = {Commodity.Type.FUEL: tank}
 	refuel_npc(fleet, station)
-	_load_qualifying_commodities(fleet, home.economy.net_commodities(), station == home, station.economy.stock)
+	_load_trade_goods(fleet, _home_trade_goods(home, station == home), station.economy)
 
-# Home after every away stop. From home: the in-range partner best stocked with what home needs,
-# ties to fewer jumps then the shorter in-system distance; "" when there is no partner.
+# Home after every away stop. From home: see _best_trade_partner.
 func next_trade_destination(fleet: CampaignFleet) -> String:
 	var home := _home_station_of(fleet)
 	if home == null:
 		return ""
 	if fleet.dest_station_id != home.id:
 		return home.id
-	var needs: Array = []
-	if home.economy != null:
-		var net := home.economy.net_commodities()
-		for commodity in net:
-			if net[commodity] < 0.0:
-				needs.append(commodity)
+	return _best_trade_partner(fleet, home)
+
+# The in-range partner whose surplus best covers what home needs, among those the fleet can fuel
+# there and back; ties to fewer jumps, then the shorter in-system distance; "" when there is none.
+func _best_trade_partner(fleet: CampaignFleet, home: StationData) -> String:
+	var needs := _home_trade_goods(home, false)
 	var best: StationData = null
 	var best_score := 0.0
 	var best_jumps := 0
@@ -798,10 +896,12 @@ func next_trade_destination(fleet: CampaignFleet) -> String:
 		var jumps := galaxy.jump_distance(home.system_id, station.system_id)
 		if jumps < 0 or jumps > TRADE_RANGE_JUMPS:
 			continue
+		if not NpcJumpPlanner.fuel_allows(fleet, galaxy, galaxy.path(home.system_id, station.system_id)):
+			continue
 		var score := 0.0
 		if station.economy != null:
 			for commodity in needs:
-				score += station.economy.stock.get(commodity, 0.0)
+				score += _trade_surplus(station.economy, commodity)
 		var dist := home.position.distance_to(station.position)
 		if best != null:
 			var tied := is_equal_approx(score, best_score)
@@ -839,6 +939,8 @@ func _apply_station_allocation(station: StationData) -> void:
 		FleetAllocationPolicy.Action.GROW_TRADE:
 			_grow_station_fleet(trader_fleets, ShipType.Kind.FREIGHTER)
 		FleetAllocationPolicy.Action.REALLOCATE_TO_COMBAT:
+			# Unreachable with trader quotas of 1. Above 1 it goes live, and respawn then replaces each
+			# flipped trader, so the station's fleet count grows with no cap.
 			if trader_fleets.size() > 1:
 				trader_fleets[0].role = CampaignFleet.Role.COMBAT
 				fleet_role_changed.emit(trader_fleets[0])
@@ -868,28 +970,54 @@ func _threat_ratio_for(station: StationData) -> float:
 		combat_strength += fleet.total_strength()
 	return pirate_strength / max(combat_strength, 1.0)
 
-# Growth only adds a ship under the cap; lost fleets come back through respawn instead.
+# Growth only adds a ship under the cap; lost fleets come back through respawn instead. Only a fleet
+# at home grows, so a new ship never raises the jump cost of one that is away on what it carries.
 func _grow_station_fleet(fleets: Array[CampaignFleet], kind: ShipType.Kind) -> void:
 	for fleet in fleets:
+		var home := _home_station_of(fleet)
+		if home == null or fleet.system_id != home.system_id:
+			continue
 		if fleet.ship_compositions.size() < FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
 			fleet.ship_compositions.append(ShipType.new_composition(kind))
 			return
 
-func _load_qualifying_commodities(fleet: CampaignFleet, net: Dictionary, positive: bool, stock: Dictionary) -> void:
-	var qualifying: Array = []
+# Home's surplus (exports true) or needs (false), by its slots' net production. Home's own fleets
+# refuel from its stock, so a home that makes no FUEL also needs it while below TARGET_STOCK.
+func _home_trade_goods(home: StationData, exports: bool) -> Array:
+	var goods: Array = []
+	if home.economy == null:
+		return goods
+	var net := home.economy.net_commodities()
 	for commodity in net:
-		var qualifies: bool = net[commodity] > 0.0 if positive else net[commodity] < 0.0
-		if not qualifies or stock.get(commodity, 0.0) <= 0.0:
-			continue
-		qualifying.append(commodity)
+		if (exports and net[commodity] > 0.0) or (not exports and net[commodity] < 0.0):
+			goods.append(commodity)
+	var fuel := Commodity.Type.FUEL
+	var short_of_fuel: bool = net.get(fuel, 0.0) <= 0.0 and home.economy.stock.get(fuel, 0.0) < Commodity.TARGET_STOCK[fuel]
+	if not exports and short_of_fuel and not goods.has(fuel):
+		goods.append(fuel)
+	return goods
+
+# What a trader may take: all of a good the station makes, only the excess over TARGET_STOCK of
+# anything else, and never the station's FUEL reserve.
+func _trade_surplus(economy: BaseEconomy, commodity: int) -> float:
+	var keep: float = 0.0 if economy.net_commodities().get(commodity, 0.0) > 0.0 else Commodity.TARGET_STOCK[commodity]
+	if commodity == Commodity.Type.FUEL:
+		keep = maxf(keep, _fuel_reserve(economy))
+	return maxf(0.0, economy.stock.get(commodity, 0.0) - keep)
+
+# Free cargo is split evenly across the goods the station can spare.
+func _load_trade_goods(fleet: CampaignFleet, goods: Array, economy: BaseEconomy) -> void:
+	var qualifying: Array = []
+	for commodity in goods:
+		if _trade_surplus(economy, commodity) > 0.0:
+			qualifying.append(commodity)
 	if qualifying.is_empty():
 		return
 
 	var share: float = (fleet.cargo_capacity() - fleet.cargo_total()) / qualifying.size()
 	for commodity in qualifying:
-		var available: float = stock.get(commodity, 0.0)
-		var amount: float = min(available, share)
+		var amount: float = minf(_trade_surplus(economy, commodity), share)
 		if amount <= 0.0:
 			continue
-		stock[commodity] = available - amount
+		economy.stock[commodity] = economy.stock.get(commodity, 0.0) - amount
 		fleet.cargo[commodity] = fleet.cargo.get(commodity, 0.0) + amount

@@ -26,6 +26,8 @@ var warp_target: String = ""
 var jump_path: Array[String] = []
 var dest_station_id: String = ""
 var jump_cooldown: float = 0.0
+# Game seconds spent outside the home system on this trip; 0 at home. Ends raids and hunts.
+var away_time: float = 0.0
 
 func total_strength() -> float:
 	var sum := 0.0

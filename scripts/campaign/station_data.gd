@@ -10,6 +10,8 @@ extends Resource
 # Sprite basename under assets/sprites/stations, e.g. "ring_2".
 @export var art: String = ""
 @export var economy: BaseEconomy = null
+# Commodity.Type -> units at new_game(); unlisted goods start at Commodity.TARGET_STOCK.
+@export var starting_stock: Dictionary = {}
 # Role -> int target number of fleets.
 @export var fleet_quota: Dictionary = {}
 # Role -> float seconds until the next replacement fleet.

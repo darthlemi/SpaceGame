@@ -56,6 +56,14 @@ static func _check_shown_systems(panel, campaign_state, failures: Array[String])
 	var expected_info := "Haven - %s - %d stations - Danger %d\n%s" % [panel.owner_text(haven["owners"]), haven["stations"], haven["tier"], cost_line]
 	if panel.info_label.text != expected_info:
 		failures.append("shown: expected haven info '%s', got '%s'" % [expected_info, panel.info_label.text])
+	campaign_state.visited["wexford"] = true
+	campaign_state.last_seen["wexford"] = {"owners": [CampaignFleet.Faction.FREEHOLD], "stations": 1, "pirates_seen": false, "tier": 1}
+	panel.select_system("wexford")
+	if not panel.info_label.text.begins_with("Wexford - %s - 1 station - Danger 1" % panel.owner_text([CampaignFleet.Faction.FREEHOLD])):
+		failures.append("shown: expected a singular '1 station' for wexford, got '%s'" % panel.info_label.text)
+	campaign_state.visited.erase("wexford")
+	campaign_state.last_seen.erase("wexford")
+	panel.select_system("haven")
 	if not panel.jump_button.disabled or panel.reason_label.text != "You are here":
 		failures.append("shown: expected the current system's jump disabled with 'You are here', reason='%s'" % panel.reason_label.text)
 

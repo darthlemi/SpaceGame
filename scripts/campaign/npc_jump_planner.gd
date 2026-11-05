@@ -8,6 +8,12 @@ const RETREAT_STRENGTH_FRACTION := 0.5
 const DECISION_INTERVAL := 20.0
 const DECISION_JITTER := 10.0
 const HOP_DELAY := 2.0
+# Away fleets never fight in-system yet, so a raid or hunt ends on time rather than on contact.
+const RAID_DWELL := 75.0
+const HUNT_DWELL := 75.0
+# A combat fleet back home stays this long before its next decision, so dens and garrisons aren't
+# empty most of the time.
+const HOME_REST := 90.0
 
 # The systems to travel through, ending at the goal; empty means stay.
 static func plan(fleet: CampaignFleet, galaxy: Galaxy, fleets: Array[CampaignFleet], are_hostile: Callable) -> Array[String]:
@@ -42,14 +48,17 @@ static func _plan_trader(fleet: CampaignFleet, galaxy: Galaxy) -> Array[String]:
 		return path_home(fleet, galaxy)
 	return galaxy.path(fleet.system_id, dest.system_id)
 
-# Raid the neighbour with the most prey; stay while prey is here; otherwise, or when hurt, go home.
+# Raid the neighbour with the most prey; stay while prey is here, up to RAID_DWELL; otherwise, or
+# when hurt, go home.
 static func _plan_raider(fleet: CampaignFleet, galaxy: Galaxy, fleets: Array[CampaignFleet], are_hostile: Callable) -> Array[String]:
 	var stay: Array[String] = []
 	if not _is_healthy(fleet):
 		return path_home(fleet, galaxy)
 	var home := _home_system(fleet, galaxy)
 	if home != "" and fleet.system_id != home:
-		return stay if _count_prey(fleet, fleet.system_id, fleets, are_hostile) > 0 else path_home(fleet, galaxy)
+		if fleet.away_time < RAID_DWELL and _count_prey(fleet, fleet.system_id, fleets, are_hostile) > 0:
+			return stay
+		return path_home(fleet, galaxy)
 	var best := ""
 	var best_count := 0
 	for neighbour in galaxy.neighbours(fleet.system_id):
@@ -62,11 +71,16 @@ static func _plan_raider(fleet: CampaignFleet, galaxy: Galaxy, fleets: Array[Cam
 	var raid: Array[String] = [best]
 	return raid
 
-# Hold a system with hostiles in it; else hunt in the adjacent owned system with the most; else go home.
+# Hold a system with hostiles in it (away, up to HUNT_DWELL); else hunt in the adjacent owned system
+# with the most; else go home.
 static func _plan_patrol(fleet: CampaignFleet, galaxy: Galaxy, fleets: Array[CampaignFleet], are_hostile: Callable) -> Array[String]:
 	var stay: Array[String] = []
 	var home_station: StationData = galaxy.station(fleet.home_station_id)
-	if home_station == null or _count_hostiles(fleet, fleet.system_id, fleets, are_hostile) > 0:
+	if home_station == null:
+		return stay
+	if fleet.system_id != home_station.system_id and fleet.away_time >= HUNT_DWELL:
+		return path_home(fleet, galaxy)
+	if _count_hostiles(fleet, fleet.system_id, fleets, are_hostile) > 0:
 		return stay
 	var best := ""
 	var best_count := 0

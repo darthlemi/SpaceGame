@@ -57,4 +57,26 @@ static func run() -> Array[String]:
 		failures.append("haven_exchange: expected a NEUTRAL station")
 	elif haven_exchange.fleet_quota.get(CampaignFleet.Role.TRADER, 0) != 1:
 		failures.append("haven_exchange: expected trader quota 1")
+
+	# No trader ever serves a pirate station, so a pirate population slot must grow its own food.
+	for st in galaxy.stations:
+		if st.owner != CampaignFleet.Faction.PIRATE:
+			continue
+		var roles := {}
+		for slot in st.economy.slots:
+			roles[slot.role_type] = true
+		if roles.has(EconomyRole.RoleType.POPULATION) and not roles.has(EconomyRole.RoleType.AGRICULTURE):
+			failures.append("pirate station %s: a population slot with no agriculture starves" % st.id)
+	_check_optional_keys(failures)
 	return failures
+
+static func _check_optional_keys(failures: Array[String]) -> void:
+	var sys := GalaxyData._make_system({"id": "x", "name": "X", "map": Vector2.ZERO, "tier": 4})
+	if sys.tier_override != 4:
+		failures.append("optional tier: expected tier_override 4 from the data, got %d" % sys.tier_override)
+	if GalaxyData._make_system({"id": "y", "name": "Y", "map": Vector2.ZERO}).tier_override != 0:
+		failures.append("optional tier: expected no override when the key is absent")
+	var entry := {"name": "Test Post", "system": "x", "owner": CampaignFleet.Faction.NEUTRAL, "pos": Vector2.ZERO, "art": "ring_2", "roles": ["mining"], "quota": {}, "stock": {Commodity.Type.ORE: 7.0}}
+	var st := GalaxyData._make_station(entry)
+	if st.starting_stock.get(Commodity.Type.ORE, -1.0) != 7.0:
+		failures.append("optional stock: expected starting ORE 7 from the data, got %s" % [st.starting_stock])

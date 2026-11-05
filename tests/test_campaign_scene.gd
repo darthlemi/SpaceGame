@@ -56,16 +56,17 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if dominion_trader_icon != null:
 		# Aurum Spire's hauler trades with the neutral Aurum Bazaar in the same system. Teleport
 		# it onto the bazaar: arriving runs CampaignState.run_npc_trade_at, which loads what its
-		# home station needs out of the bazaar's stock.
+		# home station needs out of the bazaar's surplus (here, Ore above TARGET_STOCK).
 		var galaxy: Galaxy = campaign_state.galaxy
 		var bazaar: StationData = galaxy.station("aurum_bazaar")
 		var spire: StationData = galaxy.station("aurum_spire")
+		bazaar.economy.stock[Commodity.Type.ORE] = Commodity.TARGET_STOCK[Commodity.Type.ORE] + 40.0
 		dominion_trader_icon.fleet.dest_station_id = bazaar.id
 		scene._aim_trader(dominion_trader_icon)
 		dominion_trader_icon.position = bazaar.position
 		for i in 5:
 			await tree.physics_frame
-		if dominion_trader_icon.fleet.cargo_total() <= 0.0:
+		if dominion_trader_icon.fleet.cargo.get(Commodity.Type.ORE, 0.0) <= 0.0:
 			failures.append("expected the DOMINION trader icon to have loaded cargo its home needs after reaching Aurum Bazaar")
 		if dominion_trader_icon.fleet.dest_station_id != spire.id:
 			failures.append("expected the DOMINION trader to head home after the away stop, got '%s'" % dominion_trader_icon.fleet.dest_station_id)

@@ -20,6 +20,7 @@ func _run_all() -> void:
 		preload("res://tests/test_projectile.gd"),
 		preload("res://tests/test_ship.gd"),
 		preload("res://tests/test_ai_controller_state.gd"),
+		preload("res://tests/test_combat_tactics.gd"),
 		preload("res://tests/test_combat_camera.gd"),
 		preload("res://tests/test_formation.gd"),
 		preload("res://tests/test_fleet_commander.gd"),
@@ -71,6 +72,12 @@ func _run_all() -> void:
 	for f in ai_targeting_failures:
 		print("FAIL [%s]: %s" % [ai_targeting_test.resource_path, f])
 	total_failures += ai_targeting_failures.size()
+
+	var ship_tactics_test = load("res://tests/test_ship_tactics.gd")
+	var ship_tactics_failures: Array[String] = await ship_tactics_test.run_async(self)
+	for f in ship_tactics_failures:
+		print("FAIL [%s]: %s" % [ship_tactics_test.resource_path, f])
+	total_failures += ship_tactics_failures.size()
 
 	var ship_vfx_test = preload("res://tests/test_ship_vfx.gd")
 	var ship_vfx_failures: Array[String] = await ship_vfx_test.run_async(self)

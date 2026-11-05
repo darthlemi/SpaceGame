@@ -439,9 +439,9 @@ static func _check_engagement_distance(failures: Array[String]) -> void:
 	if ship.engagement_distance(target) >= 0.0:
 		failures.append("engagement_distance: expected < 0 once every mount is destroyed, got %s" % ship.engagement_distance(target))
 
-	# Short weapons never pull the hulls into contact.
+	# Short weapons never pull the hulls into contact (edge distance, so no target radius).
 	var short_ship := _make_bare_ship([_make_weapon(20.0, 10.0, 1.0)])
-	var min_gap := short_ship.hit_radius + target.hit_radius + Ship.ENGAGE_HULL_GAP
+	var min_gap := short_ship.hit_radius + Ship.ENGAGE_HULL_GAP
 	if not is_equal_approx(short_ship.engagement_distance(target), min_gap):
 		failures.append("engagement_distance: expected the hull-gap floor %s, got %s" % [min_gap, short_ship.engagement_distance(target)])
 

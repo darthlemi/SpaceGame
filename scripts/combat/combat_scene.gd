@@ -77,6 +77,7 @@ func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group:
 		ship.global_position = point
 		ship.rotation = facing_rotation
 		ship.enemy_group = opposing_group
+		ship.ally_group = own_group
 		ship.add_to_group(own_group)
 		spawned.append(ship)
 	return spawned
@@ -92,6 +93,7 @@ func _spawn_fleet_from_data(fleet_data: CampaignFleet, indices: Array[int], poin
 		ship.global_position = point
 		ship.rotation = facing_rotation
 		ship.enemy_group = opposing_group
+		ship.ally_group = own_group
 		ship.add_to_group(own_group)
 		spawned.append(ship)
 	return spawned
@@ -152,6 +154,7 @@ func _spawn_extra_ship(own_group: StringName, opposing_group: StringName, facing
 	ship.global_position = spawn_base + Vector2(randf_range(-60.0, 60.0), randf_range(-60.0, 60.0))
 	ship.rotation = facing_rotation
 	ship.enemy_group = opposing_group
+	ship.ally_group = own_group
 	ship.add_to_group(own_group)
 
 	await get_tree().process_frame

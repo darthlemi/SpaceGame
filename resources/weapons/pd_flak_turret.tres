@@ -15,3 +15,4 @@ hull_mult = 0.3
 mount_type = 1
 fire_arc_degrees = 360.0
 rarity = 0
+point_defense = true

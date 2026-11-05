@@ -15,11 +15,12 @@ func _physics_process(delta: float) -> void:
 func can_fire() -> bool:
 	return weapon != null and cooldown_remaining <= 0.0 and not is_destroyed()
 
+# Range is to the target's hull edge, so big hulls are hittable from their standoff.
 # Range and arc only; cooldown and damage are can_fire's job.
 func can_engage(target: Node2D) -> bool:
 	if weapon == null or target == null or not is_instance_valid(target):
 		return false
-	if global_position.distance_to(target.global_position) > weapon.weapon_range:
+	if CombatTactics.edge_distance(global_position, target) > weapon.weapon_range:
 		return false
 	return _within_arc(target)
 
@@ -28,7 +29,7 @@ func nearest_engageable(candidates: Array) -> Node2D:
 	var nearest_dist := INF
 	for c in candidates:
 		if c is Node2D and can_engage(c):
-			var d := global_position.distance_to(c.global_position)
+			var d := CombatTactics.edge_distance(global_position, c)
 			if d < nearest_dist:
 				nearest_dist = d
 				nearest = c

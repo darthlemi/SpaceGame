@@ -19,3 +19,5 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC }
 @export var rarity: Rarity = Rarity.COMMON
 @export var submissile_count: int = 1
 @export var projectile_speed: float = 0.0
+# Anti-missile/drone weapons: they say nothing about how a ship should fight a hull.
+@export var point_defense: bool = false

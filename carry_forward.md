@@ -85,9 +85,8 @@ Idea: remember what the player saw at each station on their last visit, and show
 Layout, text and sort behaviour are settled by the user; the mockup is the reference. Next step is
 to play the design back for sign-off, write the spec (`docs\superpowers\specs\`, builder check), then
 `superpowers:writing-plans`. **Do not build before the spec is approved.**
-- **Mockup (final, v24):** `.superpowers\brainstorm\2182-1793917187\content\station-menu-final-v24.html`.
-  That folder is gitignored and vanished once mid-session, so copy the file somewhere tracked (for
-  example `docs\superpowers\mockups\`) when the spec is written. Preview server: start it with the
+- **Mockup (final, v24, committed):** `docs\superpowers\mockups\station-menu-final-v24.html`. Open
+  it in a browser, or serve it from the visual companion. Preview server: start it with the
   brainstorming `scripts\start-server.sh --project-dir <repo>`; to screenshot, headless Edge works
   (`--headless=new --screenshot`).
 - **Layout:** one screen on a 16:9 reference stage (1280x720), scaled to fit the window.

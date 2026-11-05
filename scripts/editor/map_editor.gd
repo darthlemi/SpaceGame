@@ -84,6 +84,9 @@ func save() -> bool:
 		_set_status("Save blocked: fix the red items in the list")
 		return false
 	var wrote := GalaxyDocument.save_file(model.doc, save_path)
+	if not wrote and not GalaxyDocument.matches_file(model.doc, save_path):
+		_set_status("Save failed: cannot write %s (edits kept)" % save_path)
+		return false
 	model.dirty = false
 	_update_dirty()
 	_set_status("Saved %s" % save_path if wrote else "No changes to save")
@@ -257,6 +260,7 @@ func _build_inspector() -> ScrollContainer:
 	station_box.visible = false
 	station_box.edited.connect(_after_edit.bind(false))
 	station_box.station_renamed.connect(func(new_id: String) -> void: selected_station = new_id)
+	station_box.message.connect(_set_status)
 	station_box.duplicate_requested.connect(_on_duplicate_station)
 	station_box.delete_requested.connect(_on_delete_station_pressed)
 	box.add_child(station_box)

@@ -29,6 +29,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	_check_lists(editor, failures)
 	await _check_station_editor(tree, editor, failures)
 	_check_presets_tab(editor, failures)
+	_check_rename_and_failed_save(editor, failures)
 	_check_save_blocked(editor, failures)
 	_check_save_and_load(editor, failures)
 	await _check_layout(tree, editor, failures)
@@ -274,3 +275,21 @@ static func _check_presets_tab(editor: MapEditor, failures: Array[String]) -> vo
 			names.append(option.get_item_text(i))
 		if not names.has("scrapyard") or names.size() != 7:
 			failures.append("presets tab: expected the new preset in every slot dropdown, got %s" % [names])
+
+static func _check_rename_and_failed_save(editor: MapEditor, failures: Array[String]) -> void:
+	editor.load_document(Validator.doc())
+	editor.select_station("post_b")
+	var se: StationEditor = editor.station_box
+	var before: Dictionary = editor.model.doc.duplicate(true)
+	if se.rename("Post C") or editor.model.doc != before or se.station_id != "post_b":
+		failures.append("rename: a name whose id is taken must be refused with no change")
+	if not se.rename("Post Bee") or se.station_id != "post_bee" or editor.selected_station != "post_bee":
+		failures.append("rename: expected a free name to apply and follow the selection, got '%s'" % se.station_id)
+	se.set_stock_text("FUEL", "3")
+	if editor.model.station_index("post_bee") < 0 or editor.model.doc["stations"][editor.model.station_index("post_bee")]["stock"].get("FUEL", 0.0) != 3.0:
+		failures.append("rename: later edits must land on the renamed station")
+	var good_path := editor.save_path
+	editor.save_path = "user://no_such_dir/galaxy.json"
+	if editor.save() or not editor.model.dirty or editor.status_label.text.find("failed") < 0:
+		failures.append("save: a failed write must return false, keep dirty and say so, got '%s' dirty=%s" % [editor.status_label.text, editor.model.dirty])
+	editor.save_path = good_path

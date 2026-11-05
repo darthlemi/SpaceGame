@@ -115,9 +115,7 @@ static func _check_real_file(failures: Array[String]) -> void:
 	if not loaded["ok"]:
 		failures.append("real file: %s" % loaded["error"])
 		return
-	var on_disk := FileAccess.get_file_as_string(GalaxyDocument.PATH).replace("
-", "
-")
+	var on_disk := FileAccess.get_file_as_string(GalaxyDocument.PATH).replace("\r\n", "\n")
 	if GalaxyDocument.serialize(loaded["doc"]) != on_disk:
 		failures.append("real file: data/galaxy.json is not in canonical form (a Save would rewrite it)")
 
@@ -131,6 +129,13 @@ static func _check_save_file(failures: Array[String]) -> void:
 		failures.append("save_file: identical second save should not write")
 	if FileAccess.get_modified_time(TMP_PATH) != first_time:
 		failures.append("save_file: identical second save changed the modified time")
+	var crlf_file := FileAccess.open(TMP_PATH, FileAccess.WRITE)
+	crlf_file.store_string(GalaxyDocument.serialize(doc).replace("\n", "\r\n"))
+	crlf_file.close()
+	if GalaxyDocument.save_file(doc, TMP_PATH) or not GalaxyDocument.matches_file(doc, TMP_PATH):
+		failures.append("save_file: a CRLF copy of the same text must count as unchanged")
+	if GalaxyDocument.save_file(doc, "user://no_such_dir/galaxy.json") or GalaxyDocument.matches_file(doc, "user://no_such_dir/galaxy.json"):
+		failures.append("save_file: a failed write must return false and not claim the file is current")
 	doc["start_system"] = "wexford"
 	if not GalaxyDocument.save_file(doc, TMP_PATH):
 		failures.append("save_file: an edited doc should write")

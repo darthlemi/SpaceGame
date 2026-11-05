@@ -6,6 +6,7 @@ extends VBoxContainer
 # MapEditModel; `edited` tells the screen to refresh its canvas, lists and findings.
 
 signal edited
+signal message(text: String)
 signal station_renamed(new_id: String)
 signal duplicate_requested(id: String)
 signal delete_requested(id: String)
@@ -201,11 +202,26 @@ func _rebuild() -> void:
 	_build_buttons(entry)
 	_refresh_dynamic()
 
+# False (and the field reverts) when another station already has the new name's id: two stations
+# with one id could not be told apart for later edits.
+func rename(new_name: String) -> bool:
+	var new_id := GalaxyDocument.station_id(new_name)
+	if new_id != station_id and model.station_index(new_id) >= 0:
+		message.emit("Name '%s' is taken by another station" % new_name)
+		_rebuild()
+		return false
+	model.set_station_field(station_id, "name", new_name)
+	station_id = new_id
+	station_renamed.emit(station_id)
+	_refresh_dynamic()
+	edited.emit()
+	return true
+
 func _on_field_changed(spec: Dictionary, value) -> void:
-	model.set_station_field(station_id, spec["key"], value)
 	if spec["key"] == "name":
-		station_id = GalaxyDocument.station_id(str(value))
-		station_renamed.emit(station_id)
+		rename(str(value))
+		return
+	model.set_station_field(station_id, spec["key"], value)
 	_refresh_dynamic()
 	edited.emit()
 

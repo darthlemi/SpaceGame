@@ -44,21 +44,24 @@ static func load_file(path: String = PATH) -> Dictionary:
 		return {"ok": false, "doc": {}, "error": "cannot open %s (error %d)" % [path, FileAccess.get_open_error()]}
 	return parse(file.get_as_text())
 
+# True when the file already holds exactly this document. Git may check the file out with CRLF;
+# that is not a change worth a rewrite.
+static func matches_file(doc: Dictionary, path: String = PATH) -> bool:
+	if not FileAccess.file_exists(path):
+		return false
+	var existing := FileAccess.open(path, FileAccess.READ)
+	return existing != null and existing.get_as_text().replace("\r\n", "\n") == serialize(doc)
+
 # Writes only when the text differs from the file, so saving an unchanged galaxy is a no-op.
+# False means nothing was written: either already current (see matches_file) or the write failed.
 static func save_file(doc: Dictionary, path: String = PATH) -> bool:
-	var text := serialize(doc)
-	if FileAccess.file_exists(path):
-		var existing := FileAccess.open(path, FileAccess.READ)
-		# Git may have checked the file out with CRLF; that is not a change worth a rewrite.
-		if existing != null and existing.get_as_text().replace("
-", "
-") == text:
-			return false
+	if matches_file(doc, path):
+		return false
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		push_error("GalaxyDocument: cannot write %s (error %d)" % [path, FileAccess.get_open_error()])
 		return false
-	file.store_string(text)
+	file.store_string(serialize(doc))
 	return true
 
 static func serialize(doc: Dictionary) -> String:

@@ -116,6 +116,24 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 - `tests\test_campaign_scene.gd` failed in 2 of about 12 runs on the trader cargo checks (NPC jump
   cooldowns are unseeded random); not reproduced in 16 more. Treat it as a flake unless it recurs.
 
+### Map editor: known minor bugs (final review 2026-11-05, deferred)
+- Leaving a Stock field (focus out) marks the galaxy dirty even when the text is unchanged
+  (`station_editor.gd` `_build_stock` calls `set_stock_text` on `focus_exited` unconditionally).
+- Closing the window with unsaved edits asks nothing (no `NOTIFICATION_WM_CLOSE_REQUEST` handling);
+  only Load confirms.
+- Any slot edit (`set_slot_preset`, `_make_slot`) rebuilds the slot as a bare name or
+  `{preset, overrides}`, dropping hand-added unknown keys on a slot.
+- Editing one map or pos coordinate in the inspector rounds the other to the spin step (map 0.01,
+  pos 1.0), since both spin values are sent.
+- `GalaxyDocument.INT_KEYS` and the quota rule truncate by key name anywhere: `extra: {"tier": 2.5}`
+  is saved as `2`, and a non-integer quota is saved as an int.
+- A system name typed but not committed (no Enter) may be dropped, or applied to the newly selected
+  system, when the inspector rebuilds on selection. [!] Unverified whether `focus_exited` fires when
+  the focused LineEdit is removed.
+- `MapEditor._on_station_field_changed` is dead code (`StationEditor` handles its own fields).
+- `GalaxyData.build()` hard-fail path is untested (the assert aborts the run).
+- Whether `OptionButton.item_selected` re-fires on the current preset and resets overrides: unchecked.
+
 ## Open ideas
 - **Neutral vs pirate station services:** what makes them different to visit (black-market
   parts, bounties, smuggling, ...). User wants to revisit; v1 gives every base the same services.

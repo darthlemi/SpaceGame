@@ -34,6 +34,7 @@ var _loiter_timer: float = 0.0
 var _run_phase: CombatTactics.RunPhase = CombatTactics.RunPhase.INBOUND
 # Cleared every tick, so a ship that stops fighting drops out of its allies' spread.
 var _engaged_target: Node2D = null
+var _run_target_id: int = 0
 # What idle HOLD is engaging, re-picked every RETARGET_INTERVAL.
 var _idle_target: Node2D = null
 var _retarget_timer: float = 0.0
@@ -205,12 +206,12 @@ func _enemy_candidates() -> Array:
 	return get_tree().get_nodes_in_group(enemy_group) if enemy_group != &"" else []
 
 func _engage(target: Node2D, delta: float) -> void:
-	_engaged_target = target
 	var standoff := engagement_distance(target)
 	if standoff < 0.0:
 		velocity = velocity.move_toward(Vector2.ZERO, engine.acceleration * delta)
 		engine.velocity = velocity
 		return
+	_engaged_target = target
 	var weapons := working_weapons()
 	if CombatTactics.tactic_for(weapons, engine.turn_rate) == CombatTactics.Tactic.RUN:
 		_run_at(target, weapons, delta)
@@ -220,6 +221,10 @@ func _engage(target: Node2D, delta: float) -> void:
 # Fixed forward guns can't track: fly at the target, then peel off and come round again.
 func _run_at(target: Node2D, weapons: Array[Weapon], delta: float) -> void:
 	var target_pos := target.global_position
+	# A phase carried over from another target would fly away from a nearby new one.
+	if target.get_instance_id() != _run_target_id:
+		_run_target_id = target.get_instance_id()
+		_run_phase = CombatTactics.RunPhase.INBOUND
 	var run_range := Ship.best_engagement_range(weapons)
 	var hull_floor := hit_radius + ENGAGE_HULL_GAP
 	_run_phase = CombatTactics.next_run_phase(_run_phase, CombatTactics.edge_distance(global_position, target), run_range, hull_floor)
@@ -364,7 +369,7 @@ static func nearest_in_range(candidates: Array, own_position: Vector2, max_range
 	var nearest_dist := max_range
 	for c in candidates:
 		if c is Node2D and is_instance_valid(c):
-			var d: float = own_position.distance_to(c.global_position)
+			var d: float = CombatTactics.edge_distance(own_position, c)
 			if d <= nearest_dist:
 				nearest_dist = d
 				nearest = c
@@ -373,7 +378,7 @@ static func nearest_in_range(candidates: Array, own_position: Vector2, max_range
 static func pick_autofire_target(order: Order, candidates: Array, own_position: Vector2, max_range: float, idle: Node2D = null) -> Node2D:
 	if order.type == Order.Type.ATTACK_TARGET:
 		return order.target_ship if is_instance_valid(order.target_ship) else null
-	if order.type == Order.Type.HOLD and idle != null and own_position.distance_to(idle.global_position) <= max_range:
+	if order.type == Order.Type.HOLD and idle != null and CombatTactics.edge_distance(own_position, idle) <= max_range:
 		return idle
 	return Ship.nearest_in_range(candidates, own_position, max_range)
 

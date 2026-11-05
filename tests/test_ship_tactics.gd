@@ -2,6 +2,7 @@ extends RefCounted
 
 const CorvetteScene = preload("res://scenes/ship/ship_corvette.tscn")
 const CapitalScene = preload("res://scenes/ship/ship_capital.tscn")
+const HeavyBeam = preload("res://resources/weapons/heavy_beam.tres")
 const KineticCannon = preload("res://resources/weapons/kinetic_cannon.tres")
 const MassDriver = preload("res://resources/weapons/mass_driver.tres")
 const PdLaser = preload("res://resources/weapons/pd_laser_turret.tres")
@@ -12,6 +13,8 @@ const TEST_GROUP := &"test_tactics_targets"
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	await _check_edge_range_capital(tree, failures)
+	await _check_edge_range_heavy_beam(tree, failures)
+	await _check_hold_idle_capital(tree, failures)
 	await _check_pd_only(tree, failures)
 	await _check_run(tree, failures)
 	await _check_park(tree, failures)
@@ -54,6 +57,29 @@ static func _check_edge_range_capital(tree: SceneTree, failures: Array[String]) 
 	ship.rotation = 0.0
 	if not ship.weapon_mounts[0].can_engage(capital):
 		failures.append("edge_range_capital_engageable_at_standoff: mount cannot engage a capital from its standoff %s" % standoff)
+	ship.queue_free()
+	capital.queue_free()
+
+# Short-range beam: centre-based range would fail here (176 + 54 > 220).
+static func _check_edge_range_heavy_beam(tree: SceneTree, failures: Array[String]) -> void:
+	var capital := await _spawn_dummy(tree, CapitalScene, Vector2(2000.0, 0.0), null)
+	var ship := await _spawn(tree, CorvetteScene, Vector2.ZERO, HeavyBeam)
+	var standoff := ship.engagement_distance(capital)
+	ship.global_position = capital.global_position + Vector2(-(standoff + capital.get_hit_radius()), 0.0)
+	ship.rotation = 0.0
+	if not ship.weapon_mounts[0].can_engage(capital):
+		failures.append("edge_range_heavy_beam_engageable_at_standoff: mount cannot engage a capital from its standoff %s" % standoff)
+	ship.queue_free()
+	capital.queue_free()
+
+static func _check_hold_idle_capital(tree: SceneTree, failures: Array[String]) -> void:
+	var capital := await _spawn_dummy(tree, CapitalScene, Vector2(2000.0, 0.0), null)
+	var ship := await _spawn(tree, CorvetteScene, Vector2.ZERO, HeavyBeam)
+	var standoff := ship.engagement_distance(capital)
+	ship.global_position = capital.global_position + Vector2(-(standoff + capital.get_hit_radius()), 0.0)
+	var picked := Ship.pick_autofire_target(Order.hold(), [], ship.global_position, HeavyBeam.weapon_range, capital)
+	if picked != capital:
+		failures.append("hold_idle_capital_kept_at_standoff: expected the idle capital, got %s" % picked)
 	ship.queue_free()
 	capital.queue_free()
 

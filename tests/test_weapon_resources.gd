@@ -104,4 +104,8 @@ static func run() -> Array[String]:
 		"rarity": Weapon.Rarity.UNCOMMON,
 	})
 
+	for name in ["pd_flak_turret", "pd_laser_turret"]:
+		_check(failures, "res://resources/weapons/%s.tres" % name, {"point_defense": true})
+	_check(failures, "res://resources/weapons/kinetic_cannon.tres", {"point_defense": false})
+
 	return failures

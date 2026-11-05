@@ -2,6 +2,13 @@ extends RefCounted
 
 const ShipScene = preload("res://scenes/ship/ship.tscn")
 
+# Stand-in for a big hull: centre 100 away, edge 46 away.
+class EdgeStub extends Node2D:
+	var radius := 0.0
+
+	func get_hit_radius() -> float:
+		return radius
+
 # NOTE ON HEADLESS SCENE-TREE TIMING:
 # Adding a node to `SceneTree.root` does not make it is_inside_tree()==true, and does
 # not run its _ready(), synchronously within the same call that added it -- this is
@@ -370,6 +377,17 @@ static func _check_autofire_targeting(failures: Array[String]) -> void:
 	var out_of_range := Ship.nearest_in_range(candidates, Vector2.ZERO, 10.0)
 	if out_of_range != null:
 		failures.append("nearest_in_range: expected null when all candidates exceed max_range, got %s" % out_of_range)
+
+	var edge_near := Node2D.new()
+	edge_near.global_position = Vector2(60, 0)
+	var edge_big := EdgeStub.new()
+	edge_big.global_position = Vector2(100, 0)
+	edge_big.radius = 54.0
+	var edge_pick := Ship.nearest_in_range([edge_near, edge_big], Vector2.ZERO, 100.0)
+	if edge_pick != edge_big:
+		failures.append("nearest_in_range: expected the hull-edge-nearest candidate, got %s" % edge_pick)
+	edge_near.free()
+	edge_big.free()
 
 	var explicit_target := Node2D.new()
 	explicit_target.global_position = Vector2(500, 0)

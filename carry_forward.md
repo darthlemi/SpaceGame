@@ -1,26 +1,55 @@
-# Carry-Forward - SpaceGame 2026-11-04 (star systems and jumping: spec + plan approved, not built)
+# Carry-Forward - SpaceGame 2026-11-05 (star systems and jumping: built; 3 user decisions open)
 
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
 ## Completed this session
-- Brainstormed sub-project 1 of "bigger world". The map is now a fixed galaxy of FTL-style
-  systems, each the size of today's map, linked by jumps (no camera). This replaces the earlier
-  pan/zoom camera idea.
-- Spec approved: `docs\superpowers\specs\2026-11-04-star-systems-jumping-design.md` (`0ecf9d1`).
-- Plan written: `docs\superpowers\plans\2026-11-04-star-systems-jumping.md` (`9da2d17`).
-  - 5 tasks: galaxy model; station-based state; system layers in the scene; player jumping and
-    jump map; AI jumping and the perf check.
-  - The draft layout has 26 systems, 37 stations and 40 links. The table is in Task 1 and the
-    user may adjust it.
+- Built the star systems plan (`docs\superpowers\plans\2026-11-04-star-systems-jumping.md`),
+  subagent-driven on `main`, commits `879dfac`..`a7683ed`:
+  - galaxy model and layout (`GalaxyData`, 26 systems, 37 stations, 40 links);
+  - per-station economies, quotas and respawn in `CampaignState`;
+  - one `SystemLayer` per system, `CampaignStation` replaces HomeBase/FactionBase;
+  - player jumping, the jump map, discovery and distress (`jump_controller.gd`);
+  - AI jumping (`NpcJumpPlanner`), NPC refuel, repair, dwell limits and retiring stranded fleets.
+- Verified:
+  - suite ~68 s, 0 `SCRIPT ERROR`, only the long-run-sim flake;
+  - perf, 62 fleets, non-headless: 1x avg 0.95 / max 3.27 ms, 5x avg 1.04 / max 3.13 ms (bar
+    8 / 33);
+  - 1 h probe, seeds 7 and 11: jump rate flat from ~20-30 min, no trader idles at home > 25 s,
+    worst pirate home empty 46%.
+- Probe script for the AI galaxy (not committed):
+  `C:\Users\c_dirks\AppData\Local\Temp\claude\7f8633d840d3c804\13cae86e-3352-415c-95d6-de4b935bbd38\scratchpad\probe\probe_galaxy.gd`
+  (`-- --dur=3600`). Copy it into `tests\` if it is wanted long term.
+- Rulings made during execution (19, each with its cost if wrong) are in the SDD ledger
+  `.superpowers\sdd\2026-11-04-star-systems-jumping\progress.md`. Delete that folder once the
+  decisions below are made.
 
 ## Next steps
-1. **Waiting on the user:** review the plan and pick an execution method. Recommended:
-   subagent-driven with batched reviews (one after Task 2, one after Tasks 3-4, a final review on
-   the most capable model), started in a **fresh session** with only the spec and plan.
-2. **Perf gate (plan Task 5):** if `tests\perf_galaxy.gd` misses the bar (8 ms average, 33 ms
-   max, at 1x and 5x), stop and report. Don't build off-screen simulation unasked.
-3. **Later sub-projects, in agreed order:**
+1. **Waiting on the user: Home Base fuel.** NPC refuels drain it to 14-830 at 1 h (was 1492), so
+   a respawned player may find no fuel. One line either way. Recommended: NPCs never refuel at
+   PLAYER-owned stations. Alternative: a player-only FUEL reserve at Home Base.
+2. **Waiting on the user: the Dominion economy.** All 7 Dominion stations reach 0 slots in ~5 min.
+   5 of 7 have no ORE source within `TRADE_RANGE_JUMPS` (2), and slot loss is permanent.
+   Meanwhile Cinder Market holds 7809 ORE. Options:
+   - add a mining station near Dominion space (data);
+   - let stations regrow slots;
+   - widen the trade range;
+   - optionally, let trade hubs give up goods they neither make nor use (they keep 100 now).
+3. **Waiting on the user: neutral patrols vs pirates.** `_factions_hostile` makes NEUTRAL and
+   PIRATE non-hostile, so the Farhaven, Frostline, Northgate and Tollgate patrols never hunt. The
+   spec says they should. Fixing it changes combat hostility.
+4. **Parked minors from the final review:**
+   - `campaign_scene.gd` is at 412 lines, and `_icon_of` duplicates `_icon_for_fleet`;
+   - the FUEL reserve is 0 at stations that burn no FUEL, so homes like Thornfield and Farhaven
+     can run dry and ground their fleets (retiring only covers fleets away from home);
+   - the long-run sim's `KNOWN_SLOT_LOSS` list (13 stations) can't see a listed station drop
+     further;
+   - `_grow_station_fleet` ignores the station's tier;
+   - `REALLOCATE_TO_COMBAT` reactivates uncapped growth if a trader quota goes above 1;
+   - the speed buttons can unpause the game behind the jump map and the Fleet panel;
+   - pirates retreat on damage only, not low crew;
+   - test helpers are duplicated across 4 jump test files.
+5. **Later sub-projects, in agreed order:**
    1. more factions (4-5, one hostile, one peacekeeper, a couple neutral);
    2. AI economy and bigger fleets;
    3. the mysterious end-game faction (jump gates, cheaper or longer jumps, better ships);
@@ -41,23 +70,29 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
    - `CLUMP_RADIUS` 36 will overlap 10-ship fleets on the map;
    - combat has only 3 spawn points per side.
 
-## Star systems: calls the user should check while reading the plan
-- **Caught mid-warp:** the user never answered this. As written, hostile contact during the
-  countdown forces the engage prompt, and no new warp can start while a hostile is touching you.
-- **Distress signal:** about 3x the base fuel price, delivered instantly. With no money and no
-  fuel, you're stuck (the user's rule).
-- **Every base is dockable and tradeable, pirate bases included** (the user's rule).
-- **Bases:** every base uses the station renders with a faction-coloured ring. The old
-  `assets\sprites\bases\` art becomes unused but is kept.
+## Star systems: calls built as "my call", for the user to playtest
+- **Caught mid-warp:** never answered. Hostile contact during the countdown forces the engage
+  prompt, and no new warp can start while a hostile is touching you. Only fleets with pirate
+  behaviour catch you; traders never do.
+- **Distress signal:** 3x the base fuel price, delivered instantly; hidden whenever a connected
+  jump is affordable.
+- **Pirate citadels** (Ashfall, Deadreach) switched from `population` to `agriculture` so they
+  don't starve. The user may re-tune `galaxy_data.gd`, which now also takes an optional `tier`
+  key per system.
+- **NPC tuning:** fuel for 4 jumps, raids and hunts end after 75 s away (`RAID_DWELL`,
+  `HUNT_DWELL`), a 90 s rest at home (`HOME_REST`), a station FUEL reserve of 5 ticks of its own
+  burn.
+- **Neutral traders** trade only with neutral stations (the spec's rule).
+- `assets\sprites\bases\` is unused but kept.
 
 ## Open ideas
 - **Neutral vs pirate station services:** what makes them different to visit (black-market
   parts, bounties, smuggling, ...). User wants to revisit; v1 gives every base the same services.
-- **Off-screen simulation:** v1 simulates every system in full. May need abstract off-screen
-  simulation if the frame-time check fails or the galaxy grows.
+- **Off-screen simulation:** not needed at 26 systems; perf has a ~30x margin. Revisit if the
+  galaxy grows a lot.
 
 ## Repo state
-- **Unpushed:** `main` is 23 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Unpushed:** `main` is 32 commits ahead of origin (`03e243d` onward). Push only when asked.
 - **Untracked root files:** `images.jpg` (the kitbash reference), `images.jpg.import`,
   `MEMORY.md`, `token-efficient-execution.md`. The user said to leave them alone.
 - Never commit the `.import` churn or the CRLF-only noise in `project.godot` and
@@ -96,16 +131,13 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 - **Low-fuel warning:** not built.
 - **Population feeding back into prices:** not built.
 - **HomeBase has no ORE/FOOD producer** (only `refinery()` for fuel), so its seed stock drains
-  under hauler traffic.
-- **Trader route reset after combat:** plan Task 3 absorbs this. Routes move to
-  `CampaignFleet.dest_station_id`.
+  under hauler traffic. See also Next steps 1 (fuel drain).
 
 ### Art
 - **Ship mount counts:** the user is updating the art (capital 3 plates, freighter 0, corvette 1).
   Re-render with the `art\README.md` `--res` values (corvette 75, capital 122x111 at 80%,
   freighter 107), then re-place the mounts.
-- **Stations into the game:** plan Tasks 1 and 3 (`CampaignStation`, art chosen per station in
-  `GalaxyData`).
+- **Station sprites:** a fleet parked on a station draws over its sprite (cosmetic).
 - **Station follow-ups, when asked:**
   - per-faction accent re-renders;
   - more variety within a type (truss always puts the habitat at -X and the pier at +X);

@@ -80,6 +80,48 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
    - `CLUMP_RADIUS` 36 will overlap 10-ship fleets on the map;
    - combat has only 3 spawn points per side.
 
+## Systems and Stations menu (brainstormed 2026-11-05, NOT built, no spec or plan yet)
+Idea: remember what the player saw at each station on their last visit, and show it in a menu.
+Layout, text and sort behaviour are settled by the user; the mockup is the reference. Next step is
+to play the design back for sign-off, write the spec (`docs\superpowers\specs\`, builder check), then
+`superpowers:writing-plans`. **Do not build before the spec is approved.**
+- **Mockup (final, v24):** `.superpowers\brainstorm\2182-1793917187\content\station-menu-final-v24.html`.
+  That folder is gitignored and vanished once mid-session, so copy the file somewhere tracked (for
+  example `docs\superpowers\mockups\`) when the spec is written. Preview server: start it with the
+  brainstorming `scripts\start-server.sh --project-dir <repo>`; to screenshot, headless Edge works
+  (`--headless=new --screenshot`).
+- **Layout:** one screen on a 16:9 reference stage (1280x720), scaled to fit the window.
+  - Left: scrollable tree, scrollbar on the LEFT edge. Systems with a small `[+]`/`[-]` box, name,
+    and "Stations - x" under it; stations under an expanded system with a faction-coloured round dot.
+    Names may wrap if too long (fits normally).
+  - Right: scrollable detail panel for the selected station:
+    - header: station name, "System: <name>", faction badge (hugs its text; the mockup stretches it,
+      a CSS bug), "Visited: Day 42 (13 days ago)";
+    - three one-line stat boxes spanning the row: Population, Wealth, Reputation;
+    - Population is shown as a signed number, green `+` when growing, red `-` when declining
+      (stable: unspecified, suggest plain white, no sign);
+    - market, two groups PRODUCES and CONSUMES, each its own table with fixed-width columns
+      (Commodity 34%, Stock, Buy, Sell 22% each), every header and cell centred;
+    - Stock is signed and coloured: green `+n` over target, red `-n` short of it (stock minus
+      `Commodity.TARGET_STOCK`; my reading, the user hasn't said whether they want raw units);
+    - no status tags (Surplus/Deficit words were dropped), no Role column.
+  - Sorting: click a column header to sort that table only (each table independent). First click
+    ascending with an up arrow, second click descending with a down arrow; the arrow sits outside the
+    header text so it never shifts the centring. No sort on open.
+- **Left out on purpose:** Security (no such stat exists in the campaign scripts; user said remove for
+  now); faction-owned fine/reputation detail beyond the one number.
+- **Data facts (verified in code):** `BaseEconomy` has `stock`, `price_for`, `sell_price_for`,
+  `net_commodities()` (per-tick, static per station), `population`, `population_trend`,
+  `wealth_level()`; `BaseOverviewPanel` already shows population, wealth, produces, consumes and
+  reputation when docked. "Net / visit" was my invention and was dropped.
+- **Open questions:** how Day is counted (check for a game-day counter; none confirmed); the snapshot
+  is taken on docking and stored in `CampaignState` (save games don't exist yet, flag when saving is
+  built); which systems appear (visited only, per the user's "systems you visit"); whether the
+  discovered-but-unvisited jump-map systems should show; where the menu opens from; whether sort
+  state persists between visits.
+- **Mockup alignment caveat:** the browser rescales the mockup, so pixel alignment (toggle boxes, `+`
+  centring) is only truly settled in the Godot controls; SVG toggles were the scale-proof fix.
+
 ## Star systems: calls built as "my call", for the user to playtest
 - **Caught mid-warp:** never answered. Hostile contact during the countdown forces the engage
   prompt, and no new warp can start while a hostile is touching you. Only fleets with pirate
@@ -125,7 +167,8 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 ## Repo state
 - **Unpushed:** `main` is 32 commits ahead of origin (`03e243d` onward). Push only when asked.
 - **Untracked root files:** `images.jpg` (the kitbash reference), `images.jpg.import`,
-  `MEMORY.md`, `token-efficient-execution.md`. The user said to leave them alone.
+  `MEMORY.md`, `token-efficient-execution.md`, and a screenshot of the menu mockup
+  (`Screenshot 2026-11-05 163940.png`). The user said to leave them alone.
 - Never commit the `.import` churn or the CRLF-only noise in `project.godot` and
   `tests\test_campaign_scene_fleet_panel.gd`.
 

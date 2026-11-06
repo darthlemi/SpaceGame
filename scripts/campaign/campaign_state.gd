@@ -548,7 +548,7 @@ func _tick_station_respawns(station: StationData, elapsed: float) -> void:
 				station.respawn_timers[key] = 0.0
 				continue
 			station.respawn_timers[key] = station.respawn_timers.get(key, 0.0) + elapsed
-			if station.respawn_timers[key] >= FleetBudget.respawn_delay(variant, budget):
+			if station.respawn_timers[key] >= FleetBudget.respawn_delay(variant, _tier_of(station), budget):
 				for _i in deficit:
 					spawn_station_fleet(station, role, variant)
 				station.respawn_timers[key] = 0.0
@@ -1032,14 +1032,15 @@ func _threat_ratio_for(station: StationData) -> float:
 		combat_strength += fleet.total_strength()
 	return pirate_strength / max(combat_strength, 1.0)
 
-# Growth only adds a ship under the cap; lost fleets come back through respawn instead. Only a fleet
+# Growth only adds a ship under the fleet's variant maximum (global cap if it has no variant); lost fleets come back through respawn instead. Only a fleet
 # at home grows, so a new ship never raises the jump cost of one that is away on what it carries.
 func _grow_station_fleet(fleets: Array[CampaignFleet], kind: ShipType.Kind) -> void:
 	for fleet in fleets:
 		var home := _home_station_of(fleet)
 		if home == null or fleet.system_id != home.system_id:
 			continue
-		if fleet.ship_compositions.size() < FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
+		var cap := FleetAllocationPolicy.MAX_SHIPS_PER_FLEET if fleet.variant < 0 else DangerTier.ship_count_range(fleet.variant).y
+		if fleet.ship_compositions.size() < cap:
 			fleet.ship_compositions.append(ShipType.new_composition(kind))
 			return
 

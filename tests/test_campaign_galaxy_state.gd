@@ -147,7 +147,7 @@ static func _check_respawn(failures: Array[String]) -> void:
 	den.fleet_plan[COMBAT] = [DangerTier.Variant.PATROL, DangerTier.Variant.PATROL]
 	for fleet in state.station_fleets(den, COMBAT):
 		state.enemy_fleets.erase(fleet)
-	var delay := FleetBudget.respawn_delay(DangerTier.Variant.PATROL, FleetBudget.ship_budget(state._tier_of(den), den.economy))
+	var delay := FleetBudget.respawn_delay(DangerTier.Variant.PATROL, state._tier_of(den), FleetBudget.ship_budget(state._tier_of(den), den.economy))
 	state.tick_economy(delay - CampaignStateScript.ECONOMY_TICK_INTERVAL * 2.0)
 	if state.station_fleets(den, COMBAT).size() != 0:
 		failures.append("respawn: expected no fleet back before the respawn delay, got %d" % state.station_fleets(den, COMBAT).size())
@@ -199,8 +199,8 @@ static func _check_plan_respawn(failures: Array[String]) -> void:
 	for fleet in state.station_fleets(den, COMBAT):
 		state.enemy_fleets.erase(fleet)
 	var budget := FleetBudget.ship_budget(state._tier_of(den), den.economy)
-	var picket_delay := FleetBudget.respawn_delay(DangerTier.Variant.PICKET, budget)
-	var security_delay := FleetBudget.respawn_delay(DangerTier.Variant.SECURITY, budget)
+	var picket_delay := FleetBudget.respawn_delay(DangerTier.Variant.PICKET, state._tier_of(den), budget)
+	var security_delay := FleetBudget.respawn_delay(DangerTier.Variant.SECURITY, state._tier_of(den), budget)
 	state.tick_economy(picket_delay + tick)
 	var variants: Array = state.station_fleets(den, COMBAT).map(func(f): return f.variant)
 	if variants != [DangerTier.Variant.PICKET]:
@@ -284,6 +284,9 @@ static func _check_growth(failures: Array[String]) -> void:
 	bastion.economy.deficit_streaks = {}
 	bastion.economy.surplus_streak = BaseEconomy.SURPLUS_STREAK_THRESHOLD
 	var trade_fleets: Array[CampaignFleet] = state.station_fleets(bastion, TRADER)
+	# Growth stops at the variant maximum, so trim the convoy below it first.
+	if not trade_fleets.is_empty():
+		trade_fleets[0].ship_compositions.resize(1)
 	if trade_fleets.is_empty() or trade_fleets[0].ship_compositions.size() >= FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
 		failures.append("growth: test setup expected a Bastion trader under the ship cap")
 	else:

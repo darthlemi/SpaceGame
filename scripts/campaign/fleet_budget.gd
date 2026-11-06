@@ -16,8 +16,6 @@ const VARIANT_DELAY_FACTOR := {
 	DangerTier.Variant.CONVOY_SMALL: 1.0,
 	DangerTier.Variant.CONVOY_LARGE: 1.0,
 }
-# Budget at which respawn runs at the base rate; richer stations respawn faster.
-const RESPAWN_BASELINE_BUDGET := 6.0
 
 # Tiers outside 1..5 clamp, like DangerTier.fleet_for.
 static func ship_budget(tier: int, economy: BaseEconomy) -> int:
@@ -50,8 +48,9 @@ static func build_plan(tier: int, role: CampaignFleet.Role, budget: int, min_fle
 		plan.append(DangerTier.Variant.PICKET)
 	return plan
 
-static func respawn_delay(variant: DangerTier.Variant, budget: int) -> float:
-	return CampaignState.FLEET_RESPAWN_DELAY * VARIANT_DELAY_FACTOR[variant] / maxf(1.0, budget / RESPAWN_BASELINE_BUDGET)
+static func respawn_delay(variant: DangerTier.Variant, tier: int, budget: int) -> float:
+	var baseline: float = TIER_BUDGET[clampi(tier, DangerTier.MIN_TIER, DangerTier.MAX_TIER)]
+	return CampaignState.FLEET_RESPAWN_DELAY * VARIANT_DELAY_FACTOR[variant] / maxf(1.0, budget / baseline)
 
 # Adds variant while remaining >= min_remaining; returns what is left.
 static func _fill(plan: Array[int], variant: DangerTier.Variant, min_remaining: float, remaining: float) -> float:

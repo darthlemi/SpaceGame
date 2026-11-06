@@ -294,7 +294,7 @@ static func _check_combat_round_trip_keeps_system_and_npc_warp(tree: SceneTree, 
 	var scene := await _open_scene(tree)
 	npc.start_warp("bastion")
 	npc.warp_remaining = 2.0
-	# Paused across the reload so a slow frame's physics catch-up can't eat the tolerance.
+	# Paused across the reload; speed_controls.gd _ready unpauses the tree on scene rebuild anyway.
 	tree.paused = true
 	# As combat does: the campaign is rebuilt from CampaignState by a real scene change.
 	tree.current_scene = scene
@@ -314,9 +314,9 @@ static func _check_combat_round_trip_keeps_system_and_npc_warp(tree: SceneTree, 
 	await tree.process_frame
 	if campaign_state.player_fleet.system_id != "wexford" or rebuilt.player_icon.get_parent() != rebuilt.layer_for("wexford") or not rebuilt.layer_for("wexford").visible:
 		failures.append("combat_round_trip: expected the player still in (and showing) wexford, in %s" % campaign_state.player_fleet.system_id)
-	# Tolerance covers physics catch-up on the slow frames of a rebuild; bigger NPC fleets mean more
-	# icons to build, so those frames run longer (0.1 held with 3-ship fleets, ~0.15 lost with 10+).
-	if absf(npc.warp_remaining - 2.0) > 0.5 or npc.warp_target != "bastion":
+	# speed_controls.gd:11 unpauses the tree on rebuild, so loss is physics catch-up on slow frames,
+	# at most ~0.133 s per frame.
+	if absf(npc.warp_remaining - 2.0) > 0.3 or npc.warp_target != "bastion":
 		failures.append("combat_round_trip: expected the NPC's warp kept at about 2.0 s to bastion, got %.3f to '%s'" % [npc.warp_remaining, npc.warp_target])
 	tree.paused = false
 	var before := npc.warp_remaining

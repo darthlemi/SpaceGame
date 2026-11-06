@@ -345,6 +345,20 @@ static func run() -> Array[String]:
 	if not spawned.is_empty():
 		failures.append("tick_economy: expected growth never to spawn a fleet, got %d" % spawned.size())
 
+	# Growth stops at the fleet's variant maximum: a Picket stays at 2 ships, a Security reaches the global cap.
+	for case in [[DangerTier.Variant.PICKET, 2], [DangerTier.Variant.SECURITY, FleetAllocationPolicy.MAX_SHIPS_PER_FLEET]]:
+		var cap_state := CampaignState.new()
+		var cap_station := _test_station("dom", CampaignFleet.Faction.DOMINION, BaseEconomy.new())
+		cap_station.economy.slots = [EconomyRole.mining()]
+		cap_state.galaxy = _test_galaxy([cap_station])
+		var cap_fleet := _test_station_fleet("dom", CampaignFleet.Faction.DOMINION, CampaignFleet.Role.COMBAT, 10.0)
+		cap_fleet.variant = case[0]
+		cap_state.enemy_fleets = [cap_fleet, _test_station_fleet("", CampaignFleet.Faction.PIRATE, CampaignFleet.Role.COMBAT, 1000000.0)]
+		for _i in FleetAllocationPolicy.MAX_SHIPS_PER_FLEET + 3:
+			cap_state.tick_economy(CampaignState.ECONOMY_TICK_INTERVAL)
+		if cap_fleet.ship_compositions.size() != case[1]:
+			failures.append("tick_economy: variant %d expected growth to stop at %d ships, got %d" % [case[0], case[1], cap_fleet.ship_compositions.size()])
+
 	# Reallocation: an outmatched station in economic deficit with 2 trader
 	# fleets flips one to COMBAT instead of growing (can't afford to grow).
 	var reallocate_state := CampaignState.new()

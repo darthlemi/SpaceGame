@@ -344,6 +344,10 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   - 15v15: 1x avg 2.74 / max 4.59 ms, 5x avg 2.71 / max 4.83 ms;
   - 20v20: 1x avg 3.74 / max 5.92 ms, 5x avg 3.73 / max 7.86 ms.
 - Gate passed at 15 and 20: `DangerTier.SECURITY_MAX_SHIPS := 15` (Task 2).
+- `FleetBudget.TIER_BUDGET` retuned to {4, 10, 16, 24, 32} (was {3, 6, 10, 16, 22}) so seed-1 NPC ships
+  reach the 3x test over `BASELINE_SHIPS` 170. Growth is capped per variant (`ship_count_range(v).y`;
+  variant -1 keeps the global 15); `respawn_delay(variant, tier, budget)` only speeds up for output above
+  the tier baseline budget.
 
 ## Rules and gotchas worth keeping
 

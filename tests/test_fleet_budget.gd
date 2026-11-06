@@ -59,12 +59,15 @@ static func run() -> Array[String]:
 		if variant != DangerTier.Variant.PICKET:
 			failures.append("build_plan: tier 1 budget 3 must only plan Pickets, got %d" % variant)
 
-	var picket_delay := FleetBudget.respawn_delay(DangerTier.Variant.PICKET, 6)
-	var security_delay := FleetBudget.respawn_delay(DangerTier.Variant.SECURITY, 6)
+	var picket_delay := FleetBudget.respawn_delay(DangerTier.Variant.PICKET, 1, 6)
+	var security_delay := FleetBudget.respawn_delay(DangerTier.Variant.SECURITY, 1, 6)
 	if security_delay <= picket_delay:
 		failures.append("test_respawn_delay_security_slower_than_picket: security %.1f, picket %.1f" % [security_delay, picket_delay])
-	if FleetBudget.respawn_delay(DangerTier.Variant.PATROL, 24) >= FleetBudget.respawn_delay(DangerTier.Variant.PATROL, 6):
+	if FleetBudget.respawn_delay(DangerTier.Variant.PATROL, 1, 24) >= FleetBudget.respawn_delay(DangerTier.Variant.PATROL, 1, 4):
 		failures.append("respawn_delay: richer station should respawn faster")
-	if FleetBudget.respawn_delay(DangerTier.Variant.PATROL, 0) != CampaignState.FLEET_RESPAWN_DELAY:
+	if FleetBudget.respawn_delay(DangerTier.Variant.PATROL, 1, 0) != CampaignState.FLEET_RESPAWN_DELAY:
 		failures.append("respawn_delay: budget 0 should floor at the base delay")
+	var baseline_delay := FleetBudget.respawn_delay(DangerTier.Variant.PICKET, 4, FleetBudget.TIER_BUDGET[4])
+	if not is_equal_approx(baseline_delay, CampaignState.FLEET_RESPAWN_DELAY * 0.5):
+		failures.append("respawn_delay: tier 4 at baseline budget should give a Picket FLEET_RESPAWN_DELAY * 0.5, got %.2f" % baseline_delay)
 	return failures

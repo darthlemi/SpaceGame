@@ -41,8 +41,8 @@ static func _first_fleet(campaign_state, station_id: String, role: CampaignFleet
 static func _check_layers(tree: SceneTree, campaign_state, failures: Array[String]) -> void:
 	campaign_state.new_game()
 	var scene := await _open_scene(tree)
-	if scene.layers.size() != 26:
-		failures.append("layers: expected 26 system layers, got %d" % scene.layers.size())
+	if scene.layers.size() != 27:
+		failures.append("layers: expected 27 system layers, got %d" % scene.layers.size())
 	for system_id in scene.layers:
 		var layer: Node2D = scene.layers[system_id]
 		if system_id == "haven":

@@ -97,14 +97,14 @@ static func _check_fleet_counts(failures: Array[String]) -> void:
 	var bazaar_traders: Array[CampaignFleet] = state.station_fleets(bazaar, TRADER)
 	if bazaar_traders.size() != 1 or bazaar_traders[0].faction != CampaignFleet.Faction.TRADER:
 		failures.append("new_game: expected one TRADER-faction trader at a neutral station")
-	var tier5_pirates := 0
+	var tier4_pirates := 0
 	for fleet in state.enemy_fleets:
-		if fleet.faction == CampaignFleet.Faction.PIRATE and state.galaxy.system(fleet.system_id).tier == 5:
-			tier5_pirates += 1
+		if fleet.faction == CampaignFleet.Faction.PIRATE and state.galaxy.system(fleet.system_id).tier == 4:
+			tier4_pirates += 1
 			if fleet.ship_compositions.size() != 3:
-				failures.append("new_game: expected a tier-5 pirate fleet of 3 ships, got %d" % fleet.ship_compositions.size())
-	if tier5_pirates == 0:
-		failures.append("new_game: expected tier-5 pirate fleets")
+				failures.append("new_game: expected a tier-4 pirate fleet of 3 ships, got %d" % fleet.ship_compositions.size())
+	if tier4_pirates == 0:
+		failures.append("new_game: expected tier-4 pirate fleets")
 	var pirate_stations: Array[StationData] = state.stations_of(CampaignFleet.Faction.PIRATE)
 	if pirate_stations.is_empty() or pirate_stations.any(func(s): return s.owner != CampaignFleet.Faction.PIRATE):
 		failures.append("stations_of: expected only pirate stations")
@@ -317,12 +317,12 @@ static func _check_next_destination(failures: Array[String]) -> void:
 		failures.append("next_trade_destination: expected the nearest candidate when every score is 0, got '%s'" % state.next_trade_destination(gr_trader))
 
 	# Beside a pirate base, a neutral hauler still finds a neutral partner within range.
-	var depot: StationData = state.galaxy.station("marrow_depot")
+	var depot: StationData = state.galaxy.station("farhaven")
 	var depot_trader: CampaignFleet = state.station_fleets(depot, TRADER)[0]
-	depot_trader.dest_station_id = "marrow_depot"
+	depot_trader.dest_station_id = "farhaven"
 	var in_range: StationData = state.galaxy.station(state.next_trade_destination(depot_trader))
-	if in_range == null or in_range.owner != CampaignFleet.Faction.NEUTRAL or state.galaxy.jump_distance("marrow", in_range.system_id) > CampaignStateScript.TRADE_RANGE_JUMPS:
-		failures.append("next_trade_destination: expected a neutral partner within range of marrow_depot, got '%s'" % (in_range.id if in_range != null else ""))
+	if in_range == null or in_range.owner != CampaignFleet.Faction.NEUTRAL or state.galaxy.jump_distance("farhaven", in_range.system_id) > CampaignStateScript.TRADE_RANGE_JUMPS:
+		failures.append("next_trade_destination: expected a neutral partner within range of farhaven, got '%s'" % (in_range.id if in_range != null else ""))
 
 	# Scoring: the stock of goods home needs (Ore, Fuel, Food for Bastion) beats distance.
 	var bastion: StationData = state.galaxy.station("bastion")
@@ -367,19 +367,19 @@ static func _check_next_destination(failures: Array[String]) -> void:
 		failures.append("next_trade_destination: expected a neutral trader to pick a neutral station over richer ones, got '%s'" % (neutral_target.id if neutral_target != null else ""))
 	state.free()
 
-# Range: Bastion (which needs Ore) takes a rich partner 2 jumps out (haven), never a richer one 3 out (tollgate).
+# Range: Bastion (which needs Ore) takes a rich partner 2 jumps out (haven), never a richer one 3 out (northgate).
 static func _check_trade_range(failures: Array[String]) -> void:
 	var state := _fresh_state()
 	var bastion: StationData = state.galaxy.station("bastion")
 	var trader: CampaignFleet = state.station_fleets(bastion, TRADER)[0]
 	trader.dest_station_id = "bastion"
-	state.galaxy.add_station(_extra_station("far_post", "tollgate", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e7}))
+	state.galaxy.add_station(_extra_station("far_post", "northgate", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e7}))
 	state.galaxy.add_station(_extra_station("edge_post", "haven", CampaignFleet.Faction.NEUTRAL, Vector2(500, 300), {Commodity.Type.ORE: 1.0e6}))
 	# The Dominion quarries beside Bastion would out-supply both posts; take them out of the trade.
 	for quarry_id in ["bastion_quarry", "ironhold_quarry", "kestrel_mines"]:
 		state.galaxy.station(quarry_id).owner = CampaignFleet.Faction.PIRATE
-	if state.galaxy.jump_distance("bastion", "haven") != 2 or state.galaxy.jump_distance("bastion", "tollgate") != 3:
-		failures.append("trade range: test setup expected haven 2 and tollgate 3 jumps from bastion")
+	if state.galaxy.jump_distance("bastion", "haven") != 2 or state.galaxy.jump_distance("bastion", "northgate") != 3:
+		failures.append("trade range: test setup expected haven 2 and northgate 3 jumps from bastion")
 	if state.next_trade_destination(trader) != "edge_post":
 		failures.append("trade range: expected edge_post (2 jumps) over far_post (3 jumps), got '%s'" % state.next_trade_destination(trader))
 	state.free()

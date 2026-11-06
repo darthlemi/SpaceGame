@@ -19,12 +19,13 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
   at an industrial station; not measured for the other goods). Both factors are placeholders. NPC traders
   now arbitrage the same gaps from tick 0.
 - `data\galaxy.json` committed in the same change with the user's map editor edits (new system Dyrall,
-  moved systems, link changes). Known stale tests from those edits, not from the stock change:
-  `test_galaxy_data.gd` (26 systems / 40 stations / 80 link entries, tier 5 for deadreach and ashfall,
-  Ironhold's population slot with no agriculture), `test_campaign_layers.gd` (26 layers),
-  `test_jump_map_panel.gd` (new-game systems), `test_campaign_ai_jumps.gd` round trip,
-  `test_campaign_galaxy_state.gd` (tier-5 pirates, marrow_depot partner, bastion jump distances).
-  Update the counts or the galaxy, then re-run.
+  moved systems, link changes). The tests stale from those edits were updated by hand and NOT re-run:
+  counts (27 / 43 / 76 link entries / 27 layers), deadreach and ashfall tier 4, new-game jump map shows
+  northgate not tollgate, round-trip raider starts at thornfield, tier-4 pirate check, the neutral-partner
+  check uses farhaven, trade range uses northgate (3 jumps from bastion). **Run the suite first thing.**
+  `test_galaxy_data.gd` exempts `ironhold` from the pirate-needs-agriculture rule (TODO in the test):
+  Ironhold is now a pirate station with a population slot and no pirate farm in range; decide whether
+  to add agriculture there or relax the rule.
 
 ## Completed this session
 - Built the star systems plan (`docs\superpowers\plans\2026-11-04-star-systems-jumping.md`),
@@ -194,7 +195,7 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
 - `assets\sprites\bases\` is unused but kept.
 
 ## Map editor (built 2026-11-05, plan `docs\superpowers\plans\2026-11-05-map-editor.md`)
-- The galaxy is data now: `data\galaxy.json` (26 systems, 40 stations, 40 links). `GalaxyData.build()`
+- The galaxy is data now: `data\galaxy.json` (27 systems, 43 stations, 38 links as of 2026-11-06). `GalaxyData.build()`
   reads it and hard-fails on a missing or corrupt file (that path is untested: the assert would abort
   the run). Schema and decisions: `docs\superpowers\specs\2026-11-05-map-editor-design.md`.
 - Balancing now happens by editing `data\galaxy.json` (presets, per-slot overrides, stock, quotas) or

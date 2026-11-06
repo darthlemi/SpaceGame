@@ -114,9 +114,9 @@ static func _check_round_trip_in_tick(failures: Array[String]) -> void:
 
 	var away := _first_fleet(state, "southdeep_den", COMBAT)
 	_reset_jump_state(away)
-	away.system_id = "aurum"
+	away.system_id = "thornfield"
 	for fleet in state.enemy_fleets:
-		if fleet.system_id == "aurum" and fleet.role == TRADER:
+		if fleet.system_id == "thornfield" and fleet.role == TRADER:
 			fleet.system_id = "bastion"
 	away.cargo[FUEL] = JumpRules.jump_cost(away)
 	state.tick_npc_jumps(TICK)

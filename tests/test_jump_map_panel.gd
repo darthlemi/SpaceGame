@@ -32,7 +32,7 @@ static func _check_shown_systems(panel, campaign_state, failures: Array[String])
 		failures.append("shown: expected open_for to show the panel")
 	var shown: Array = panel.node_points.keys()
 	shown.sort()
-	var expected := ["haven", "kestrel", "marrow", "tollgate", "wexford"]
+	var expected := ["haven", "kestrel", "marrow", "northgate", "wexford"]
 	if shown != expected:
 		failures.append("shown: expected exactly %s drawn at a new game, got %s" % [expected, shown])
 	if panel.selected_system() != "haven":

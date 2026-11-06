@@ -348,6 +348,18 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   reach the 3x test over `BASELINE_SHIPS` 170. Growth is capped per variant (`ship_count_range(v).y`;
   variant -1 keeps the global 15); `respawn_delay(variant, tier, budget)` only speeds up for output above
   the tier baseline budget.
+- Task 4 (supply and long-run check): `tests\probe_galaxy.gd` is now in the repo (`-- --seed=7 --dur=3600`,
+  `--verbose`, `--free-fuel`). With the new fleets, 1 h, seeds 7 / 11: jump rate 1.18 / 1.11 per s, 0 stranded,
+  18 / 18 fleets dry at home (baseline 0-4): refinery output could not keep up with ~3.5x the ships' fuel use
+  (`--free-fuel` gave 1.74 jumps/s, 0 dry). Fix: `refinery` preset `FUEL` 3.0 -> 6.0 in `data\galaxy.json` (the
+  `EconomyRole.refinery()` default stays 3.0). Result: 1.74 / 1.70 jumps/s, 0 stranded, 3 / 2 dry at home
+  (peak 6 / 5), no slot loss, 150 / 116 NPC skirmishes per hour (123 / 99 before the fix), NPC ships
+  at 1 h 667 / 674 vs 622 / 626 at start (107-108%, the respawn refills faster than fights kill).
+- Perf, `tests\perf_galaxy.gd`, non-headless, 145 fleets / 633 ships (bar 8 / 33 ms): 1x frame avg 1.95 /
+  max 13.74 ms, 5x frame avg 2.16 / max 10.10 ms. The 1x physics-only max (44.99 ms) is a one-off
+  hitch in the 600-frame window, not seen at 5x.
+- Open playtest items: feel of pickets vs. security fleets; Flee against 10-15 ship fleets; fleet icons do not
+  show ship count; pirate security odds early on.
 
 ## Rules and gotchas worth keeping
 

@@ -37,7 +37,10 @@ func _run() -> void:
 	for _i in WARMUP_FRAMES:
 		await process_frame
 	paused = false
-	print("perf_galaxy: headless=%s fleets=%d systems=%d" % [DisplayServer.get_name() == "headless", campaign_state.enemy_fleets.size(), campaign_state.galaxy.systems.size()])
+	var ships := 0
+	for fleet in campaign_state.enemy_fleets:
+		ships += fleet.ship_compositions.size()
+	print("perf_galaxy: headless=%s fleets=%d ships=%d systems=%d" % [DisplayServer.get_name() == "headless", campaign_state.enemy_fleets.size(), ships, campaign_state.galaxy.systems.size()])
 	for speed in SPEEDS:
 		Engine.time_scale = speed
 		var samples := await _measure(FRAMES_PER_SPEED)

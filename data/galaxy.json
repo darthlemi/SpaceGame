@@ -28,7 +28,7 @@
     },
     "refinery": {
       "kind": "REFINERY",
-      "produces": {"FUEL": 3.0},
+      "produces": {"FUEL": 6.0},
       "consumes": {},
       "housing": 800.0
     },

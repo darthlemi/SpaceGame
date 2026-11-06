@@ -3,6 +3,35 @@
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
+## Combat updates (user requests 2026-11-06, NOT built, no spec or plan yet)
+Brainstorm started, user chose to dump the list instead. Next: play back, spec
+(`docs\superpowers\specs\`, builder check), then `superpowers:writing-plans`. **Do not build before
+the spec is approved.** Numbering is the user's (there is no item 3).
+1. Player ships do not auto attack or move at battle start; they start idle in formation lines.
+   1.1. Spawn formation: strongest in the middle, next strongest to either side of them, weakest or
+   support-style ships behind.
+2. The fleet issues commands to its ships.
+   2.1. Commands: Move, Halt, Attack, Protect, Flee. (Existing Hold Position / Flee orders and the
+   H/F hotkeys, see "Combat AI and orders", map onto Halt / Flee; reconcile when specifying.)
+   2.2. Player input: left click selects ships as it does now; right click issues the command;
+   right click also clears the selection.
+   2.3. Protect: selected ships stay at some distance from the protectee, shooting incoming ships or
+   using PD weapons.
+   2.4. UI: command buttons bottom left with hotkeys M, H, A, P, F (order of 2.1).
+   2.5. Design UI elements and iconography per command. Square buttons. Art is planned in a separate
+   task.
+4. AI weapon use: ships keep their most effective weapons trained on the enemy while avoiding incoming
+   fire (pick 1-2 weapons and optimise their DPS; dodge projectiles but imperfectly).
+   4.1. Some ships may hit and run, but today everyone just flies past at great speed (the original
+   complaint: fly-by hits).
+   4.2. Player AI ships obey a given command and do not break from it, unless the ship they are
+   attacking or protecting is lost (user's sentence was cut off; confirm the exact break condition).
+   4.3. Pace: corvettes move too fast; ships do not feel like they fly in space. Acceleration too
+   high and turning too sharp. Slow down speed, acceleration and turn rate (hull/loadout movement
+   lives in `CombatTactics` and `Ship`, tuning consts named there).
+   Interaction to check: tuning speed down changes attack-run break distances and kite logic
+   (see "Untested run cases" below).
+
 ## Combat camera and debug menu (built 2026-11-06, for playtest)
 - `CombatCamera`: mouse at the screen edge pans (48 px band, ramped, eased); arena is now 3200x3200
   (walls in `combat_scene.tscn` and default spawn points moved to match). `OffscreenBlips` draws blue

@@ -71,6 +71,7 @@ func _ready() -> void:
 	fleet_status_bar.fleet_button.pressed.connect(_open_fleet_management)
 	fleet_management_panel.close_button.pressed.connect(_on_fleet_management_closed)
 	_jump = CampaignJumpController.new(self)
+	_build_debug_menu()
 
 	CampaignState.skirmish_resolved.connect(_on_skirmish_resolved)
 	CampaignState.fleet_spawn_requested.connect(_on_fleet_spawn_requested)
@@ -380,6 +381,20 @@ func _find_clickable_target(global_pos: Vector2) -> Area2D:
 		if collider is CampaignFleetIcon or collider is CampaignStation:
 			return collider
 	return null
+
+func _build_debug_menu() -> void:
+	var menu := DebugMenu.new()
+	add_child(menu)
+	var pirate := CampaignFleet.Faction.PIRATE
+	var combat := CampaignFleet.Role.COMBAT
+	menu.add_section("World", [
+		["Spawn pirate fleet (tier 1)", func(): DebugActions.spawn_fleet(pirate, combat, 1)],
+		["Spawn pirate fleet (tier 3)", func(): DebugActions.spawn_fleet(pirate, combat, 3)],
+		["Spawn pirate fleet (tier 5)", func(): DebugActions.spawn_fleet(pirate, combat, 5)],
+		["Spawn trader", func(): DebugActions.spawn_fleet(CampaignFleet.Faction.TRADER, CampaignFleet.Role.TRADER, 1)],
+		["Reveal all systems", DebugActions.reveal_galaxy],
+	])
+	menu.add_campaign_sections()
 
 func _unhandled_input(event: InputEvent) -> void:
 	# An open map handles J itself (it closes).

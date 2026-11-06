@@ -70,6 +70,15 @@ func _ready() -> void:
 	fleet_commander.selection_changed.connect(order_bar.set_has_selection)
 	fleet_commander.selected_ships = _initial_selection()
 	debug_console.command_entered.connect(_on_debug_command)
+	var debug_menu := DebugMenu.new()
+	add_child(debug_menu)
+	debug_menu.add_section("Combat", [
+		["Add friend", _on_debug_command.bind("AddFriend")],
+		["Add enemy", _on_debug_command.bind("AddEnemy")],
+		["Toggle god mode (selected)", _on_debug_command.bind("GodMode")],
+		["Kill all enemies", _on_debug_command.bind("KillAll")],
+	])
+	debug_menu.add_campaign_sections()
 	# An unarmed side loses before a shot is fired.
 	_check_battle_end()
 

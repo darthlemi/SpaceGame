@@ -24,6 +24,7 @@ func _run_all() -> void:
 		preload("res://tests/test_combat_camera.gd"),
 		preload("res://tests/test_formation.gd"),
 		preload("res://tests/test_fleet_commander.gd"),
+		load("res://tests/test_debug_actions.gd"),
 		preload("res://tests/test_debug_console.gd"),
 		preload("res://tests/test_ship_vfx.gd"),
 		preload("res://tests/test_campaign_fleet.gd"),

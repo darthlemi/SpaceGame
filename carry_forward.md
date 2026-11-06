@@ -3,6 +3,18 @@
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
+## Combat camera and debug menu (built 2026-11-06, for playtest)
+- `CombatCamera`: mouse at the screen edge pans (48 px band, ramped, eased); arena is now 3200x3200
+  (walls in `combat_scene.tscn` and default spawn points moved to match). `OffscreenBlips` draws blue
+  (friendly) / red (enemy) edge triangles for off-screen ships. Commit `085f0c5`.
+- F12 debug menu (`scripts\debug\debug_menu.gd`, actions in `debug_actions.gd`, tests in
+  `tests	est_debug_actions.gd`): click-only, in combat and in the world. Fuel +-100, credits +-1000,
+  crew +-10, repair fleet (both scenes); combat: add friend/enemy, god mode, kill all; world: spawn
+  pirate fleet tier 1/3/5, spawn trader, reveal all systems.
+- Known limits: fuel ignores cargo capacity; crew changes in combat hit campaign comps only, so they
+  do not reach already-deployed ships and are overwritten by the battle result for them. The old
+  text console is still there. Not playtested; only the headless suite ran (flake failures only).
+
 ## Starting stock spread (built 2026-11-06, commits `0b20473`, `bb7cfae`)
 - Problem: every station opened at `Commodity.TARGET_STOCK`, so every price matched and the player had no
   profitable trade at the start.

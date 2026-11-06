@@ -69,7 +69,7 @@ func _ready() -> void:
 			weapon_mounts.append(child)
 	hull.destroyed.connect(_on_hull_destroyed)
 	hull.damaged.connect(_on_hull_damaged)
-	execute_order(Order.hold())
+	execute_order(Order.hold_position())
 	var spool_bar := FleeSpoolBar.new()
 	add_child(spool_bar)
 	spool_bar.setup(self)

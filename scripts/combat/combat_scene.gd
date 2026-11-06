@@ -138,9 +138,34 @@ static func formation_points(anchors: Array[Vector2], count: int, facing: float)
 		points.append(origin + behind * (row * SHIP_SPACING) + lateral * offset)
 	return points
 
+static func strength_of(comp: Dictionary) -> float:
+	var kind: ShipType.Kind = ShipType.kind_of(comp)
+	var total: float = ShipType.BASE_STATS[kind]["max_hp"]
+	for path in comp.get("weapon_mount_items", []):
+		if path != "":
+			total += CombatTactics.weapon_dps(load(path))
+	return total
+
+# Re-orders anchors by distance to their own centroid, closest first, so the
+# strongest ship in a strength-sorted roster lands in the middle of the line
+# and the next-strongest ones land on the flanking anchors.
+static func center_out_anchors(anchors: Array[Vector2]) -> Array[Vector2]:
+	if anchors.size() <= 1:
+		return anchors.duplicate()
+	var centre := Vector2.ZERO
+	for a in anchors:
+		centre += a
+	centre /= float(anchors.size())
+	var sorted := anchors.duplicate()
+	sorted.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.distance_to(centre) < b.distance_to(centre))
+	return sorted
+
 func _spawn_fleet_from_data(fleet_data: CampaignFleet, indices: Array[int], points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
-	var spawn_points := formation_points(points, indices.size(), facing_rotation)
+	indices.sort_custom(func(a: int, b: int) -> bool:
+		return CombatScene.strength_of(fleet_data.ship_compositions[a]) > CombatScene.strength_of(fleet_data.ship_compositions[b])
+	)
+	var spawn_points := formation_points(CombatScene.center_out_anchors(points), indices.size(), facing_rotation)
 	for k in indices.size():
 		var point: Vector2 = spawn_points[k]
 		var comp: Dictionary = fleet_data.ship_compositions[indices[k]]

@@ -14,6 +14,7 @@ const CAPTURE_SEED := 14
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	failures.append_array(_formation_failures())
+	failures.append_array(_strength_and_anchor_failures())
 	var scene: Node2D = CombatSceneScene.instantiate()
 	tree.root.add_child(scene)
 
@@ -37,13 +38,17 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if scene.fleet_commander == null or scene.fleet_commander.ships != scene.player_ships:
 		failures.append("run_async: expected fleet_commander.ships == player_ships")
 
-	# Idle player ships hunt the enemy line to their right; they once drifted to the
-	# origin because spawners place a ship after add_child has run its _ready.
+	# Idle player ships spawn on HOLD_POSITION: they don't move toward the enemy
+	# on their own, only an explicit order (or the player) sends them in.
+	var spawn_positions: Array[Vector2] = []
+	for ship in scene.player_ships:
+		spawn_positions.append(ship.global_position)
+	await tree.physics_frame
 	await tree.physics_frame
 	for k in scene.player_ships.size():
-		var heading: Vector2 = scene.player_ships[k].velocity
-		if heading.x <= 0.0:
-			failures.append("run_async: expected idle player ship %d to head toward the enemy, got velocity %s" % [k, heading])
+		var drift := scene.player_ships[k].global_position.distance_to(spawn_positions[k])
+		if drift >= 10.0:
+			failures.append("run_async: expected idle player ship %d to stay near its spawn point, drifted %s px" % [k, drift])
 
 	if scene.result_label == null:
 		failures.append("run_async: expected result_label resolved by @onready, got null")
@@ -913,6 +918,26 @@ static func _formation_failures() -> Array[String]:
 			for point in scene_script.formation_points(anchors, count, facing):
 				if not arena.has_point(point):
 					failures.append("test_formation_points_stay_in_arena: %d-ship point %s outside the arena (facing %.2f)" % [count, point, facing])
+	return failures
+
+static func _strength_and_anchor_failures() -> Array[String]:
+	var failures: Array[String] = []
+	var weak := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	var strong := ShipType.new_composition(ShipType.Kind.CAPITAL)
+	ShipType.set_equipped_path(strong, ShipType.SlotType.WEAPON, 0, "res://resources/weapons/heavy_beam.tres")
+	if CombatScene.strength_of(strong) <= CombatScene.strength_of(weak):
+		failures.append("strength_of: expected the armed capital to score higher than the bare corvette")
+	var bare_corvette := ShipType.new_composition(ShipType.Kind.CORVETTE)
+	if not is_equal_approx(CombatScene.strength_of(bare_corvette), ShipType.BASE_STATS[ShipType.Kind.CORVETTE]["max_hp"]):
+		failures.append("strength_of: expected an unarmed hull to score exactly its max_hp, got %s" % CombatScene.strength_of(bare_corvette))
+
+	var line: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
+	var ordered := CombatScene.center_out_anchors(line)
+	if ordered[0] != Vector2(1000, 1600):
+		failures.append("center_out_anchors: expected the middle point first, got %s" % [ordered])
+	var single: Array[Vector2] = [Vector2(5, 5)]
+	if CombatScene.center_out_anchors(single) != single:
+		failures.append("center_out_anchors: expected a single anchor unchanged, got %s" % [CombatScene.center_out_anchors(single)])
 	return failures
 
 static func kept_player_count_wrong(kept_hp: Array[float]) -> bool:

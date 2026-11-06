@@ -25,7 +25,8 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
   check uses farhaven, trade range uses northgate (3 jumps from bastion). **Run the suite first thing.**
   `test_galaxy_data.gd` exempts `ironhold` from the pirate-needs-agriculture rule (TODO in the test):
   Ironhold is now a pirate station with a population slot and no pirate farm in range; decide whether
-  to add agriculture there or relax the rule.
+  to add agriculture there or relax the rule. User chose to leave the TODO in place for now (2026-11-06).
+  Test fixes are commit `0cfd1d5`.
 
 ## Completed this session
 - Built the star systems plan (`docs\superpowers\plans\2026-11-04-star-systems-jumping.md`),
@@ -222,7 +223,7 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   galaxy grows a lot.
 
 ## Repo state
-- **Unpushed:** `main` is 62 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Unpushed:** `main` is 64 commits ahead of origin (`03e243d` onward). Push only when asked.
 - **Two sessions on one tree:** on 2026-11-05 the combat and map editor sessions committed to `main`
   together; something wiped `.superpowers\sdd\` mid-run. When running parallel sessions, agents
   must never `git clean` / `stash` / `checkout .`, must redirect test output to unique files, and

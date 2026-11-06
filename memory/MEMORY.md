@@ -1,0 +1,4 @@
+- [Build on main](build-on-main.md) - implement SpaceGame plans directly on main, no worktree
+- [Token-efficient execution](token-efficient-execution.md) - 3-5 big tasks, batched reviews + final review, no small-fix re-reviews, fresh fixers, file handoffs for big context
+- [Ship art direction](ship-art-direction.md) - kitbash ship taste: gunmetal skin of chunky angled plates, sparse detail, chined sleek hull; big hulls flat + faceted, not round
+- [Station art direction](station-art-direction.md) - kitbash stations: habitable/blunt, every part connected; favourite seeds per type

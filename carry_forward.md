@@ -1,4 +1,4 @@
-# Carry-Forward - SpaceGame 2026-11-05 (star systems and jumping: built; 3 user decisions open)
+# Carry-Forward - SpaceGame 2026-11-06 (combat AI and orders: built, for playtest; star systems: 3 user decisions open)
 
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
@@ -20,9 +20,43 @@ Trimmed 2026-11-04. Finished, committed work was removed; it lives in git histor
 - Probe script for the AI galaxy (not committed):
   `C:\Users\c_dirks\AppData\Local\Temp\claude\7f8633d840d3c804\13cae86e-3352-415c-95d6-de4b935bbd38\scratchpad\probe\probe_galaxy.gd`
   (`-- --dur=3600`). Copy it into `tests\` if it is wanted long term.
-- Rulings made during execution (19, each with its cost if wrong) are in the SDD ledger
-  `.superpowers\sdd\2026-11-04-star-systems-jumping\progress.md`. Delete that folder once the
-  decisions below are made.
+- The 19 execution rulings were in `.superpowers\sdd\2026-11-04-star-systems-jumping\`, which was
+  wiped on 2026-11-05 (see "Combat AI and orders"). They are lost; git history is the record.
+
+## Combat AI and orders (built 2026-11-05, plan `docs\superpowers\plans\2026-11-05-combat-ai-orders.md`)
+- Commits: `68b5701` (hull/loadout movement), `7e5bedc` + `0730356` (target scoring, edge range),
+  `c00a2d1` + `e6dc30b` (Flee / Hold Position, AI flee, fled accounting), `aece3d3` (order bar,
+  H/F hotkeys, 10 s re-engage delay), `a43b9a3` (final fix: latched attack-run break point).
+- Verified: suite = long-run-sim flake only (4-8 lines), 0 `SCRIPT ERROR`; perf 10v10 non-headless
+  1x avg 1.74 / max 2.20 ms, 5x avg 1.44 / max 3.06 ms; run probe vs a capital 1 -> 5 shots in 30 s,
+  never inside the hull floor, 0 ticks outside the arena near a wall.
+- Pure helpers live in `CombatTactics` (`scripts\combat\combat_tactics.gd`); all tuning values are
+  named consts there, in `Ship` (`FLEE_SPOOL_TIME`) and `AIController` (`FLEE_LOSS_FRACTION`,
+  `UNARMED_FLEE_RANGE`), and `CampaignState.REENGAGE_DELAY`.
+- Rulings made during execution (spec over plan where they differed):
+  - attack runs latch the break point at INBOUND->BREAK (offset from target, clamped to the arena,
+    lead time `RUN_BREAK_LEAD_TIME` 0.8 s); the plan's per-tick point made ships orbit after 1 pass;
+  - "Withdrew" only when a fled player ship was still armed (plan said any fled ship);
+  - `nearest_in_range` and HOLD autofire measure to the hull edge (also fixes the EW drone aura);
+  - armed freighters use the corvette `FLEE_LOSS_FRACTION` (no FREIGHTER key);
+  - kite reach = `best_engagement_range` over working non-PD weapons;
+  - fled ships are untargetable and take no damage (projectiles, mounts, AI, selection);
+  - RUN ships don't count toward allies' spread; debug spawns skip fled ships.
+- Open, for the user:
+  - **Playtest feel:** runs, kiting, spacing, flee cost. The 10v10 perf battles hadn't ended
+    after 26 s (13/20 ships left at 1x); watch battle length.
+  - **Kiting vs corvettes:** the kite test compares forward speeds, but `hold_station` backs off at
+    0.5x, so a kiter can't hold its gap against another corvette. If confirmed, compare
+    `own_speed * REVERSE_SPEED_FACTOR`.
+  - **Blocked-fleet feedback:** clicking a fleet during its re-engage delay shows nothing, and
+    `_travel_target` keeps following it; no prompt when the block expires.
+  - **Untested run cases:** a target in an arena corner can turn a run into a wall slide; a hull
+    much faster than today's pushes the break distance past the reset distance.
+- Parked minors: kite point has no margin inside own reach; `tactic_for` uses base (not
+  crew-scaled) turn rate; only the `_trigger_arrival` re-engage gate is tested (`is_hostile_icon`,
+  `_process_pirate` aren't); `campaign_fleet_icon.gd` reads `/root/CampaignState` by path (the
+  autoload name broke test preloads); the flee spool bar runs `_process` every frame; no tests for
+  Hold Position out of reach or PD-only ships under Hold/Flee.
 
 ## Next steps
 1. **AI economy rebalance: built 2026-11-05 (`da2bec4`), for the user to playtest.** Replaces the
@@ -164,7 +198,12 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   galaxy grows a lot.
 
 ## Repo state
-- **Unpushed:** `main` is 32 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Unpushed:** `main` is 58 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Two sessions on one tree:** on 2026-11-05 the combat and map editor sessions committed to `main`
+  together; something wiped `.superpowers\sdd\` mid-run. When running parallel sessions, agents
+  must never `git clean` / `stash` / `checkout .`, must redirect test output to unique files, and
+  must stage only their own hunks (`tests\run_tests.gd` still holds an unstaged reorder hunk from
+  the map editor session).
 - **Untracked root files:** `images.jpg` (the kitbash reference), `images.jpg.import`,
   `MEMORY.md`, `token-efficient-execution.md`, and a screenshot of the menu mockup
   (`Screenshot 2026-11-05 163940.png`). The user said to leave them alone.
@@ -191,11 +230,7 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
 - **Capital selection ring:** the green 24 px `select_radius` circle hides under the capital
   sprite. The user said it's fine for now. Fix: scale the ring to the hull.
 - **Click limitation:** a left click within 24 px of an own ship selects it instead of moving.
-- **Combat AI:**
-  - ships attacking the same target from similar bearings stack (no ally separation);
-  - the standoff ignores the enemy's range (no kiting of outranged targets);
-  - there is no hold-position stance;
-  - PD weapons count toward the dps share, so PD-heavy loadouts close to PD range.
+- **Combat AI:** built 2026-11-05; open items are under "Combat AI and orders".
 - **VFX scale:** `HitSpark`, `SmokeTrail` and `EngineTrail` particles are still the pre-2x size.
 - **PD/Interceptor missile-vs-drone bonus:** deferred. Needs new targeting infrastructure.
 
@@ -246,8 +281,8 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   and read it; piping a backgrounded run through `grep` can look like a hang.
 - New `class_name` files and new PNGs need one `--headless --editor --quit` warm pass before a
   `--script` run sees them. The pass rewrites `.import` files with CRLF-only diffs.
-- **Known flake:** `test_campaign_long_run_sim.gd`, 3-4 pirate-targeting failures (3, 3 and 4 in
-  three runs after the 2026-11-04 final fix round; the count varies run to run). Any other FAIL in
+- **Known flake:** `test_campaign_long_run_sim.gd`, pirate-targeting failures; 4-8 lines per run
+  since the 2026-11-05 economy rebalance (was 3-4; the count varies run to run). Any other FAIL in
   that file is real: jump-rate decay, a trader idling at home, or a station outside
   `KNOWN_SLOT_LOSS` losing a slot. A clean suite is that flake only, with no `SCRIPT ERROR`.
   Always grep for `SCRIPT ERROR`: one inside an async test aborts it without a FAIL line.

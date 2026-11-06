@@ -1,7 +1,30 @@
-# Carry-Forward - SpaceGame 2026-11-06 (combat AI and orders: built, for playtest; star systems: 3 user decisions open)
+# Carry-Forward - SpaceGame 2026-11-06 (starting stock spread built, for playtest; combat AI and orders built, for playtest)
 
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
+
+## Starting stock spread (built 2026-11-06, commits `0b20473`, `bb7cfae`)
+- Problem: every station opened at `Commodity.TARGET_STOCK`, so every price matched and the player had no
+  profitable trade at the start.
+- `CampaignState._default_start_stock`: a net maker (`net_commodities() > 0`) opens at
+  `STARTING_STOCK_PRODUCED` 2.0x target (0.6x price band), a net burner at `STARTING_STOCK_CONSUMED`
+  0.15x (1.6x band); neutral goods stay at target. An explicit `stock` entry in `data\galaxy.json` wins.
+- Tests: `tests	est_campaign_start_stock.gd` (new). `test_campaign_galaxy_state.gd` no longer expects
+  target stock at every station, and its trade-destination check resets stock to target first (its
+  scores assume an even start).
+- Probe, seeds 7 and 11, 1 h (galaxy was 27 systems / 43 stations by then): ~1.33 jumps/s, flat from
+  ~20 min; 0 stranded, 0 traders stuck at home, 0-4 fleets dry at home, no slot loss. Not comparable to
+  the 1.15/s of the 26-system probe.
+- Open, for the user: **playtest the first-trade margins** (ore buys at ~6 at a mine and sells at ~12
+  at an industrial station; not measured for the other goods). Both factors are placeholders. NPC traders
+  now arbitrage the same gaps from tick 0.
+- `data\galaxy.json` committed in the same change with the user's map editor edits (new system Dyrall,
+  moved systems, link changes). Known stale tests from those edits, not from the stock change:
+  `test_galaxy_data.gd` (26 systems / 40 stations / 80 link entries, tier 5 for deadreach and ashfall,
+  Ironhold's population slot with no agriculture), `test_campaign_layers.gd` (26 layers),
+  `test_jump_map_panel.gd` (new-game systems), `test_campaign_ai_jumps.gd` round trip,
+  `test_campaign_galaxy_state.gd` (tier-5 pirates, marrow_depot partner, bastion jump distances).
+  Update the counts or the galaxy, then re-run.
 
 ## Completed this session
 - Built the star systems plan (`docs\superpowers\plans\2026-11-04-star-systems-jumping.md`),
@@ -198,7 +221,7 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   galaxy grows a lot.
 
 ## Repo state
-- **Unpushed:** `main` is 58 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Unpushed:** `main` is 62 commits ahead of origin (`03e243d` onward). Push only when asked.
 - **Two sessions on one tree:** on 2026-11-05 the combat and map editor sessions committed to `main`
   together; something wiped `.superpowers\sdd\` mid-run. When running parallel sessions, agents
   must never `git clean` / `stash` / `checkout .`, must redirect test output to unique files, and

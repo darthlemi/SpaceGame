@@ -79,7 +79,7 @@
     {
       "id": "deadreach",
       "name": "Deadreach",
-      "map": [0.04, 0.08],
+      "map": [0.0639, 0.0929],
       "extra": {}
     },
     {
@@ -115,19 +115,19 @@
     {
       "id": "haven",
       "name": "Haven",
-      "map": [0.51, 0.5],
+      "map": [0.5156, 0.419],
       "extra": {}
     },
     {
       "id": "ironhold",
       "name": "Ironhold",
-      "map": [0.83, 0.42],
+      "map": [0.8281, 0.4429],
       "extra": {}
     },
     {
       "id": "kestrel",
       "name": "Kestrel",
-      "map": [0.64, 0.45],
+      "map": [0.6534, 0.4833],
       "extra": {}
     },
     {
@@ -137,9 +137,15 @@
       "extra": {}
     },
     {
+      "id": "new_system",
+      "name": "Dyrall",
+      "map": [0.196, 0.1024],
+      "extra": {}
+    },
+    {
       "id": "northgate",
       "name": "Northgate",
-      "map": [0.55, 0.21],
+      "map": [0.5568, 0.2333],
       "extra": {}
     },
     {
@@ -175,13 +181,13 @@
     {
       "id": "tollgate",
       "name": "Tollgate",
-      "map": [0.44, 0.38],
+      "map": [0.429, 0.2619],
       "extra": {}
     },
     {
       "id": "voidmouth",
       "name": "Voidmouth",
-      "map": [0.62, 0.03],
+      "map": [0.6009, 0.0],
       "extra": {}
     },
     {
@@ -193,7 +199,7 @@
     {
       "id": "wreckyard",
       "name": "Wreckyard",
-      "map": [0.53, 0.92],
+      "map": [0.527, 0.9333],
       "extra": {}
     }
   ],
@@ -201,7 +207,6 @@
     ["ashfall", "crownspire"],
     ["aurum", "bastion"],
     ["aurum", "redtide"],
-    ["aurum", "southdeep"],
     ["bastion", "ironhold"],
     ["bastion", "kestrel"],
     ["bastion", "marrow"],
@@ -215,18 +220,18 @@
     ["cinder", "wexford"],
     ["crownspire", "ironhold"],
     ["deadreach", "farhaven"],
+    ["deadreach", "new_system"],
     ["farhaven", "freeport"],
-    ["farhaven", "gallows"],
     ["freeport", "greenreach"],
     ["frostline", "northgate"],
     ["frostline", "voidmouth"],
+    ["gallows", "new_system"],
     ["gallows", "northgate"],
-    ["greenreach", "marrow"],
     ["greenreach", "thornfield"],
     ["greenreach", "wexford"],
     ["haven", "kestrel"],
     ["haven", "marrow"],
-    ["haven", "tollgate"],
+    ["haven", "northgate"],
     ["haven", "wexford"],
     ["ironhold", "slagfall"],
     ["kestrel", "slagfall"],
@@ -235,7 +240,6 @@
     ["redtide", "wreckyard"],
     ["saltmarsh", "thornfield"],
     ["saltmarsh", "wreckyard"],
-    ["slagfall", "tollgate"],
     ["southdeep", "thornfield"],
     ["southdeep", "wreckyard"]
   ],
@@ -384,6 +388,53 @@
       "extra": {}
     },
     {
+      "name": "Dyrall 1",
+      "system": "new_system",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "ring_2",
+      "slots": [
+        {
+          "preset": "agriculture",
+          "overrides": {
+            "produces": {"FOOD": 5.0, "FUEL": 2.0}
+          }
+        },
+        {
+          "preset": "industrial",
+          "overrides": {
+            "produces": {"LUXURY_GOODS": 1.0, "WEAPONS": 2.0},
+            "consumes": {"FOOD": 2.0, "FUEL": 2.5, "ORE": 4.0}
+          }
+        }
+      ],
+      "stock": {},
+      "quota": {"COMBAT": 10, "TRADER": 5},
+      "extra": {}
+    },
+    {
+      "name": "Dyrall 2",
+      "system": "new_system",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "ring_2",
+      "slots": ["agriculture", "trade_hub"],
+      "stock": {},
+      "quota": {},
+      "extra": {}
+    },
+    {
+      "name": "Dyrall 3",
+      "system": "new_system",
+      "owner": "PIRATE",
+      "pos": [580.0, 350.0],
+      "art": "ring_2",
+      "slots": ["refinery", "mining"],
+      "stock": {},
+      "quota": {},
+      "extra": {}
+    },
+    {
       "name": "Farhaven",
       "system": "farhaven",
       "owner": "NEUTRAL",
@@ -485,7 +536,7 @@
     {
       "name": "Ironhold",
       "system": "ironhold",
-      "owner": "DOMINION",
+      "owner": "PIRATE",
       "pos": [580.0, 350.0],
       "art": "ring_2",
       "slots": ["industrial", "population"],
@@ -496,7 +547,7 @@
     {
       "name": "Ironhold Quarry",
       "system": "ironhold",
-      "owner": "DOMINION",
+      "owner": "PIRATE",
       "pos": [300.0, 250.0],
       "art": "truss_3",
       "slots": ["mining", "refinery"],
@@ -529,7 +580,7 @@
     {
       "name": "Marrow Depot",
       "system": "marrow",
-      "owner": "NEUTRAL",
+      "owner": "DOMINION",
       "pos": [300.0, 250.0],
       "art": "truss_3",
       "slots": ["agriculture", "trade_hub"],
@@ -661,7 +712,7 @@
     {
       "name": "Wreckyard Roost",
       "system": "wreckyard",
-      "owner": "PIRATE",
+      "owner": "DOMINION",
       "pos": [850.0, 420.0],
       "art": "spoke_2",
       "slots": ["refinery", "trade_hub"],

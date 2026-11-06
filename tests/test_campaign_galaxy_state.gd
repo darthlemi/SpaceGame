@@ -59,14 +59,12 @@ static func _check_new_game(failures: Array[String]) -> void:
 		failures.append("new_game: expected home_base_economy to be the home station's economy")
 	var seeded := true
 	for st in state.galaxy.stations:
-		if not is_equal_approx(st.economy.stock.get(Commodity.Type.ORE, 0.0), Commodity.TARGET_STOCK[Commodity.Type.ORE]):
-			seeded = false
 		if not is_equal_approx(st.economy.population, st.economy.population_capacity() * CampaignStateScript.STARTING_POPULATION_FRACTION):
 			seeded = false
 		if not is_equal_approx(st.economy.crew_pool, st.economy.crew_pool_cap()):
 			seeded = false
 	if not seeded:
-		failures.append("new_game: expected every station seeded with target stock, 0.75 population and a full crew pool")
+		failures.append("new_game: expected every station seeded with 0.75 population and a full crew pool")
 	if state.factions.size() != 2 or not state.factions_at_war:
 		failures.append("new_game: expected two warring power factions, got %d" % state.factions.size())
 	elif state.power_faction_for(CampaignFleet.Faction.DOMINION) == null or state.power_faction_for(CampaignFleet.Faction.FREEHOLD) == null:
@@ -299,6 +297,10 @@ static func _check_trade_surplus_only(state, trader: CampaignFleet, home: Statio
 
 static func _check_next_destination(failures: Array[String]) -> void:
 	var state := _fresh_state()
+	# These scores assume every station opens at TARGET_STOCK, not the maker/burner start.
+	for st in state.galaxy.stations:
+		for commodity in Commodity.TARGET_STOCK:
+			st.economy.stock[commodity] = Commodity.TARGET_STOCK[commodity]
 	if CampaignStateScript.TRADE_RANGE_JUMPS != 2:
 		failures.append("next_trade_destination: these checks assume TRADE_RANGE_JUMPS 2")
 	var greenreach: StationData = state.galaxy.station("greenreach")

@@ -37,6 +37,10 @@ const PLAYER_SPEED := 120.0
 const PLAYER_STARTING_FUEL := 30.0
 # Bases start below housing capacity so population has room to grow.
 const STARTING_POPULATION_FRACTION := 0.75
+# Opening stock as a fraction of Commodity.TARGET_STOCK for goods a station makes or burns, so
+# prices differ from day one (2.0 -> 0.6x price band, 0.15 -> 1.6x). Neutral goods start at target.
+const STARTING_STOCK_PRODUCED := 2.0
+const STARTING_STOCK_CONSUMED := 0.15
 
 var player_fleet: CampaignFleet
 var enemy_fleets: Array[CampaignFleet] = []
@@ -499,9 +503,19 @@ func _new_power_faction(faction_enum: CampaignFleet.Faction, display_name: Strin
 
 func _seed_economy(economy: BaseEconomy, starting_stock: Dictionary) -> void:
 	for commodity in Commodity.Type.values():
-		economy.stock[commodity] = float(starting_stock.get(commodity, Commodity.TARGET_STOCK[commodity]))
+		economy.stock[commodity] = float(starting_stock.get(commodity, _default_start_stock(economy, commodity)))
 	economy.population = economy.population_capacity() * STARTING_POPULATION_FRACTION
 	economy.crew_pool = economy.crew_pool_cap()
+
+# Net producers open overstocked (cheap), net consumers open short (dear); explicit data wins.
+func _default_start_stock(economy: BaseEconomy, commodity: int) -> float:
+	var net: float = economy.net_commodities().get(commodity, 0.0)
+	var factor := 1.0
+	if net > 0.0:
+		factor = STARTING_STOCK_PRODUCED
+	elif net < 0.0:
+		factor = STARTING_STOCK_CONSUMED
+	return Commodity.TARGET_STOCK[commodity] * factor
 
 func _tier_of(station: StationData) -> int:
 	var sys: StarSystem = galaxy.system(station.system_id) if galaxy != null else null

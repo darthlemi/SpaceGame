@@ -4,8 +4,8 @@ const ShipScene = preload("res://scenes/ship/ship_corvette.tscn")
 const PLAYER_GROUP := &"player_fleet"
 const ENEMY_GROUP := &"enemy_fleet"
 
-@export var player_spawn_points: Array[Vector2] = [Vector2(400, 400), Vector2(400, 600), Vector2(400, 800)]
-@export var enemy_spawn_points: Array[Vector2] = [Vector2(1600, 400), Vector2(1600, 600), Vector2(1600, 800)]
+@export var player_spawn_points: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
+@export var enemy_spawn_points: Array[Vector2] = [Vector2(2200, 1400), Vector2(2200, 1600), Vector2(2200, 1800)]
 
 @onready var fleet_commander: FleetCommander = $FleetCommander
 @onready var combat_camera: CombatCamera = $CombatCamera
@@ -37,6 +37,11 @@ func _ready() -> void:
 		player_ships = _spawn_fleet(player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
 		enemy_ships = _spawn_fleet(enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
 	combat_camera.focus(_spawn_centre())
+	var blips := OffscreenBlips.new()
+	blips.camera = combat_camera
+	blips.friendly_group = PLAYER_GROUP
+	blips.enemy_group = ENEMY_GROUP
+	$UILayer.add_child(blips)
 
 	# Ships are instantiated dynamically here rather than as static scene children, so
 	# their own _ready() (which resolves @onready hull/shield/engine) hasn't run yet at

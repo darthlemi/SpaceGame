@@ -7,7 +7,10 @@ static func run() -> Array[String]:
 	var failures: Array[String] = []
 	_check_fit_zoom(failures)
 	_check_clamp_center(failures)
+	_check_min_zoom(failures)
 	_check_zoom_about(failures)
+	_check_edge_pan_dir(failures)
+	_check_edge_blip(failures)
 	return failures
 
 static func _check_fit_zoom(failures: Array[String]) -> void:
@@ -43,3 +46,39 @@ static func _check_zoom_about(failures: Array[String]) -> void:
 	var centred := CombatCamera.zoom_about(centre, VIEW, VIEW / 2.0, old_zoom, new_zoom)
 	if not centred.is_equal_approx(centre):
 		failures.append("zoom_about: expected zooming at the screen centre to keep the centre, got %s" % centred)
+
+static func _check_edge_pan_dir(failures: Array[String]) -> void:
+	var cases := {
+		Vector2(576, 324): Vector2.ZERO,
+		Vector2(0, 324): Vector2(-1, 0),
+		Vector2(1151, 324): Vector2(47.0 / 48.0, 0),
+		Vector2(24, 324): Vector2(-0.5, 0),
+		Vector2(0, 647): Vector2(-1, 47.0 / 48.0),
+		Vector2(-5, 324): Vector2.ZERO,  # cursor left the window
+	}
+	for cursor in cases:
+		var got := CombatCamera.edge_pan_dir(cursor, VIEW, 48.0)
+		if not got.is_equal_approx(cases[cursor]):
+			failures.append("edge_pan_dir: expected %s at %s, got %s" % [cases[cursor], cursor, got])
+
+static func _check_edge_blip(failures: Array[String]) -> void:
+	var centre := Vector2(1000, 600)
+	if not OffscreenBlips.edge_blip(Vector2(1100, 650), centre, VIEW, 1.0, 14.0).is_empty():
+		failures.append("edge_blip: expected no blip for an on-screen ship")
+	var right := OffscreenBlips.edge_blip(Vector2(5000, 600), centre, VIEW, 1.0, 14.0)
+	if right.is_empty() or not (right["pos"] as Vector2).is_equal_approx(Vector2(1138, 324)):
+		failures.append("edge_blip: expected (1138, 324) for a ship far right, got %s" % [right])
+	var corner := OffscreenBlips.edge_blip(Vector2(-4000, -4000), centre, VIEW, 1.0, 14.0)
+	var pos: Vector2 = corner["pos"]
+	if pos.x < 14.0 or pos.y < 14.0 or pos.x > VIEW.x - 14.0 or pos.y > VIEW.y - 14.0:
+		failures.append("edge_blip: expected the corner blip inside the inset view, got %s" % pos)
+
+static func _check_min_zoom(failures: Array[String]) -> void:
+	# Fullscreen 16:9 on the square arena: at min zoom the view must still be narrower than the arena.
+	var big_view := Vector2(2560, 1440)
+	var square := Vector2(3200, 3200)
+	var z := CombatCamera.min_zoom(big_view, square)
+	if big_view.x / z >= square.x or big_view.y / z >= square.y:
+		failures.append("min_zoom: expected the view to fit inside the arena on both axes, zoom %s" % z)
+	if CombatCamera.min_zoom(Vector2(9000, 9000), square) > CombatCamera.MAX_ZOOM:
+		failures.append("min_zoom: expected a cap at MAX_ZOOM")

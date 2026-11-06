@@ -8,10 +8,10 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/order_bar.tscn" id="6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal"]
-size = Vector2(2320, 50)
+size = Vector2(3216, 50)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_vertical"]
-size = Vector2(50, 1308)
+size = Vector2(50, 3208)
 
 [node name="CombatScene" type="Node2D"]
 script = ExtResource("1")
@@ -42,25 +42,25 @@ visible = false
 [node name="Bounds" type="Node2D" parent="."]
 
 [node name="TopWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(1152, 15)
+position = Vector2(1600, 15)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/TopWall"]
 shape = SubResource("RectangleShape2D_horizontal")
 
 [node name="BottomWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(1152, 1273)
+position = Vector2(1600, 3185)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/BottomWall"]
 shape = SubResource("RectangleShape2D_horizontal")
 
 [node name="LeftWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(15, 648)
+position = Vector2(15, 1600)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/LeftWall"]
 shape = SubResource("RectangleShape2D_vertical")
 
 [node name="RightWall" type="StaticBody2D" parent="Bounds"]
-position = Vector2(2277, 648)
+position = Vector2(3185, 1600)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bounds/RightWall"]
 shape = SubResource("RectangleShape2D_vertical")

@@ -3,6 +3,10 @@ extends Node2D
 const ShipScene = preload("res://scenes/ship/ship_corvette.tscn")
 const PLAYER_GROUP := &"player_fleet"
 const ENEMY_GROUP := &"enemy_fleet"
+# Minimum gap between spawn points, so a big fleet does not stack on its anchors.
+const SHIP_SPACING := 120.0
+# Ships per extra row; rows go behind the anchor line, so 20 per side fit the arena.
+const FORMATION_ROW_WIDTH := 5
 
 @export var player_spawn_points: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
 @export var enemy_spawn_points: Array[Vector2] = [Vector2(2200, 1400), Vector2(2200, 1600), Vector2(2200, 1800)]
@@ -105,10 +109,40 @@ func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group:
 		spawned.append(ship)
 	return spawned
 
+# `count` spawn points: the anchors first, as given, then rows of FORMATION_ROW_WIDTH behind the
+# line (away from the enemy, which is where `facing` points) so the front stays on the anchors.
+static func formation_points(anchors: Array[Vector2], count: int, facing: float) -> Array[Vector2]:
+	var points: Array[Vector2] = []
+	if anchors.is_empty():
+		points.resize(count)
+		points.fill(Vector2.ZERO)
+		return points
+	for k in mini(count, anchors.size()):
+		points.append(anchors[k])
+	if count <= anchors.size():
+		return points
+	var behind := -Vector2.from_angle(facing)
+	var lateral := behind.orthogonal()
+	var centre := Vector2.ZERO
+	var rear_depth := -INF
+	for anchor in anchors:
+		centre += anchor
+		rear_depth = maxf(rear_depth, anchor.dot(behind))
+	centre /= float(anchors.size())
+	# Row origin: the anchors' lateral centre, level with the rearmost anchor.
+	var origin := centre + behind * (rear_depth - centre.dot(behind))
+	for extra in count - anchors.size():
+		var row := 1 + extra / FORMATION_ROW_WIDTH
+		var column := extra % FORMATION_ROW_WIDTH
+		var offset := (float(column) - (FORMATION_ROW_WIDTH - 1) / 2.0) * SHIP_SPACING
+		points.append(origin + behind * (row * SHIP_SPACING) + lateral * offset)
+	return points
+
 func _spawn_fleet_from_data(fleet_data: CampaignFleet, indices: Array[int], points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
+	var spawn_points := formation_points(points, indices.size(), facing_rotation)
 	for k in indices.size():
-		var point: Vector2 = points[k % points.size()]
+		var point: Vector2 = spawn_points[k]
 		var comp: Dictionary = fleet_data.ship_compositions[indices[k]]
 		var ship_scene: PackedScene = ShipType.scene_for(ShipType.kind_of(comp))
 		var ship: Ship = ship_scene.instantiate()

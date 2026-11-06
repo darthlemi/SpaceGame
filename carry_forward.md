@@ -307,6 +307,15 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
   - `test_speed_controls.gd` emits `pressed` without flipping `button_pressed` like a real click.
   - Open: should the resume-speed text go white while paused? Currently `#9fd0ff`.
 
+## NPC fleet scale (plan `docs\superpowers\plans6-11-06-npc-fleet-scale.md`)
+- Task 1 (combat spawn layout + perf gate): `CombatScene.formation_points` places ships past the
+  anchors in rows of 5 behind the line (`SHIP_SPACING` 120); 20 per side fit the 3200 arena.
+- Perf, `tests\perf_combat.gd`, non-headless, invulnerable N-v-N corvettes (bar 8 / 33 ms):
+  - 10v10: 1x avg 1.92 / max 2.75 ms, 5x avg 1.96 / max 3.16 ms;
+  - 15v15: 1x avg 2.74 / max 4.59 ms, 5x avg 2.71 / max 4.83 ms;
+  - 20v20: 1x avg 3.74 / max 5.92 ms, 5x avg 3.73 / max 7.86 ms.
+- Gate passed at 15 and 20: `DangerTier.SECURITY_MAX_SHIPS := 15` (Task 2).
+
 ## Rules and gotchas worth keeping
 
 ### Running Godot and tests

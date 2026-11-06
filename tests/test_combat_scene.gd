@@ -13,6 +13,7 @@ const CAPTURE_SEED := 14
 # hull signals (see Task 6 Step 3), so this must await twice before asserting on any of it.
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
+	failures.append_array(_formation_failures())
 	var scene: Node2D = CombatSceneScene.instantiate()
 	tree.root.add_child(scene)
 
@@ -885,6 +886,33 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(mixed_scene) and not mixed_scene.is_queued_for_deletion():
 		mixed_scene.queue_free()
 
+	return failures
+
+# Loaded (not preloaded) for the same autoload reason as the scene scripts in run_tests.gd.
+static func _formation_failures() -> Array[String]:
+	var failures: Array[String] = []
+	var scene_script = load("res://scripts/combat/combat_scene.gd")
+	var spacing: float = scene_script.SHIP_SPACING
+	var player_anchors: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
+	var enemy_anchors: Array[Vector2] = [Vector2(2200, 1400), Vector2(2200, 1600), Vector2(2200, 1800)]
+	var three: Array[Vector2] = scene_script.formation_points(player_anchors, 3, 0.0)
+	if three != player_anchors:
+		failures.append("test_formation_points_three_ships_keeps_anchors: expected the anchors back, got %s" % [three])
+	var arena := Rect2(Vector2.ZERO, Vector2(3200, 3200))
+	for side in [[player_anchors, 0.0], [enemy_anchors, PI]]:
+		var anchors: Array[Vector2] = side[0]
+		var facing: float = side[1]
+		var fifteen: Array[Vector2] = scene_script.formation_points(anchors, 15, facing)
+		if fifteen.size() != 15:
+			failures.append("test_formation_points_fifteen_ships_no_overlap: expected 15 points, got %d" % fifteen.size())
+		for a in fifteen.size():
+			for b in range(a + 1, fifteen.size()):
+				if fifteen[a].distance_to(fifteen[b]) < spacing - 0.01:
+					failures.append("test_formation_points_fifteen_ships_no_overlap: points %d and %d only %.1f apart" % [a, b, fifteen[a].distance_to(fifteen[b])])
+		for count in [15, 20, 30]:
+			for point in scene_script.formation_points(anchors, count, facing):
+				if not arena.has_point(point):
+					failures.append("test_formation_points_stay_in_arena: %d-ship point %s outside the arena (facing %.2f)" % [count, point, facing])
 	return failures
 
 static func kept_player_count_wrong(kept_hp: Array[float]) -> bool:

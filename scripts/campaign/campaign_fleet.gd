@@ -21,6 +21,8 @@ const FUEL_BURN_DISTANCE := 1000.0
 
 @export var system_id: String = ""
 var home_station_id: String = ""
+# DangerTier.Variant this fleet was spawned as; -1 when it has none (player, debug).
+var variant: int = -1
 var warp_remaining: float = 0.0
 var warp_target: String = ""
 var jump_path: Array[String] = []

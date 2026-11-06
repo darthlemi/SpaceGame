@@ -191,11 +191,20 @@ func new_game() -> void:
 	factions.assign([_new_power_faction(CampaignFleet.Faction.DOMINION, "Dominion"), _new_power_faction(CampaignFleet.Faction.FREEHOLD, "Freehold")])
 	factions_at_war = true
 	player_fleet = _new_player_fleet(home)
+	build_station_plans()
 	for station in galaxy.stations:
-		for role in station.fleet_quota:
-			for _i in station.fleet_quota[role]:
-				spawn_station_fleet(station, role)
+		for role in station.fleet_plan:
+			for variant in station.fleet_plan[role]:
+				spawn_station_fleet(station, role, variant)
 	record_visit(player_fleet.system_id)
+
+# The quota is each role's minimum fleet count; a rich station gets more and bigger fleets on top.
+func build_station_plans() -> void:
+	for station in galaxy.stations:
+		station.fleet_plan = {}
+		var budget := FleetBudget.ship_budget(_tier_of(station), station.economy)
+		for role in station.fleet_quota:
+			station.fleet_plan[role] = FleetBudget.build_plan(_tier_of(station), role, budget, station.fleet_quota[role], rng)
 
 # The snapshot is what the jump map shows for this system until the next visit.
 func record_visit(system_id: String) -> void:
@@ -439,9 +448,10 @@ static func fleet_faction_for(owner: CampaignFleet.Faction, role: CampaignFleet.
 		return CampaignFleet.Faction.TRADER if role == CampaignFleet.Role.TRADER else CampaignFleet.Faction.NEUTRAL
 	return owner
 
-func spawn_station_fleet(station: StationData, role: CampaignFleet.Role) -> CampaignFleet:
+func spawn_station_fleet(station: StationData, role: CampaignFleet.Role, variant: DangerTier.Variant = DangerTier.Variant.PATROL) -> CampaignFleet:
 	var fleet := CampaignFleet.new()
-	fleet.ship_compositions = DangerTier.fleet_for(_tier_of(station), role, rng)
+	fleet.ship_compositions = DangerTier.fleet_for_variant(_tier_of(station), variant, rng)
+	fleet.variant = variant
 	fleet.faction = fleet_faction_for(station.owner, role)
 	fleet.role = role
 	fleet.home_station_id = station.id
@@ -521,18 +531,34 @@ func _tier_of(station: StationData) -> int:
 	var sys: StarSystem = galaxy.system(station.system_id) if galaxy != null else null
 	return sys.tier if sys != null else DangerTier.MIN_TIER
 
-# A role under quota accumulates time; at the delay the whole deficit returns and the timer restarts.
+# A variant slot under plan accumulates time; at the delay the whole deficit returns and the timer
+# restarts. Slots count by variant, not role, so a trader flipped to COMBAT still fills its convoy slot.
 func _tick_station_respawns(station: StationData, elapsed: float) -> void:
-	for role in station.fleet_quota:
-		var deficit: int = station.fleet_quota[role] - station_fleets(station, role).size()
-		if deficit <= 0:
-			station.respawn_timers[role] = 0.0
-			continue
-		station.respawn_timers[role] = station.respawn_timers.get(role, 0.0) + elapsed
-		if station.respawn_timers[role] >= FLEET_RESPAWN_DELAY:
-			for _i in deficit:
-				spawn_station_fleet(station, role)
-			station.respawn_timers[role] = 0.0
+	if station.fleet_plan.is_empty():
+		return
+	var budget := FleetBudget.ship_budget(_tier_of(station), station.economy)
+	for role in station.fleet_plan:
+		var planned := {}
+		for variant in station.fleet_plan[role]:
+			planned[variant] = planned.get(variant, 0) + 1
+		for variant in planned:
+			var key := "%d:%d" % [role, variant]
+			var deficit: int = planned[variant] - _variant_fleet_count(station, variant)
+			if deficit <= 0:
+				station.respawn_timers[key] = 0.0
+				continue
+			station.respawn_timers[key] = station.respawn_timers.get(key, 0.0) + elapsed
+			if station.respawn_timers[key] >= FleetBudget.respawn_delay(variant, budget):
+				for _i in deficit:
+					spawn_station_fleet(station, role, variant)
+				station.respawn_timers[key] = 0.0
+
+func _variant_fleet_count(station: StationData, variant: int) -> int:
+	var count := 0
+	for fleet in enemy_fleets:
+		if fleet.home_station_id == station.id and fleet.variant == variant:
+			count += 1
+	return count
 
 # The flagship's deploy minimum is never billed or deserted, so the player can't be stranded.
 func flagship_floor(fleet: CampaignFleet) -> int:

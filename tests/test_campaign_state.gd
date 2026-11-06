@@ -501,7 +501,9 @@ static func run() -> Array[String]:
 	taken_player.ship_compositions.assign([taken_flagship, taken_corvette, taken_escaper])
 	taken_state.player_fleet = taken_player
 	var taken_enemy := CampaignFleet.new()
-	taken_enemy.ship_compositions.assign([ShipType.new_composition(ShipType.Kind.CORVETTE), ShipType.new_composition(ShipType.Kind.CORVETTE)])
+	# One slot under the cap: the first captured ship (the capital) fits, the second is scuttled.
+	for _i in FleetAllocationPolicy.MAX_SHIPS_PER_FLEET - 1:
+		taken_enemy.ship_compositions.append(ShipType.new_composition(ShipType.Kind.CORVETTE))
 	taken_state.enemy_fleets.assign([taken_enemy])
 	taken_state.start_engagement(taken_enemy)
 	var taken_player_escapers: Array[Dictionary] = [taken_escaper]
@@ -509,9 +511,9 @@ static func run() -> Array[String]:
 	taken_state.resolve_engagement(taken_player_escapers, taken_enemy.ship_compositions.duplicate(true), false, taken_captured)
 	if taken_enemy.ship_compositions.size() != FleetAllocationPolicy.MAX_SHIPS_PER_FLEET:
 		failures.append("resolve_engagement(player loss): expected the enemy capped at %d ships, got %d" % [FleetAllocationPolicy.MAX_SHIPS_PER_FLEET, taken_enemy.ship_compositions.size()])
-	elif ShipType.kind_of(taken_enemy.ship_compositions[2]) != ShipType.Kind.CAPITAL or CrewRules.is_flagship(taken_enemy.ship_compositions[2]):
-		failures.append("resolve_engagement(player loss): expected the captured capital appended with its flagship flag cleared, got %s" % taken_enemy.ship_compositions[2])
-	if taken_enemy.ship_compositions.size() > 2 and not CrewRules.wants_deploy(taken_enemy.ship_compositions[2]):
+	elif ShipType.kind_of(taken_enemy.ship_compositions.back()) != ShipType.Kind.CAPITAL or CrewRules.is_flagship(taken_enemy.ship_compositions.back()):
+		failures.append("resolve_engagement(player loss): expected the captured capital appended with its flagship flag cleared, got %s" % taken_enemy.ship_compositions.back())
+	if taken_enemy.ship_compositions.size() > 2 and not CrewRules.wants_deploy(taken_enemy.ship_compositions.back()):
 		failures.append("resolve_engagement(player loss): expected the captured capital to deploy for its new fleet")
 	if taken_player.ship_compositions.size() != 1 or ShipType.kind_of(taken_player.ship_compositions[0]) != ShipType.Kind.FREIGHTER:
 		failures.append("resolve_engagement(player loss): expected the player left with the escaped freighter")

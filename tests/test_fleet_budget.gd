@@ -28,8 +28,8 @@ static func run() -> Array[String]:
 		failures.append("test_ship_budget_rich_station_beats_poor: rich %d, poor %d" % [FleetBudget.ship_budget(3, rich), FleetBudget.ship_budget(3, poor)])
 	if FleetBudget.ship_budget(9, poor) != FleetBudget.ship_budget(5, poor):
 		failures.append("ship_budget: tier 9 should clamp to tier 5")
-	if FleetBudget.ship_budget(1, null) != 3:
-		failures.append("ship_budget: tier 1, no economy: expected 3, got %d" % FleetBudget.ship_budget(1, null))
+	if FleetBudget.ship_budget(1, null) != FleetBudget.TIER_BUDGET[1]:
+		failures.append("ship_budget: tier 1, no economy: expected TIER_BUDGET[1], got %d" % FleetBudget.ship_budget(1, null))
 
 	var empty_plan := FleetBudget.build_plan(3, CampaignFleet.Role.COMBAT, 0, 2, rng)
 	if empty_plan != [DangerTier.Variant.PICKET, DangerTier.Variant.PICKET]:

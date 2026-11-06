@@ -14,7 +14,9 @@ extends Resource
 @export var starting_stock: Dictionary = {}
 # Role -> int target number of fleets.
 @export var fleet_quota: Dictionary = {}
-# Role -> float seconds until the next replacement fleet.
+# Role -> Array of DangerTier.Variant ints: the fleets this station fields (see CampaignState.build_station_plans).
+@export var fleet_plan: Dictionary = {}
+# "role:variant" -> float seconds until the next replacement fleet of that variant.
 @export var respawn_timers: Dictionary = {}
 
 func is_home() -> bool:

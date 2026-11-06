@@ -37,4 +37,8 @@ static func run() -> Array[String]:
 	if boundary_safe != FleetAllocationPolicy.Action.NONE:
 		failures.append("decide: expected threat_ratio exactly at SAFE_THRESHOLD to NOT count as safe, got %s" % boundary_safe)
 
+	# A grown NPC fleet may reach the largest variant (Security).
+	if FleetAllocationPolicy.MAX_SHIPS_PER_FLEET != DangerTier.SECURITY_MAX_SHIPS:
+		failures.append("MAX_SHIPS_PER_FLEET: expected DangerTier.SECURITY_MAX_SHIPS (%d), got %d" % [DangerTier.SECURITY_MAX_SHIPS, FleetAllocationPolicy.MAX_SHIPS_PER_FLEET])
+
 	return failures

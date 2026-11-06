@@ -2,7 +2,7 @@ class_name FleetBudget
 extends RefCounted
 
 # Ships of budget per tier before the station's output adds to it.
-const TIER_BUDGET := {1: 3, 2: 6, 3: 10, 4: 16, 5: 22}
+const TIER_BUDGET := {1: 4, 2: 10, 3: 16, 4: 24, 5: 32}
 const OUTPUT_SHIPS_PER_UNIT := 0.5
 const SECURITY_MIN_BUDGET := 12
 const CONVOY_LARGE_MIN_BUDGET := 16

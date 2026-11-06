@@ -3,11 +3,16 @@ extends RefCounted
 const CampaignStateScript = preload("res://scripts/campaign/campaign_state.gd")
 const COMBAT := CampaignFleet.Role.COMBAT
 const TRADER := CampaignFleet.Role.TRADER
+# Total NPC ships on a seed-1 new_game() before fleet variants (80 fleets at a flat 2-3 ships each).
+const BASELINE_SHIPS := 170
 
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	_check_new_game(failures)
 	_check_fleet_counts(failures)
+	_check_fleet_plans(failures)
+	_check_total_ships(failures)
+	_check_plan_respawn(failures)
 	_check_hostility(failures)
 	_check_respawn(failures)
 	_check_threat(failures)
@@ -75,10 +80,12 @@ static func _check_fleet_counts(failures: Array[String]) -> void:
 	var state := _fresh_state()
 	var expected := 0
 	for st in state.galaxy.stations:
-		for role in st.fleet_quota:
-			expected += st.fleet_quota[role]
+		for role in st.fleet_plan:
+			expected += st.fleet_plan[role].size()
+			if st.fleet_plan[role].size() < st.fleet_quota[role]:
+				failures.append("new_game: expected %s's plan to hold at least its quota of %d fleets" % [st.id, st.fleet_quota[role]])
 	if state.enemy_fleets.size() != expected:
-		failures.append("new_game: expected %d quota fleets, got %d" % [expected, state.enemy_fleets.size()])
+		failures.append("new_game: expected %d planned fleets, got %d" % [expected, state.enemy_fleets.size()])
 	for fleet in state.enemy_fleets:
 		var st: StationData = state.galaxy.station(fleet.home_station_id)
 		if st == null or fleet.system_id != st.system_id:
@@ -101,8 +108,9 @@ static func _check_fleet_counts(failures: Array[String]) -> void:
 	for fleet in state.enemy_fleets:
 		if fleet.faction == CampaignFleet.Faction.PIRATE and state.galaxy.system(fleet.system_id).tier == 4:
 			tier4_pirates += 1
-			if fleet.ship_compositions.size() != 3:
-				failures.append("new_game: expected a tier-4 pirate fleet of 3 ships, got %d" % fleet.ship_compositions.size())
+			var bounds := DangerTier.ship_count_range(fleet.variant)
+			if fleet.ship_compositions.size() < bounds.x or fleet.ship_compositions.size() > bounds.y:
+				failures.append("new_game: expected a tier-4 pirate fleet within %s ships, got %d" % [bounds, fleet.ship_compositions.size()])
 	if tier4_pirates == 0:
 		failures.append("new_game: expected tier-4 pirate fleets")
 	var pirate_stations: Array[StationData] = state.stations_of(CampaignFleet.Faction.PIRATE)
@@ -135,12 +143,15 @@ static func _check_hostility(failures: Array[String]) -> void:
 static func _check_respawn(failures: Array[String]) -> void:
 	var state := _fresh_state()
 	var den: StationData = state.galaxy.station("southdeep_den")
+	# Pinned to two Patrols so the delay is the one FleetBudget.respawn_delay gives for that variant.
+	den.fleet_plan[COMBAT] = [DangerTier.Variant.PATROL, DangerTier.Variant.PATROL]
 	for fleet in state.station_fleets(den, COMBAT):
 		state.enemy_fleets.erase(fleet)
-	state.tick_economy(CampaignStateScript.FLEET_RESPAWN_DELAY - CampaignStateScript.ECONOMY_TICK_INTERVAL)
+	var delay := FleetBudget.respawn_delay(DangerTier.Variant.PATROL, FleetBudget.ship_budget(state._tier_of(den), den.economy))
+	state.tick_economy(delay - CampaignStateScript.ECONOMY_TICK_INTERVAL * 2.0)
 	if state.station_fleets(den, COMBAT).size() != 0:
-		failures.append("respawn: expected no fleet back before FLEET_RESPAWN_DELAY, got %d" % state.station_fleets(den, COMBAT).size())
-	state.tick_economy(CampaignStateScript.ECONOMY_TICK_INTERVAL * 2.0)
+		failures.append("respawn: expected no fleet back before the respawn delay, got %d" % state.station_fleets(den, COMBAT).size())
+	state.tick_economy(CampaignStateScript.ECONOMY_TICK_INTERVAL * 3.0)
 	var back: Array[CampaignFleet] = state.station_fleets(den, COMBAT)
 	if back.size() != 2:
 		failures.append("respawn: expected 2 combat fleets back after the delay, got %d" % back.size())
@@ -152,9 +163,76 @@ static func _check_respawn(failures: Array[String]) -> void:
 		state.tick_economy(CampaignStateScript.ECONOMY_TICK_INTERVAL)
 		if state.station_fleets(den, COMBAT).size() != 1:
 			failures.append("respawn: expected a fleet lost after a respawn to stay gone one tick later, got %d" % state.station_fleets(den, COMBAT).size())
-		state.tick_economy(CampaignStateScript.FLEET_RESPAWN_DELAY)
+		state.tick_economy(delay + CampaignStateScript.ECONOMY_TICK_INTERVAL)
 		if state.station_fleets(den, COMBAT).size() != 2:
 			failures.append("respawn: expected the lost fleet back after another full delay, got %d" % state.station_fleets(den, COMBAT).size())
+	state.free()
+
+static func _check_fleet_plans(failures: Array[String]) -> void:
+	var state := _fresh_state()
+	var planned := 0
+	for fleet in state.enemy_fleets:
+		var st: StationData = state.galaxy.station(fleet.home_station_id)
+		var role_plan: Array = st.fleet_plan.get(fleet.role, [])
+		if not role_plan.has(fleet.variant):
+			failures.append("new_game: expected %s's fleet variant %d to be in its plan %s" % [st.id, fleet.variant, role_plan])
+			break
+	for st in state.galaxy.stations:
+		for role in st.fleet_plan:
+			planned += st.fleet_plan[role].size()
+			if not st.fleet_quota.has(role):
+				failures.append("new_game: expected no plan for role %d at %s, which has no quota for it" % [role, st.id])
+	if planned != state.enemy_fleets.size():
+		failures.append("new_game: expected %d fleets from the plans, got %d" % [planned, state.enemy_fleets.size()])
+	# The player's home has an empty quota, so no plan and no fleets.
+	var home := state.galaxy.home_station()
+	if not home.fleet_plan.is_empty() or state.enemy_fleets.any(func(f): return f.home_station_id == home.id):
+		failures.append("new_game: expected the quota-less home station to have no plan and no fleets")
+	state.free()
+
+static func _check_plan_respawn(failures: Array[String]) -> void:
+	var state := _fresh_state()
+	var tick := CampaignStateScript.ECONOMY_TICK_INTERVAL
+	# A destroyed Security slot comes back as Security, after Security's own (slower) delay.
+	var den: StationData = state.galaxy.station("southdeep_den")
+	den.fleet_plan[COMBAT] = [DangerTier.Variant.SECURITY, DangerTier.Variant.PICKET]
+	for fleet in state.station_fleets(den, COMBAT):
+		state.enemy_fleets.erase(fleet)
+	var budget := FleetBudget.ship_budget(state._tier_of(den), den.economy)
+	var picket_delay := FleetBudget.respawn_delay(DangerTier.Variant.PICKET, budget)
+	var security_delay := FleetBudget.respawn_delay(DangerTier.Variant.SECURITY, budget)
+	state.tick_economy(picket_delay + tick)
+	var variants: Array = state.station_fleets(den, COMBAT).map(func(f): return f.variant)
+	if variants != [DangerTier.Variant.PICKET]:
+		failures.append("respawn: expected only the Picket back after the Picket delay, got %s" % [variants])
+	state.tick_economy(security_delay + tick)
+	variants = state.station_fleets(den, COMBAT).map(func(f): return f.variant)
+	if not variants.has(DangerTier.Variant.SECURITY) or variants.size() != 2:
+		failures.append("respawn: expected the destroyed Security slot restored as Security, got %s" % [variants])
+	# A trader flipped to COMBAT still fills its convoy slot: no extra convoy, however long we wait.
+	var bastion: StationData = state.galaxy.station("bastion")
+	bastion.fleet_plan[TRADER] = [DangerTier.Variant.CONVOY_SMALL, DangerTier.Variant.CONVOY_SMALL]
+	for fleet in state.enemy_fleets.filter(func(f): return f.home_station_id == "bastion" and f.role == TRADER):
+		state.enemy_fleets.erase(fleet)
+	var convoys: Array[CampaignFleet] = [
+		state.spawn_station_fleet(bastion, TRADER, DangerTier.Variant.CONVOY_SMALL),
+		state.spawn_station_fleet(bastion, TRADER, DangerTier.Variant.CONVOY_SMALL),
+	]
+	convoys[0].role = COMBAT
+	var count_before := state.enemy_fleets.filter(func(f): return f.home_station_id == "bastion").size()
+	state.tick_economy(CampaignStateScript.FLEET_RESPAWN_DELAY * 10.0)
+	var count_after := state.enemy_fleets.filter(func(f): return f.home_station_id == "bastion").size()
+	if count_after != count_before:
+		failures.append("respawn: expected a flipped trader to add no convoy slot, bastion fleets %d -> %d" % [count_before, count_after])
+	state.free()
+
+static func _check_total_ships(failures: Array[String]) -> void:
+	var state := _fresh_state()
+	var ships := 0
+	for fleet in state.enemy_fleets:
+		ships += fleet.ship_compositions.size()
+	if ships < BASELINE_SHIPS * 3:
+		failures.append("new_game: expected at least 3x the pre-variant %d NPC ships, got %d" % [BASELINE_SHIPS, ships])
 	state.free()
 
 static func _check_threat(failures: Array[String]) -> void:

@@ -1,4 +1,4 @@
-# Carry-Forward - SpaceGame 2026-11-06 (starting stock spread built, for playtest; combat AI and orders built, for playtest; combat commands/pacing Task 1 built, **test suite currently broken in this environment, see below**)
+# Carry-Forward - SpaceGame 2026-11-06 (starting stock spread built, for playtest; combat AI and orders built, for playtest; combat commands/pacing Task 1 done and verified, test suite fixed)
 
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
@@ -18,30 +18,36 @@ Plan: `docs\superpowers\plans\2026-11-06-combat-commands-pacing.md` (4 tasks). E
   no `class_name` — there is no global `CombatScene` identifier in this codebase. Fixed to
   unprefixed self-calls inside the script and the file's existing `scene_script = load(...)`
   pattern in tests).
-- **STOP: the test suite will not run to completion in this environment right now.**
-  `--headless --path . --script res://tests/run_tests.gd` hangs indefinitely and never reaches
-  `All tests passed.` / `N test failure(s).`; it just keeps emitting `SCRIPT ERROR` lines until
-  killed. The errors are near-total global class-resolution failures across the *entire* codebase
-  (`Could not find type "CombatTactics"/"Galaxy"/"DangerTier"/"EngineCore"/...`,
-  `Identifier "X" not declared in the current scope"`, `Trying to assign value of type
-  'CharacterBody2D' to a variable of type 'ship.gd'`), not anything specific to Task 1's two
-  files. 697 `SCRIPT ERROR` lines, byte-identical in count on a clean checkout of `dfd1db1`
-  (the commit immediately before this session's doc-prep commit, i.e. before any of this
-  session's code changes) as well as on `c5eae75` (current HEAD) — so this is not a regression
-  from Task 1, it reproduces on main as it stood before this session touched anything.
-  **Likely cause (unconfirmed): a stale/missing global script class cache** — the project's own
-  documented gotcha is "New `class_name` files and new PNGs need one
-  `--headless --editor --quit` warm pass before a `--script` run sees them," and this looks like
-  the same class of problem at a much larger scale (as if the whole global class cache needs
-  rebuilding, not just one new file). **Next step: run the warm pass**
-  (`--headless --editor --path . --quit`), accept the `.import` churn it causes, then re-run the
-  suite before doing anything else. If the warm pass doesn't fix it, this blocks all further
-  verification on this plan (and arguably any work in this repo) and needs investigation before
-  Task 2 starts.
+- **Test suite hang: fixed.** The warm pass (`--headless --editor --path . --quit`) cleared the
+  global `SCRIPT ERROR` flood — confirmed a stale script class cache, not a code bug. It rewrites
+  `.import` files (CRLF-only churn); `git status --porcelain` showed none left afterward in this
+  run, but if it recurs, delete each changed `.import` then `git checkout -- <files>` per the
+  gotchas section below. **Do this warm pass any time the suite hangs with a flood of
+  `SCRIPT ERROR` global-class-resolution failures again** before assuming a code regression.
+- That warm pass then exposed two real bugs the suite could never reach before (fixed, committed
+  `c1a4357`):
+  1. `tests\test_combat_scene.gd:49,936` — two `:=` type-inference parse errors (a method chained
+     off a Variant-typed array element, and a method called on a `load()`-returned `GDScript`
+     object both statically return `Variant`, so `:=` can't infer). Gave both vars explicit types.
+  2. `Ship._process_hold_position`'s retarget condition (`ship.gd`, was
+     `_retarget_timer <= 0.0 or (_idle_target != null and not _is_live_target(_idle_target))`)
+     only forced a retry when `_idle_target` was non-null-but-dead, unlike `_process_hold`'s
+     equivalent (which also retries when the target is null). A HOLD_POSITION ship that finds
+     zero candidates on the tick its timer last reset (e.g. before `enemy_group` is assigned by
+     scene setup code, which runs after the ship's first physics tick in some spawn paths) got
+     stuck target-less for a full `RETARGET_INTERVAL` (0.5s) instead of retrying next tick. Only
+     hit reliably now because Task 1 made HOLD_POSITION the default spawn order — this condition
+     pre-dates Task 1 but was rarely exercised this way before. Fixed to match `_process_hold`'s
+     condition (`_retarget_timer <= 0.0 or not _is_live_target(_idle_target)`).
+  Confirmed via direct instrumentation (temporarily reverting the spawn-order default and
+  comparing `idle_target()` results) before touching code, not guessed.
+- Suite now clean: 0 `SCRIPT ERROR` across 2 confirmed runs; only the known
+  `test_campaign_long_run_sim.gd` pirate-targeting flake remains (6-8 lines, varies run to run).
 - Do not trust an implementer subagent's self-reported "tests pass" / "DONE" on this plan without
   independently re-running the suite and reading the actual output — the Task 1 implementer twice
   reported success (once after a 5-minute client-side timeout it called "not a failure," once by
-  comparing error *counts* across commits) without ever seeing a clean run.
+  comparing error *counts* across commits) without ever seeing a clean run. That caution held up:
+  the suite genuinely couldn't run at all until the warm pass.
 
 ## Combat camera and debug menu (built 2026-11-06, for playtest)
 - `CombatCamera`: mouse at the screen edge pans (48 px band, ramped, eased); arena is now 3200x3200

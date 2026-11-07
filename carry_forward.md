@@ -1,36 +1,47 @@
-# Carry-Forward - SpaceGame 2026-11-06 (starting stock spread built, for playtest; combat AI and orders built, for playtest)
+# Carry-Forward - SpaceGame 2026-11-06 (starting stock spread built, for playtest; combat AI and orders built, for playtest; combat commands/pacing Task 1 built, **test suite currently broken in this environment, see below**)
 
 Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
-## Combat updates (user requests 2026-11-06, NOT built, no spec or plan yet)
-Brainstorm started, user chose to dump the list instead. Next: play back, spec
-(`docs\superpowers\specs\`, builder check), then `superpowers:writing-plans`. **Do not build before
-the spec is approved.** Numbering is the user's (there is no item 3).
-1. Player ships do not auto attack or move at battle start; they start idle in formation lines.
-   1.1. Spawn formation: strongest in the middle, next strongest to either side of them, weakest or
-   support-style ships behind.
-2. The fleet issues commands to its ships.
-   2.1. Commands: Move, Halt, Attack, Protect, Flee. (Existing Hold Position / Flee orders and the
-   H/F hotkeys, see "Combat AI and orders", map onto Halt / Flee; reconcile when specifying.)
-   2.2. Player input: left click selects ships as it does now; right click issues the command;
-   right click also clears the selection.
-   2.3. Protect: selected ships stay at some distance from the protectee, shooting incoming ships or
-   using PD weapons.
-   2.4. UI: command buttons bottom left with hotkeys M, H, A, P, F (order of 2.1).
-   2.5. Design UI elements and iconography per command. Square buttons. Art is planned in a separate
-   task.
-4. AI weapon use: ships keep their most effective weapons trained on the enemy while avoiding incoming
-   fire (pick 1-2 weapons and optimise their DPS; dodge projectiles but imperfectly).
-   4.1. Some ships may hit and run, but today everyone just flies past at great speed (the original
-   complaint: fly-by hits).
-   4.2. Player AI ships obey a given command and do not break from it, unless the ship they are
-   attacking or protecting is lost (user's sentence was cut off; confirm the exact break condition).
-   4.3. Pace: corvettes move too fast; ships do not feel like they fly in space. Acceleration too
-   high and turning too sharp. Slow down speed, acceleration and turn rate (hull/loadout movement
-   lives in `CombatTactics` and `Ship`, tuning consts named there).
-   Interaction to check: tuning speed down changes attack-run break distances and kite logic
-   (see "Untested run cases" below).
+## Combat commands, idle start, pacing (in progress, 2026-11-06)
+Spec approved and builder-checked: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`.
+Plan: `docs\superpowers\plans\2026-11-06-combat-commands-pacing.md` (4 tasks). Executing via
+`superpowers:subagent-driven-development`, batched reviews per `token-efficient-execution`
+(one reviewer after Task 2, one final review after Task 4). Ledger:
+`.superpowers\sdd\2026-11-06-combat-commands-pacing\progress.md`.
+
+- **Task 1 done:** `scripts\combat\combat_scene.gd` (`strength_of`, `center_out_anchors`,
+  strength-sorted `_spawn_fleet_from_data`), `scripts\ship\ship.gd` (default spawn order
+  `Order.hold()` -> `Order.hold_position()`, so ships no longer auto-hunt at battle start),
+  `tests\test_combat_scene.gd` updated. Commits `0c69a12`, `c5eae75` (the second is a fix: the
+  first commit called `CombatScene.strength_of(...)` as a bare global, but `combat_scene.gd` has
+  no `class_name` — there is no global `CombatScene` identifier in this codebase. Fixed to
+  unprefixed self-calls inside the script and the file's existing `scene_script = load(...)`
+  pattern in tests).
+- **STOP: the test suite will not run to completion in this environment right now.**
+  `--headless --path . --script res://tests/run_tests.gd` hangs indefinitely and never reaches
+  `All tests passed.` / `N test failure(s).`; it just keeps emitting `SCRIPT ERROR` lines until
+  killed. The errors are near-total global class-resolution failures across the *entire* codebase
+  (`Could not find type "CombatTactics"/"Galaxy"/"DangerTier"/"EngineCore"/...`,
+  `Identifier "X" not declared in the current scope"`, `Trying to assign value of type
+  'CharacterBody2D' to a variable of type 'ship.gd'`), not anything specific to Task 1's two
+  files. 697 `SCRIPT ERROR` lines, byte-identical in count on a clean checkout of `dfd1db1`
+  (the commit immediately before this session's doc-prep commit, i.e. before any of this
+  session's code changes) as well as on `c5eae75` (current HEAD) — so this is not a regression
+  from Task 1, it reproduces on main as it stood before this session touched anything.
+  **Likely cause (unconfirmed): a stale/missing global script class cache** — the project's own
+  documented gotcha is "New `class_name` files and new PNGs need one
+  `--headless --editor --quit` warm pass before a `--script` run sees them," and this looks like
+  the same class of problem at a much larger scale (as if the whole global class cache needs
+  rebuilding, not just one new file). **Next step: run the warm pass**
+  (`--headless --editor --path . --quit`), accept the `.import` churn it causes, then re-run the
+  suite before doing anything else. If the warm pass doesn't fix it, this blocks all further
+  verification on this plan (and arguably any work in this repo) and needs investigation before
+  Task 2 starts.
+- Do not trust an implementer subagent's self-reported "tests pass" / "DONE" on this plan without
+  independently re-running the suite and reading the actual output — the Task 1 implementer twice
+  reported success (once after a 5-minute client-side timeout it called "not a failure," once by
+  comparing error *counts* across commits) without ever seeing a clean run.
 
 ## Combat camera and debug menu (built 2026-11-06, for playtest)
 - `CombatCamera`: mouse at the screen edge pans (48 px band, ramped, eased); arena is now 3200x3200

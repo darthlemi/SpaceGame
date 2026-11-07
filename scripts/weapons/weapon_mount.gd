@@ -56,6 +56,7 @@ func _spawn_projectile(target: Node2D) -> void:
 	for i in range(weapon.submissile_count):
 		var projectile: Node2D = weapon.projectile_scene.instantiate()
 		host.add_child(projectile)
+		projectile.add_to_group(&"projectiles")
 		projectile.global_position = global_position
 		if weapon.projectile_speed > 0.0:
 			projectile.speed = weapon.projectile_speed

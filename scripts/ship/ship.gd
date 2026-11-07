@@ -17,6 +17,17 @@ const FLEE_STEP := 500.0
 # How far a Protect order's guard sits from the ship it's protecting.
 const PROTECT_STANDOFF := 150.0
 
+# Non-PD weapons a ship commits to firing; the rest hold fire so damage focuses down targets
+# instead of spreading thin. PD is exempt: it fires independently off incoming threats.
+const PRIMARY_WEAPON_COUNT := 2
+
+# How close an incoming projectile must get before its target starts jinking.
+const DODGE_REACT_RADIUS := 250.0
+# Sideways distance of a jink at full strength.
+const DODGE_OFFSET := 60.0
+# How long a jink takes to fade back to zero.
+const DODGE_DECAY_TIME := 0.6
+
 signal jumped_out(ship: Ship)
 
 @onready var hull: Hull = $Hull
@@ -41,6 +52,9 @@ var current_order: Order
 var arena_rect: Rect2 = Rect2()
 var has_fled: bool = false
 var _flee_spool: float = 0.0
+
+var _dodge_offset: Vector2 = Vector2.ZERO
+var _dodge_timer: float = 0.0
 
 var _hold_position_anchor: Vector2 = Vector2.ZERO
 var _hold_center: Vector2 = Vector2.ZERO
@@ -228,6 +242,7 @@ func resolve_component_hit(impact_pos: Vector2) -> ShipComponent:
 	return best
 
 func _physics_process(delta: float) -> void:
+	_update_dodge(delta)
 	_engaged_target = null
 	_parking = false
 	_process_order_movement(delta)
@@ -335,6 +350,7 @@ func _park_at(target: Node2D, standoff: float, delta: float) -> void:
 	# Bombers pass 0 to ram the centre; everything else stands off from the hull edge.
 	var centre_gap := standoff + _hit_radius_of(target) if standoff > 0.0 else 0.0
 	var station := target_pos + bearing * centre_gap
+	station += _dodge_vector()
 	var ally_positions: Array[Vector2] = []
 	for ally in allies:
 		if ally != self:
@@ -375,6 +391,22 @@ func _steer_to(target_pos: Vector2, delta: float) -> void:
 
 # Idle ships hunt the best-scored enemy anywhere, re-picking every RETARGET_INTERVAL (or at
 # once when the target is gone); they loiter only once no enemy is left.
+func _update_dodge(delta: float) -> void:
+	_dodge_timer = maxf(_dodge_timer - delta, 0.0)
+	if _dodge_timer > 0.0:
+		return
+	for p in get_tree().get_nodes_in_group(&"projectiles"):
+		if is_instance_valid(p) and p.target == self and global_position.distance_to(p.global_position) <= DODGE_REACT_RADIUS:
+			var side: Vector2 = p.travel_direction.orthogonal()
+			_dodge_offset = side * DODGE_OFFSET * (1.0 if randf() < 0.5 else -1.0)
+			_dodge_timer = DODGE_DECAY_TIME
+			break
+
+# The current jink offset, full strength right after a dodge triggers, fading linearly
+# back to zero over DODGE_DECAY_TIME.
+func _dodge_vector() -> Vector2:
+	return _dodge_offset * (_dodge_timer / DODGE_DECAY_TIME) if _dodge_timer > 0.0 else Vector2.ZERO
+
 func _process_hold(delta: float, candidates: Array) -> void:
 	_retarget_timer -= delta
 	if _retarget_timer <= 0.0 or not _is_live_target(_idle_target):
@@ -408,7 +440,7 @@ func _process_hold_position(delta: float, candidates: Array) -> void:
 	var face := global_position + Vector2.RIGHT.rotated(rotation) * 100.0
 	if _idle_target != null:
 		face = _idle_target.global_position
-	var result := engine.hold_station(global_position, rotation, face, _hold_position_anchor, delta)
+	var result := engine.hold_station(global_position, rotation, face, _hold_position_anchor + _dodge_vector(), delta)
 	rotation = result["rotation"]
 	velocity = result["velocity"]
 
@@ -471,6 +503,7 @@ func _process_protect(delta: float, candidates: Array) -> void:
 		if ally != self and ally.current_order != null and ally.current_order.type == Order.Type.PROTECT and ally.current_order.target_ship == protectee:
 			protector_positions.append(ally.global_position)
 	station += CombatTactics.separation_push(global_position, protector_positions, hit_radius * CombatTactics.SEPARATION_RADIUS_FACTOR) * CombatTactics.SEPARATION_STRENGTH
+	station += _dodge_vector()
 	var result := engine.hold_station(global_position, rotation, face, station, delta)
 	rotation = result["rotation"]
 	velocity = result["velocity"]
@@ -551,8 +584,11 @@ func _process_weapons() -> void:
 		return
 	var candidates := _enemy_candidates()
 	var primary := Ship.pick_autofire_target(current_order, candidates, global_position, attack_range(), idle_target())
+	var focus := Ship.primary_weapons(working_weapons())
 	for mount in weapon_mounts:
 		if not mount.can_fire():
+			continue
+		if mount.weapon != null and not mount.weapon.point_defense and not focus.has(mount.weapon):
 			continue
 		var target := Ship.pick_mount_target(mount, primary, candidates)
 		if target != null:
@@ -580,6 +616,13 @@ static func best_engagement_range(all_weapons: Array[Weapon]) -> float:
 		if reach_dps >= total_dps * ENGAGE_DPS_SHARE:
 			best_range = candidate.weapon_range
 	return best_range
+
+# The ship's best non-PD weapons by dps, capped at PRIMARY_WEAPON_COUNT. PD
+# keeps firing independently (it's defense, not the offensive focus here).
+static func primary_weapons(weapons: Array[Weapon]) -> Array[Weapon]:
+	var ranked := CombatTactics.range_weapons(weapons).duplicate()
+	ranked.sort_custom(func(a: Weapon, b: Weapon) -> bool: return CombatTactics.weapon_dps(a) > CombatTactics.weapon_dps(b))
+	return ranked.slice(0, PRIMARY_WEAPON_COUNT)
 
 static func nearest_in_range(candidates: Array, own_position: Vector2, max_range: float) -> Node2D:
 	var nearest: Node2D = null

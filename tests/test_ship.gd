@@ -50,6 +50,7 @@ static func run() -> Array[String]:
 	_check_hold_hunt(failures)
 	_check_mount_target(failures)
 	_check_receive_weapon_damage(failures)
+	_check_primary_weapons(failures)
 
 	return failures
 
@@ -551,6 +552,24 @@ static func _check_mount_target(failures: Array[String]) -> void:
 	mount.free()
 	behind.free()
 	ahead.free()
+
+static func _check_primary_weapons(failures: Array[String]) -> void:
+	var pd := _make_weapon(150.0, 5.0, 1.0)
+	pd.point_defense = true
+	var weakest := _make_weapon(300.0, 5.0, 1.0)
+	var middle := _make_weapon(300.0, 10.0, 1.0)
+	var strongest := _make_weapon(300.0, 20.0, 1.0)
+	var picked := Ship.primary_weapons([pd, weakest, middle, strongest])
+	if picked.size() != 2 or not picked.has(strongest) or not picked.has(middle):
+		failures.append("primary_weapons: expected the top 2 non-PD weapons by dps, got %s" % [picked])
+	if picked.has(pd):
+		failures.append("primary_weapons: expected PD excluded from the ranked set")
+	var only_one := Ship.primary_weapons([weakest])
+	if only_one != [weakest]:
+		failures.append("primary_weapons: expected a single weapon returned unchanged, got %s" % [only_one])
+	var all_pd := Ship.primary_weapons([pd])
+	if all_pd != [pd]:
+		failures.append("primary_weapons: expected range_weapons' all-PD fallback kept, got %s" % [all_pd])
 
 static func _free_bare_ship(ship: Ship) -> void:
 	for mount in ship.weapon_mounts:

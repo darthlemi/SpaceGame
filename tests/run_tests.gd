@@ -320,6 +320,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [respawn_panel_test.resource_path, f])
 	total_failures += respawn_panel_failures.size()
 
+	var weapon_focus_and_dodge_test = load("res://tests/test_weapon_focus_and_dodge_async.gd")
+	var weapon_focus_and_dodge_failures: Array[String] = await weapon_focus_and_dodge_test.run_async(self)
+	for f in weapon_focus_and_dodge_failures:
+		print("FAIL [%s]: %s" % [weapon_focus_and_dodge_test.resource_path, f])
+	total_failures += weapon_focus_and_dodge_failures.size()
+
 	if total_failures == 0:
 		print("All tests passed.")
 	else:

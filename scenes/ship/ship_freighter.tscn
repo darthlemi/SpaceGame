@@ -31,9 +31,9 @@ max_shield = 20.0
 
 [node name="Engine" type="Node2D" parent="."]
 script = ExtResource("4")
-max_speed = 110.0
-turn_rate = 1.5
-acceleration = 80.0
+max_speed = 95.0
+turn_rate = 1.2
+acceleration = 65.0
 hitbox_radius = 16.0
 position = Vector2(-45, 0)
 

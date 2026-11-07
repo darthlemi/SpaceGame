@@ -584,11 +584,11 @@ func _process_weapons() -> void:
 		return
 	var candidates := _enemy_candidates()
 	var primary := Ship.pick_autofire_target(current_order, candidates, global_position, attack_range(), idle_target())
-	var focus := Ship.primary_weapons(working_weapons())
+	var focus := Ship.primary_mounts(weapon_mounts)
 	for mount in weapon_mounts:
 		if not mount.can_fire():
 			continue
-		if mount.weapon != null and not mount.weapon.point_defense and not focus.has(mount.weapon):
+		if mount.weapon != null and not mount.weapon.point_defense and not focus.has(mount):
 			continue
 		var target := Ship.pick_mount_target(mount, primary, candidates)
 		if target != null:
@@ -622,6 +622,19 @@ static func best_engagement_range(all_weapons: Array[Weapon]) -> float:
 static func primary_weapons(weapons: Array[Weapon]) -> Array[Weapon]:
 	var ranked := CombatTactics.range_weapons(weapons).duplicate()
 	ranked.sort_custom(func(a: Weapon, b: Weapon) -> bool: return CombatTactics.weapon_dps(a) > CombatTactics.weapon_dps(b))
+	return ranked.slice(0, PRIMARY_WEAPON_COUNT)
+
+# Same ranking as primary_weapons, but keeps the top mounts themselves rather than their
+# Weapon resources: two mounts can share one Weapon instance (e.g. DangerTier's
+# with-replacement per-mount roll), and ranking/filtering through an Array[Weapon] would then
+# let every mount holding that shared instance through at once instead of capping at
+# PRIMARY_WEAPON_COUNT. Mount identity is always distinct, so this can't alias.
+static func primary_mounts(mounts: Array[WeaponMount]) -> Array[WeaponMount]:
+	var ranked: Array[WeaponMount] = []
+	for mount in mounts:
+		if mount.weapon != null and not mount.weapon.point_defense and not mount.is_destroyed():
+			ranked.append(mount)
+	ranked.sort_custom(func(a: WeaponMount, b: WeaponMount) -> bool: return CombatTactics.weapon_dps(a.weapon) > CombatTactics.weapon_dps(b.weapon))
 	return ranked.slice(0, PRIMARY_WEAPON_COUNT)
 
 static func nearest_in_range(candidates: Array, own_position: Vector2, max_range: float) -> Node2D:

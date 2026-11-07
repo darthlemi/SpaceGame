@@ -11,6 +11,7 @@ const ALLY_GROUP := &"test_focus_allies"
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	await _check_only_primary_weapons_fire(tree, failures)
+	await _check_shared_weapon_instance_still_caps(tree, failures)
 	await _check_pd_fires_regardless(tree, failures)
 	await _check_dodge_offsets_station(tree, failures)
 	return failures
@@ -65,6 +66,33 @@ static func _check_only_primary_weapons_fire(tree: SceneTree, failures: Array[St
 		failures.append("only_primary_weapons_fire: expected the lowest-dps mount to be held back, but it fired")
 	if capital.weapon_mounts[1].cooldown_remaining <= 0.0 and capital.weapon_mounts[2].cooldown_remaining <= 0.0:
 		failures.append("only_primary_weapons_fire: expected the two higher-dps mounts to fire")
+	await _cleanup(tree, [target, capital])
+
+static func _check_shared_weapon_instance_still_caps(tree: SceneTree, failures: Array[String]) -> void:
+	# DangerTier's per-mount weapon roll picks with replacement, so two (or three) mounts can
+	# end up holding the literal same loaded Weapon resource instance (load() caches by path).
+	# Ranking/filtering through an Array[Weapon] alone can't tell those mounts apart -- this
+	# wires all 3 capital mounts to the SAME Railgun instance (no .duplicate()) and checks the
+	# cap still holds at PRIMARY_WEAPON_COUNT mounts, not all 3.
+	var target := await _spawn_dummy(tree, Vector2(950.0, 500.0), ENEMY_GROUP)
+	var capital: Ship = CapitalScene.instantiate()
+	tree.root.add_child(capital)
+	capital.global_position = Vector2(500.0, 500.0)
+	capital.weapon_mounts[0].weapon = Railgun
+	capital.weapon_mounts[1].weapon = Railgun
+	capital.weapon_mounts[2].weapon = Railgun
+	capital.ally_group = ALLY_GROUP
+	capital.add_to_group(ALLY_GROUP)
+	capital.enemy_group = ENEMY_GROUP
+	await tree.physics_frame
+	capital.execute_order(Order.attack_target(target))
+	await _run_for(tree, 1.0)
+	var fired_count := 0
+	for mount in capital.weapon_mounts:
+		if mount.cooldown_remaining > 0.0:
+			fired_count += 1
+	if fired_count != Ship.PRIMARY_WEAPON_COUNT:
+		failures.append("shared_weapon_instance_still_caps: expected exactly %d mount(s) to fire when all 3 share one Weapon instance, got %d" % [Ship.PRIMARY_WEAPON_COUNT, fired_count])
 	await _cleanup(tree, [target, capital])
 
 static func _check_pd_fires_regardless(tree: SceneTree, failures: Array[String]) -> void:

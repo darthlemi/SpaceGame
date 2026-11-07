@@ -384,7 +384,7 @@ func _process_hold(delta: float, candidates: Array) -> void:
 # Stays on the anchor and turns to the best enemy in reach; never moves toward one.
 func _process_hold_position(delta: float, candidates: Array) -> void:
 	_retarget_timer -= delta
-	if _retarget_timer <= 0.0 or (_idle_target != null and not _is_live_target(_idle_target)):
+	if _retarget_timer <= 0.0 or not _is_live_target(_idle_target):
 		var reach := attack_range()
 		var in_reach: Array = []
 		for candidate in candidates:

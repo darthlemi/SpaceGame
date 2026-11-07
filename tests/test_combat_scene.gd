@@ -46,7 +46,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await tree.physics_frame
 	await tree.physics_frame
 	for k in scene.player_ships.size():
-		var drift := scene.player_ships[k].global_position.distance_to(spawn_positions[k])
+		var drift: float = scene.player_ships[k].global_position.distance_to(spawn_positions[k])
 		if drift >= 10.0:
 			failures.append("run_async: expected idle player ship %d to stay near its spawn point, drifted %s px" % [k, drift])
 
@@ -933,7 +933,7 @@ static func _strength_and_anchor_failures() -> Array[String]:
 		failures.append("strength_of: expected an unarmed hull to score exactly its max_hp, got %s" % scene_script.strength_of(bare_corvette))
 
 	var line: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
-	var ordered := scene_script.center_out_anchors(line)
+	var ordered: Array[Vector2] = scene_script.center_out_anchors(line)
 	if ordered[0] != Vector2(1000, 1600):
 		failures.append("center_out_anchors: expected the middle point first, got %s" % [ordered])
 	var single: Array[Vector2] = [Vector2(5, 5)]

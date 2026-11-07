@@ -14,6 +14,9 @@ const FLEE_SPOOL_TIME := {ShipType.Kind.CORVETTE: 6.0, ShipType.Kind.FREIGHTER: 
 const FLEE_THREAT_RADIUS := 800.0
 const FLEE_STEP := 500.0
 
+# How far a Protect order's guard sits from the ship it's protecting.
+const PROTECT_STANDOFF := 150.0
+
 signal jumped_out(ship: Ship)
 
 @onready var hull: Hull = $Hull
@@ -237,7 +240,7 @@ func _process_order_movement(delta: float) -> void:
 				_steer_to(current_order.target_position, delta)
 		Order.Type.ATTACK_TARGET:
 			if not _is_live_target(current_order.target_ship):
-				execute_order(Order.hold())
+				_attack_or_fallback(_enemy_candidates())
 				return
 			_engage(current_order.target_ship, delta)
 		Order.Type.RETREAT:
@@ -249,6 +252,8 @@ func _process_order_movement(delta: float) -> void:
 			_process_hold_position(delta, _enemy_candidates())
 		Order.Type.FLEE:
 			_process_flee(delta)
+		Order.Type.PROTECT:
+			_process_protect(delta, _enemy_candidates())
 
 # Holds the standoff on the line from target to ship, nose on the target so fixed and
 # limited-arc hardpoints bear.
@@ -399,6 +404,45 @@ func _process_hold_position(delta: float, candidates: Array) -> void:
 	rotation = result["rotation"]
 	velocity = result["velocity"]
 
+# Picks a new enemy to attack when an order's target is gone; falls back to
+# HOLD_POSITION (anchored where the ship currently is) if none remain.
+func _attack_or_fallback(candidates: Array) -> void:
+	var new_target := CombatTactics.pick_target(self, candidates, null)
+	if new_target != null:
+		execute_order(Order.attack_target(new_target))
+	else:
+		execute_order(Order.hold_position())
+
+# Holds station near the protectee, on the engaged threat's side so the guard screens it;
+# never moves to engage, only turns and fires through _process_weapons.
+func _process_protect(delta: float, candidates: Array) -> void:
+	if not _is_live_target(current_order.target_ship):
+		_attack_or_fallback(candidates)
+		return
+	var protectee: Node2D = current_order.target_ship
+	_retarget_timer -= delta
+	if _retarget_timer <= 0.0 or not _is_live_target(_idle_target):
+		var reach := attack_range()
+		var in_reach: Array = []
+		for candidate in candidates:
+			if _is_live_target(candidate) and candidate is Node2D and CombatTactics.edge_distance(protectee.global_position, candidate) <= reach + PROTECT_STANDOFF:
+				in_reach.append(candidate)
+		_idle_target = CombatTactics.pick_target(self, in_reach, _idle_target)
+		_retarget_timer = CombatTactics.RETARGET_INTERVAL
+	var station := protectee.global_position
+	var face := global_position + Vector2.RIGHT.rotated(rotation) * 100.0
+	if _idle_target != null:
+		var toward_threat := _idle_target.global_position - protectee.global_position
+		var dir := toward_threat.normalized() if toward_threat.length() > 0.01 else Vector2.RIGHT
+		# A guard starting opposite the threat would steer straight through the protectee's
+		# own hull; nudge the station sideways so the approach curves around it instead.
+		var side := 1.0 if get_instance_id() % 2 == 0 else -1.0
+		station = protectee.global_position + dir * PROTECT_STANDOFF + dir.orthogonal() * side * 70.0
+		face = _idle_target.global_position
+	var result := engine.hold_station(global_position, rotation, face, station, delta)
+	rotation = result["rotation"]
+	velocity = result["velocity"]
+
 # Runs flat out away from nearby enemies; weapons keep firing through _process_weapons.
 func _process_flee(delta: float) -> void:
 	_flee_spool += delta
@@ -519,7 +563,7 @@ static func nearest_in_range(candidates: Array, own_position: Vector2, max_range
 static func pick_autofire_target(order: Order, candidates: Array, own_position: Vector2, max_range: float, idle: Node2D = null) -> Node2D:
 	if order.type == Order.Type.ATTACK_TARGET:
 		return order.target_ship if Ship._is_live_target(order.target_ship) else null
-	if (order.type == Order.Type.HOLD or order.type == Order.Type.HOLD_POSITION) and idle != null and CombatTactics.edge_distance(own_position, idle) <= max_range:
+	if (order.type == Order.Type.HOLD or order.type == Order.Type.HOLD_POSITION or order.type == Order.Type.PROTECT) and idle != null and CombatTactics.edge_distance(own_position, idle) <= max_range:
 		return idle
 	return Ship.nearest_in_range(candidates, own_position, max_range)
 

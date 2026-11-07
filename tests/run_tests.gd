@@ -90,6 +90,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [flee_async_test.resource_path, f])
 	total_failures += flee_async_failures.size()
 
+	var protect_and_retarget_test = load("res://tests/test_protect_and_retarget_async.gd")
+	var protect_and_retarget_failures: Array[String] = await protect_and_retarget_test.run_async(self)
+	for f in protect_and_retarget_failures:
+		print("FAIL [%s]: %s" % [protect_and_retarget_test.resource_path, f])
+	total_failures += protect_and_retarget_failures.size()
+
 	var order_bar_test = load("res://tests/test_order_bar.gd")
 	var order_bar_failures: Array[String] = await order_bar_test.run_async(self)
 	for f in order_bar_failures:

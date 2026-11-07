@@ -23,4 +23,10 @@ static func run() -> Array[String]:
 	if retreat.target_position != Vector2(5, 5):
 		failures.append("retreat: expected position (5,5), got %s" % retreat.target_position)
 
+	var ally := Ship.new()
+	var protect := Order.protect(ally)
+	if protect.type != Order.Type.PROTECT or protect.target_ship != ally:
+		failures.append("Order.protect: expected type PROTECT and target_ship set, got %s / %s" % [protect.type, protect.target_ship])
+	ally.free()
+
 	return failures

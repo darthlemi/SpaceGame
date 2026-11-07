@@ -315,6 +315,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [campaign_scene_fleet_panel_test.resource_path, f])
 	total_failures += campaign_scene_fleet_panel_failures.size()
 
+	var campaign_scene_systems_stations_test = load("res://tests/test_campaign_scene_systems_stations.gd")
+	var campaign_scene_systems_stations_failures: Array[String] = await campaign_scene_systems_stations_test.run_async(self)
+	for f in campaign_scene_systems_stations_failures:
+		print("FAIL [%s]: %s" % [campaign_scene_systems_stations_test.resource_path, f])
+	total_failures += campaign_scene_systems_stations_failures.size()
+
 	var jettison_panel_test = load("res://tests/test_jettison_panel.gd")
 	var jettison_panel_failures: Array[String] = await jettison_panel_test.run_async(self)
 	for f in jettison_panel_failures:

@@ -24,12 +24,14 @@ var station_nodes: Dictionary = {}
 @onready var loot_panel: LootPanel = $UILayer/LootPanel
 @onready var respawn_panel: RespawnPanel = $UILayer/RespawnPanel
 @onready var jump_map_panel: JumpMapPanel = $UILayer/JumpMapPanel
+@onready var systems_stations_panel: SystemsStationsPanel = $UILayer/SystemsStationsPanel
 
 var _pending_enemy_icon: CampaignFleetIcon
 var _mouse_held: bool = false
 var _travel_target: Area2D = null
 var _docked_base: Area2D = null
 var _paused_before_fleet_panel: bool = false
+var _paused_before_systems_panel: bool = false
 var _jump: CampaignJumpController
 var _engage_prompt_text: String = ""
 
@@ -69,7 +71,9 @@ func _ready() -> void:
 	base_overview_panel.repair_button.pressed.connect(_open_repair)
 	base_overview_panel.undock_button.pressed.connect(_on_docking_panel_closed)
 	fleet_status_bar.fleet_button.pressed.connect(_open_fleet_management)
+	fleet_status_bar.systems_button.pressed.connect(_open_systems_stations)
 	fleet_management_panel.close_button.pressed.connect(_on_fleet_management_closed)
+	systems_stations_panel.close_button.pressed.connect(_on_systems_stations_closed)
 	_jump = CampaignJumpController.new(self)
 	_build_debug_menu()
 
@@ -343,7 +347,7 @@ func _open_repair() -> void:
 func _open_fleet_management() -> void:
 	# The engage and respawn prompts are modal and share the panel's screen slot; the open jump
 	# map owns the pause state, which a second record here would corrupt.
-	if engage_prompt.visible or respawn_panel.visible or jump_map_panel.visible:
+	if engage_prompt.visible or respawn_panel.visible or jump_map_panel.visible or systems_stations_panel.visible:
 		return
 	if not fleet_management_panel.visible:
 		_paused_before_fleet_panel = get_tree().paused
@@ -355,6 +359,18 @@ func _open_fleet_management() -> void:
 func _on_fleet_management_closed() -> void:
 	if _docked_base == null:
 		get_tree().paused = _paused_before_fleet_panel
+
+func _open_systems_stations() -> void:
+	# Same modal rule as Fleet/Jump: whichever full panel is open owns the pause state.
+	if engage_prompt.visible or respawn_panel.visible or jump_map_panel.visible or fleet_management_panel.visible:
+		return
+	if not systems_stations_panel.visible:
+		_paused_before_systems_panel = get_tree().paused
+	systems_stations_panel.open_for(CampaignState)
+	get_tree().paused = true
+
+func _on_systems_stations_closed() -> void:
+	get_tree().paused = _paused_before_systems_panel
 
 func _open_jump_map() -> void:
 	_jump.open_jump_map()
@@ -402,7 +418,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_jump_map()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible or respawn_panel.visible or jump_map_panel.visible:
+		if base_overview_panel.visible or engage_prompt.visible or fleet_management_panel.visible or respawn_panel.visible or jump_map_panel.visible or systems_stations_panel.visible:
 			return
 		if get_tree().paused:
 			get_tree().paused = false

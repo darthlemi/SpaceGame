@@ -9,6 +9,7 @@ const EMPTY_FUEL_COLOR := Color(1.0, 0.3, 0.3, 1.0)
 @onready var cargo_label: Label = $Layout/CargoLabel
 @onready var fleet_button: Button = $Layout/FleetButton
 @onready var jump_button: Button = $Layout/JumpButton
+@onready var systems_button: Button = $Layout/SystemsButton
 
 func _ready() -> void:
 	# Keep refreshing while docked (tree paused) so trades show up immediately.

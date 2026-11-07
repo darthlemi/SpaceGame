@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/campaign/campaign_scene.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/campaign/trade_panel.tscn" id="2"]
@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/campaign/fleet_management_panel.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/campaign/respawn_panel.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/ui/jump_map_panel.tscn" id="11"]
+[ext_resource type="PackedScene" path="res://scenes/ui/systems_stations_panel.tscn" id="12"]
 
 [node name="CampaignScene" type="Node2D"]
 script = ExtResource("1")
@@ -58,6 +59,8 @@ text = "Disengage"
 [node name="RespawnPanel" type="Control" parent="UILayer" instance=ExtResource("10")]
 
 [node name="JumpMapPanel" parent="UILayer" instance=ExtResource("11")]
+
+[node name="SystemsStationsPanel" parent="UILayer" instance=ExtResource("12")]
 
 [node name="SpeedControls" parent="UILayer" instance=ExtResource("4")]
 

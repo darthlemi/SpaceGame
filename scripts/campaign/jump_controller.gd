@@ -24,7 +24,7 @@ func on_jump_button_pressed() -> void:
 
 # Same modal rules as the Fleet panel. The map covers whatever is open; closing it returns there.
 func open_jump_map() -> void:
-	if _scene.engage_prompt.visible or _scene.respawn_panel.visible:
+	if _scene.engage_prompt.visible or _scene.respawn_panel.visible or _scene.systems_stations_panel.visible:
 		return
 	if not _scene.jump_map_panel.visible:
 		_paused_before_jump_map = _scene.get_tree().paused

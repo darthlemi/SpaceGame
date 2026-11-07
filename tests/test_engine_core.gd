@@ -6,8 +6,8 @@ static func run() -> Array[String]:
 	if engine == null:
 		failures.append("engine_freehold_racer.tres: failed to load")
 		return failures
-	if not is_equal_approx(engine.max_speed, 300.0):
-		failures.append("engine_freehold_racer: expected max_speed 300.0, got %s" % engine.max_speed)
+	if not is_equal_approx(engine.max_speed, 214.3):
+		failures.append("engine_freehold_racer: expected max_speed 214.3, got %s" % engine.max_speed)
 	if engine.rarity != PartRarity.Tier.RARE:
 		failures.append("engine_freehold_racer: expected rarity RARE, got %s" % engine.rarity)
 

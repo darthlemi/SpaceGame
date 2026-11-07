@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 item_name = "Titan Drive"
-max_speed = 160.0
-turn_rate = 2.0
-acceleration = 250.0
+max_speed = 142.2
+turn_rate = 1.7
+acceleration = 208.3
 rarity = 2

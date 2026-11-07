@@ -35,6 +35,10 @@ func _ready() -> void:
 	attack_button.pressed.connect(func(): attack_pressed.emit())
 	protect_button.pressed.connect(func(): protect_pressed.emit())
 	formation_button.pressed.connect(func(): popup.visible = not popup.visible)
+	var order_group := ButtonGroup.new()
+	for button in [move_button, attack_button, protect_button]:
+		button.toggle_mode = true
+		button.button_group = order_group
 	var group := ButtonGroup.new()
 	# Hotkeys 1-5 follow the enum order.
 	for type in Formation.Type.values():
@@ -58,6 +62,14 @@ func show_formation(type: Formation.Type) -> void:
 	# set_pressed_no_signal skips the group, so unpress the others by hand.
 	for key in _formation_buttons:
 		_formation_buttons[key].set_pressed_no_signal(key == type)
+
+# Keeps the Move/Attack/Protect buttons' pressed state in sync with the commander's armed
+# command. has_command false clears all three (set_pressed_no_signal skips the group, so
+# each button needs clearing by hand).
+func show_armed(has_command: bool, type: Order.Type) -> void:
+	move_button.set_pressed_no_signal(has_command and type == Order.Type.MOVE_TO)
+	attack_button.set_pressed_no_signal(has_command and type == Order.Type.ATTACK_TARGET)
+	protect_button.set_pressed_no_signal(has_command and type == Order.Type.PROTECT)
 
 func _on_formation_button_pressed(type: Formation.Type) -> void:
 	popup.visible = false

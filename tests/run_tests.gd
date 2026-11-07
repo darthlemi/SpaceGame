@@ -326,6 +326,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [weapon_focus_and_dodge_test.resource_path, f])
 	total_failures += weapon_focus_and_dodge_failures.size()
 
+	var fleet_commander_test = preload("res://tests/test_fleet_commander.gd")
+	var fleet_commander_failures: Array[String] = await fleet_commander_test.run_async(self)
+	for f in fleet_commander_failures:
+		print("FAIL [%s]: %s" % [fleet_commander_test.resource_path, f])
+	total_failures += fleet_commander_failures.size()
+
 	if total_failures == 0:
 		print("All tests passed.")
 	else:

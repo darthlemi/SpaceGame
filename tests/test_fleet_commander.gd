@@ -1,5 +1,7 @@
 extends RefCounted
 
+const CorvetteScene = preload("res://scenes/ship/ship_corvette.tscn")
+
 static func run() -> Array[String]:
 	var failures: Array[String] = []
 	_check_ship_at_point(failures)
@@ -15,6 +17,8 @@ static func run() -> Array[String]:
 	_check_armed_move_issues_command(failures)
 	_check_armed_protect_targets_ally(failures)
 	_check_left_click_selects_and_deselects(failures)
+	_check_rearming_same_command_unarms(failures)
+	_check_arming_different_command_swaps(failures)
 	return failures
 
 static func _make_ship(pos: Vector2) -> Ship:
@@ -246,6 +250,36 @@ static func _check_left_click_selects_and_deselects(failures: Array[String]) -> 
 	first.free()
 	second.free()
 
+static func _check_rearming_same_command_unarms(failures: Array[String]) -> void:
+	var commander := FleetCommander.new()
+	var seen: Array = []
+	commander.armed_command_changed.connect(func(has_command: bool, type: Order.Type): seen.append([has_command, type]))
+	commander.set_armed_command(Order.Type.MOVE_TO)
+	if not commander._has_armed_command:
+		failures.append("set_armed_command: expected arming MOVE_TO to set _has_armed_command true")
+	commander.set_armed_command(Order.Type.MOVE_TO)
+	if commander._has_armed_command:
+		failures.append("set_armed_command: expected re-arming the same command to un-arm it")
+	if seen != [[true, Order.Type.MOVE_TO], [false, Order.Type.MOVE_TO]]:
+		failures.append("set_armed_command: expected armed_command_changed(true) then (false), got %s" % [seen])
+	commander.free()
+
+static func _check_arming_different_command_swaps(failures: Array[String]) -> void:
+	var commander := FleetCommander.new()
+	commander.set_armed_command(Order.Type.MOVE_TO)
+	commander.set_armed_command(Order.Type.ATTACK_TARGET)
+	if not commander._has_armed_command or commander.armed_command != Order.Type.ATTACK_TARGET:
+		failures.append("set_armed_command: expected arming a different command to swap cleanly, got has=%s type=%s" % [commander._has_armed_command, commander.armed_command])
+	commander.free()
+
+static func _spawn_ship(tree: SceneTree, pos: Vector2) -> Ship:
+	# A real ship scene, not a bare Ship.new(): _ready() needs its Hull/Shield/Engine
+	# children, which only exist once added to the tree via this scene.
+	var ship: Ship = CorvetteScene.instantiate()
+	tree.root.add_child(ship)
+	ship.global_position = pos
+	return ship
+
 static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	await _check_armed_attack_targets_enemy(tree, failures)
@@ -254,10 +288,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	return failures
 
 static func _check_armed_attack_targets_enemy(tree: SceneTree, failures: Array[String]) -> void:
-	var enemy := _make_ship(Vector2(400, 400))
-	tree.root.add_child(enemy)
-	var ship := _make_ship(Vector2(100, 100))
-	tree.root.add_child(ship)
+	var enemy := _spawn_ship(tree, Vector2(400, 400))
+	var ship := _spawn_ship(tree, Vector2(100, 100))
 	var commander := _selected_commander([ship])
 	tree.root.add_child(commander)
 	commander.ships = [ship]
@@ -274,10 +306,8 @@ static func _check_armed_attack_targets_enemy(tree: SceneTree, failures: Array[S
 
 # Right-click's unarmed default: attack when the click lands on an enemy, move otherwise.
 static func _check_unarmed_right_click_attacks_or_moves(tree: SceneTree, failures: Array[String]) -> void:
-	var enemy := _make_ship(Vector2(400, 400))
-	tree.root.add_child(enemy)
-	var ship := _make_ship(Vector2(100, 100))
-	tree.root.add_child(ship)
+	var enemy := _spawn_ship(tree, Vector2(400, 400))
+	var ship := _spawn_ship(tree, Vector2(100, 100))
 	var commander := _selected_commander([ship])
 	tree.root.add_child(commander)
 	commander.ships = [ship]
@@ -298,8 +328,7 @@ static func _check_unarmed_right_click_attacks_or_moves(tree: SceneTree, failure
 # Issuing an order via right-click must not clear the selection -- only a left click on
 # empty space does that.
 static func _check_right_click_keeps_selection(tree: SceneTree, failures: Array[String]) -> void:
-	var ship := _make_ship(Vector2(100, 100))
-	tree.root.add_child(ship)
+	var ship := _spawn_ship(tree, Vector2(100, 100))
 	var commander := _selected_commander([ship])
 	tree.root.add_child(commander)
 	commander.ships = [ship]

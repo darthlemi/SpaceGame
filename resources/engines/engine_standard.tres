@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 item_name = "Standard Engine"
-max_speed = 200.0
-turn_rate = 3.0
-acceleration = 150.0
+max_speed = 142.9
+turn_rate = 2.1
+acceleration = 109.1
 rarity = 0

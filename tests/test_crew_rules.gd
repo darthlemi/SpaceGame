@@ -61,8 +61,8 @@ static func run() -> Array[String]:
 		failures.append("comp_top_speed: expected a half-hp engine at base * 0.5, got %s" % CrewRules.comp_top_speed(damaged_engine))
 	var racer := ShipType.new_composition(ShipType.Kind.CORVETTE)
 	racer["engine_item"] = "res://resources/engines/engine_freehold_racer.tres"
-	if not is_equal_approx(CrewRules.comp_top_speed(racer), 300.0):
-		failures.append("comp_top_speed: expected the equipped engine's max_speed 300, got %s" % CrewRules.comp_top_speed(racer))
+	if not is_equal_approx(CrewRules.comp_top_speed(racer), 214.3):
+		failures.append("comp_top_speed: expected the equipped engine's max_speed 214.3, got %s" % CrewRules.comp_top_speed(racer))
 
 	var capital_no_key := {"ship_type": ShipType.Kind.CAPITAL}
 	if CrewRules.crew_of(capital_no_key) != 40:

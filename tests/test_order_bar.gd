@@ -10,6 +10,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await _check_label_tracks_formation(tree, failures)
 	await _check_bar_inside_viewport_and_stops_mouse(tree, failures)
 	await _check_new_buttons_emit(tree, failures)
+	await _check_show_armed_tracks_pressed_state(tree, failures)
 	return failures
 
 static func _open(tree: SceneTree) -> OrderBar:
@@ -120,4 +121,17 @@ static func _check_new_buttons_emit(tree: SceneTree, failures: Array[String]) ->
 	protect_btn.pressed.emit()
 	if presses != ["move", "attack", "protect"]:
 		failures.append("order bar: expected move_pressed, attack_pressed, protect_pressed in order, got %s" % [presses])
+	bar.get_parent().queue_free()
+
+static func _check_show_armed_tracks_pressed_state(tree: SceneTree, failures: Array[String]) -> void:
+	var bar := await _open(tree)
+	var move_btn: Button = bar.get_node("Row/MoveButton")
+	var attack_btn: Button = bar.get_node("Row/AttackButton")
+	var protect_btn: Button = bar.get_node("Row/ProtectButton")
+	bar.show_armed(true, Order.Type.ATTACK_TARGET)
+	if move_btn.button_pressed or not attack_btn.button_pressed or protect_btn.button_pressed:
+		failures.append("order bar: expected only Attack pressed when ATTACK_TARGET is armed, got move=%s attack=%s protect=%s" % [move_btn.button_pressed, attack_btn.button_pressed, protect_btn.button_pressed])
+	bar.show_armed(false, Order.Type.ATTACK_TARGET)
+	if move_btn.button_pressed or attack_btn.button_pressed or protect_btn.button_pressed:
+		failures.append("order bar: expected all three cleared when nothing is armed, got move=%s attack=%s protect=%s" % [move_btn.button_pressed, attack_btn.button_pressed, protect_btn.button_pressed])
 	bar.get_parent().queue_free()

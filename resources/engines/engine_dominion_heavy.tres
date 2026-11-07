@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 item_name = "Heavy Drive"
-max_speed = 180.0
-turn_rate = 2.5
-acceleration = 200.0
+max_speed = 160.0
+turn_rate = 2.1
+acceleration = 166.7
 rarity = 1

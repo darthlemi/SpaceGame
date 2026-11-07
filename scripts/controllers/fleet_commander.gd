@@ -28,6 +28,7 @@ var armed_command: Order.Type = Order.Type.MOVE_TO
 
 signal formation_changed(type: Formation.Type)
 signal selection_changed(has_selection: bool)
+signal armed_command_changed(has_command: bool, type: Order.Type)
 
 var _last_has_selection: bool = false
 var _drag_start: Vector2 = Vector2.ZERO
@@ -40,17 +41,28 @@ func setup(p_ships: Array[Ship], p_enemy_group: StringName) -> void:
 
 func order_flee() -> void:
 	_order_live_selection(func(): return Order.flee())
+	_clear_armed_command()
 
 func order_hold() -> void:
 	_order_live_selection(func(): return Order.hold_position())
+	_clear_armed_command()
 
 func set_formation(type: Formation.Type) -> void:
 	active_formation = type
 	formation_changed.emit(type)
 
+# Re-arming the already-armed command un-arms it; arming a different one swaps cleanly.
 func set_armed_command(type: Order.Type) -> void:
+	if _has_armed_command and armed_command == type:
+		_clear_armed_command()
+		return
 	armed_command = type
 	_has_armed_command = true
+	armed_command_changed.emit(true, armed_command)
+
+func _clear_armed_command() -> void:
+	_has_armed_command = false
+	armed_command_changed.emit(false, armed_command)
 
 func _process(_delta: float) -> void:
 	# A selected ship can jump out mid-battle; the bar must notice without a new selection.

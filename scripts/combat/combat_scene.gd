@@ -75,6 +75,7 @@ func _ready() -> void:
 	order_bar.formation_picked.connect(fleet_commander.set_formation)
 	fleet_commander.formation_changed.connect(order_bar.show_formation)
 	fleet_commander.selection_changed.connect(order_bar.set_has_selection)
+	fleet_commander.armed_command_changed.connect(order_bar.show_armed)
 	fleet_commander.selected_ships = _initial_selection()
 	debug_console.command_entered.connect(_on_debug_command)
 	var debug_menu := DebugMenu.new()

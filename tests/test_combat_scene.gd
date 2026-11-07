@@ -133,8 +133,8 @@ static func run_async(tree: SceneTree) -> Array[String]:
 			failures.append("campaign battle: expected the equipped railgun applied to the spawned player's weapon mount")
 		if not is_equal_approx(spawned_player.shield.max_shield, 35.0):
 			failures.append("campaign battle: expected the equipped aegis shield's max_shield (35.0) applied, got %s" % spawned_player.shield.max_shield)
-		if not is_equal_approx(spawned_player.engine.max_speed, 300.0):
-			failures.append("campaign battle: expected the equipped racer engine's max_speed (300.0) applied, got %s" % spawned_player.engine.max_speed)
+		if not is_equal_approx(spawned_player.engine.max_speed, 214.3):
+			failures.append("campaign battle: expected the equipped racer engine's max_speed (214.3) applied, got %s" % spawned_player.engine.max_speed)
 		if spawned_player.weapon_mounts.size() != 1 or not is_equal_approx(spawned_player.weapon_mounts[0].current_hp, 3.0):
 			failures.append("campaign battle: expected spawned player mount current_hp carried over from composition")
 

@@ -49,6 +49,7 @@ func _run_all() -> void:
 		preload("res://tests/test_galaxy.gd"),
 		preload("res://tests/test_galaxy_data.gd"),
 		preload("res://tests/test_campaign_start_stock.gd"),
+		preload("res://tests/test_campaign_station_snapshots.gd"),
 		preload("res://tests/test_galaxy_document.gd"),
 		preload("res://tests/test_galaxy_validator.gd"),
 		preload("res://tests/test_map_edit_model.gd"),

@@ -14,6 +14,8 @@ const FINE_PER_KILL := 150
 const REPUTATION_LOSS_PER_DEFEAT := 15.0
 const HOSTILE_REPUTATION_THRESHOLD := 40.0
 const ECONOMY_TICK_INTERVAL := 5.0
+# One game-day of unpaused play, for the Systems & Stations menu's "Visited: Day N" display.
+const DAY_LENGTH_SECONDS := 60.0
 const REPAIR_COST := 75
 # Tuning placeholders.
 const CREW_HIRE_COST := 40
@@ -58,9 +60,13 @@ var discovered: Dictionary = {}
 var visited: Dictionary = {}
 # system_id -> {"owners": Array, "stations": int, "pirates_seen": bool, "tier": int} at the last visit.
 var last_seen: Dictionary = {}
+# station_id -> {"day", "population", "population_trend", "wealth_level", "reputation",
+# "produces", "consumes"} at the last visit. See CampaignState.record_visit / _snapshot_station.
+var station_snapshots: Dictionary = {}
 # Not cleared by reset(), so a seed set before new_game() holds.
 var rng := RandomNumberGenerator.new()
 var _economy_tick_elapsed: float = 0.0
+var _day_elapsed: float = 0.0
 # Seconds left before a fleet fought moments ago can be engaged again.
 var _reengage_block: Dictionary = {}
 
@@ -179,7 +185,9 @@ func reset() -> void:
 	discovered = {}
 	visited = {}
 	last_seen = {}
+	station_snapshots = {}
 	_economy_tick_elapsed = 0.0
+	_day_elapsed = 0.0
 
 func new_game() -> void:
 	reset()
@@ -218,12 +226,47 @@ func record_visit(system_id: String) -> void:
 	var owners: Array = []
 	for station in galaxy.stations_in(system_id):
 		owners.append(station.owner)
+		station_snapshots[station.id] = _snapshot_station(station)
 	var pirates_seen := false
 	for fleet in enemy_fleets:
 		if fleet.system_id == system_id and fleet.faction == CampaignFleet.Faction.PIRATE:
 			pirates_seen = true
 			break
 	last_seen[system_id] = {"owners": owners, "stations": owners.size(), "pirates_seen": pirates_seen, "tier": sys.tier}
+
+# What the Systems & Stations menu shows for this station until the next visit.
+func _snapshot_station(station: StationData) -> Dictionary:
+	var economy: BaseEconomy = station.economy
+	var net := economy.net_commodities()
+	var produces: Array[Dictionary] = []
+	var consumes: Array[Dictionary] = []
+	for commodity in Commodity.Type.values():
+		var amount: float = net.get(commodity, 0.0)
+		if is_equal_approx(amount, 0.0):
+			continue
+		var row := {
+			"commodity": commodity,
+			"stock": economy.stock.get(commodity, 0.0),
+			"buy": economy.price_for(commodity),
+			"sell": economy.sell_price_for(commodity),
+		}
+		if amount > 0.0:
+			produces.append(row)
+		else:
+			consumes.append(row)
+	var faction := power_faction_for(station.owner)
+	return {
+		"day": game_day(),
+		"population": economy.population,
+		"population_trend": economy.population_trend,
+		"wealth_level": economy.wealth_level(),
+		"reputation": faction.reputation if faction != null else null,
+		"produces": produces,
+		"consumes": consumes,
+	}
+
+func game_day() -> int:
+	return floori(_day_elapsed / DAY_LENGTH_SECONDS)
 
 # "" when the player may jump to dest_id; otherwise the first reason it can't.
 func jump_block_reason(dest_id: String, hostile_contact: bool) -> String:
@@ -428,6 +471,7 @@ func send_distress() -> bool:
 	return true
 
 func tick_economy(delta: float) -> void:
+	_day_elapsed += delta
 	_economy_tick_elapsed += delta
 	while _economy_tick_elapsed >= ECONOMY_TICK_INTERVAL:
 		_economy_tick_elapsed -= ECONOMY_TICK_INTERVAL

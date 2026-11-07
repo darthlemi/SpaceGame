@@ -1,76 +1,53 @@
-# Carry-Forward - SpaceGame 2026-11-06 (starting stock spread built, for playtest; combat AI and orders built, for playtest; combat commands/pacing Task 1 done and verified, test suite fixed)
+# Carry-Forward - SpaceGame 2026-11-07 (starting stock spread built, for playtest; combat AI and orders built, for playtest; combat commands/pacing plan complete, for playtest)
 
-Trimmed 2026-11-04. Finished, committed work was removed; it lives in git history
+Trimmed 2026-11-04 and 2026-11-07. Finished, committed work was removed; it lives in git history
 (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
-## Combat commands, idle start, pacing (in progress, 2026-11-06)
-Spec approved and builder-checked: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`.
-Plan: `docs\superpowers\plans\2026-11-06-combat-commands-pacing.md` (4 tasks). Executing via
-`superpowers:subagent-driven-development`, batched reviews per `token-efficient-execution`
-(one reviewer after Task 2, one final review after Task 4). Ledger:
-`.superpowers\sdd\2026-11-06-combat-commands-pacing\progress.md`.
+## Combat commands, idle start, pacing (built 2026-11-06/07, for playtest)
+Spec: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`. Plan: `docs\superpowers\plans\2026-11-06-combat-commands-pacing.md`
+(4 tasks, all complete, final whole-branch review clean). Commits `0c69a12`..`d8be4b2`. Built via
+`superpowers:subagent-driven-development`; the ledger at
+`.superpowers\sdd\2026-11-06-combat-commands-pacing\progress.md` has the full task-by-task record
+(bugs found, fix rounds, review verdicts) if more detail than below is ever needed.
 
-- **Task 1 done:** `scripts\combat\combat_scene.gd` (`strength_of`, `center_out_anchors`,
-  strength-sorted `_spawn_fleet_from_data`), `scripts\ship\ship.gd` (default spawn order
-  `Order.hold()` -> `Order.hold_position()`, so ships no longer auto-hunt at battle start),
-  `tests\test_combat_scene.gd` updated. Commits `0c69a12`, `c5eae75` (the second is a fix: the
-  first commit called `CombatScene.strength_of(...)` as a bare global, but `combat_scene.gd` has
-  no `class_name` — there is no global `CombatScene` identifier in this codebase. Fixed to
-  unprefixed self-calls inside the script and the file's existing `scene_script = load(...)`
-  pattern in tests).
-- **Test suite hang: fixed.** The warm pass (`--headless --editor --path . --quit`) cleared the
-  global `SCRIPT ERROR` flood — confirmed a stale script class cache, not a code bug. It rewrites
-  `.import` files (CRLF-only churn); `git status --porcelain` showed none left afterward in this
-  run, but if it recurs, delete each changed `.import` then `git checkout -- <files>` per the
-  gotchas section below. **Do this warm pass any time the suite hangs with a flood of
-  `SCRIPT ERROR` global-class-resolution failures again** before assuming a code regression.
-- That warm pass then exposed two real bugs the suite could never reach before (fixed, committed
-  `c1a4357`):
-  1. `tests\test_combat_scene.gd:49,936` — two `:=` type-inference parse errors (a method chained
-     off a Variant-typed array element, and a method called on a `load()`-returned `GDScript`
-     object both statically return `Variant`, so `:=` can't infer). Gave both vars explicit types.
-  2. `Ship._process_hold_position`'s retarget condition (`ship.gd`, was
-     `_retarget_timer <= 0.0 or (_idle_target != null and not _is_live_target(_idle_target))`)
-     only forced a retry when `_idle_target` was non-null-but-dead, unlike `_process_hold`'s
-     equivalent (which also retries when the target is null). A HOLD_POSITION ship that finds
-     zero candidates on the tick its timer last reset (e.g. before `enemy_group` is assigned by
-     scene setup code, which runs after the ship's first physics tick in some spawn paths) got
-     stuck target-less for a full `RETARGET_INTERVAL` (0.5s) instead of retrying next tick. Only
-     hit reliably now because Task 1 made HOLD_POSITION the default spawn order — this condition
-     pre-dates Task 1 but was rarely exercised this way before. Fixed to match `_process_hold`'s
-     condition (`_retarget_timer <= 0.0 or not _is_live_target(_idle_target)`).
-  Confirmed via direct instrumentation (temporarily reverting the spawn-order default and
-  comparing `idle_target()` results) before touching code, not guessed.
-- Suite now clean: 0 `SCRIPT ERROR` across 2 confirmed runs; only the known
-  `test_campaign_long_run_sim.gd` pirate-targeting flake remains (6-8 lines, varies run to run).
-- Do not trust an implementer subagent's self-reported "tests pass" / "DONE" on this plan without
-  independently re-running the suite and reading the actual output — the Task 1 implementer twice
-  reported success (once after a 5-minute client-side timeout it called "not a failure," once by
-  comparing error *counts* across commits) without ever seeing a clean run. That caution held up:
-  the suite genuinely couldn't run at all until the warm pass.
-- **Task 3 done, input scheme revised live by the user (three rounds of feedback) before it
-  landed.** The plan/spec's original scheme (left-click only selects, right-click always issues
-  the armed command and clears selection) was rejected during implementation and replaced with:
-  left-click only selects/deselects (click own ship = select, anything else = deselect, drag =
-  box-select); right-click is the smart default when nothing is armed (attack an enemy under the
-  cursor, else move the selection there — `FleetCommander._issue_smart_order`); arming Move,
-  Attack, or Protect (OrderBar buttons/M-A-P hotkeys, unchanged from the plan) makes right-click
-  resolve that command instead (`_issue_armed_command`) — Move always forces a move even onto an
-  enemy (close distance without auto-pursuing), Attack always searches for a nearby enemy even
-  off-click, Protect is the only way to target an ally (otherwise indistinguishable from "move
-  there"). Issuing an order via right-click never clears the selection — only a left-click on
-  empty space does, so the player can re-right-click the same selection repeatedly. Full detail
-  and rationale: the spec's "Input scheme" section (rewritten to match) and the plan's Task 3
-  deviation note. Implementation: `scripts\controllers\fleet_commander.gd`
-  (`set_armed_command`/`_issue_armed_command`/`_issue_smart_order`/rewritten
-  `_on_left_release`/`_on_right_press`), signals wired in `combat_scene.gd`, three input actions
-  (`order_move`/M, `order_attack`/A, `order_protect`/P) added to `project.godot`. Tests updated in
-  `tests\test_fleet_commander.gd` and `tests\test_combat_scene.gd`. One real bug the tests caught:
-  `_on_left_release`'s deselect branch assigned a bare `[]`/ternary to the typed
-  `Array[Ship] selected_ships`, which GDScript's static typing rejects at runtime
-  (`SCRIPT ERROR: Trying to assign an array of type "Array" to a variable of type "Array[Ship]"`)
-  — fixed by building the typed array with `.append()` instead of a literal. Suite clean except
-  the known flake; commit pending.
+- **Idle start:** ships spawn on `HOLD_POSITION` (no auto-hunt at battle start) at
+  strength-sorted formation anchors (`CombatScene.strength_of`/`center_out_anchors` — strongest
+  ship lands centre). **Only player ships are idle** — enemy AI still attacks from frame one
+  (`ai_controller.gd` reissues `attack_target` every tick). That's a spec non-goal, not a bug, but
+  it's the first thing anyone will see in a playtest and contradicts the spec's "every ship"
+  wording at a glance.
+- **Five orders:** Move, Hold, Attack, Protect, Flee. Protect screens toward the nearest in-reach
+  threat (standoff scaled to both hulls' radii), falls back to attacking if its protectee dies.
+  Attack/Protect auto-retarget when their target is lost mid-battle.
+- **Input scheme** (revised live by the user across three rounds of feedback — the spec's "Input
+  scheme" section is the authoritative text, not the plan's original pseudocode): left-click only
+  selects/deselects; right-click is a smart default (attack an enemy under the cursor, else move)
+  unless Move/Attack/Protect is armed (OrderBar button or M/A/P hotkey), in which case right-click
+  resolves that command instead. Arming now toggles off on a second press of the same
+  button/hotkey, and the OrderBar buttons show which command (if any) is currently armed.
+- **Weapon focus and dodge:** ships fire only their best 1-2 weapons by dps
+  (`Ship.primary_mounts`, keyed on mount identity so two mounts sharing one `load()`-cached
+  Weapon resource don't both count toward the cap); PD always fires independently. Ships jink
+  imperfectly (`_update_dodge`/`_dodge_vector`) when a projectile targeting them is in range.
+- **Pacing:** all three hulls fly slower/heavier (`ShipEngine` values in the `.tscn` files). The
+  five buyable refit engines (`resources\engines\*.tres`) were rescaled by the same ratios so a
+  refitted ship doesn't undo the pacing change.
+- Perf: `perf_combat.gd` at 10v10/15v15/20v20, well inside the 8ms avg/33ms max bar (max seen
+  5.82ms).
+- **Open, for the user's playtest pass:**
+  - The spec asked for a run/kite probe (not just perf) after the speed retune — not done. The
+    existing "untested run cases" note further below (hull speed vs. break/reset distance) is
+    more likely to matter now that every hull is slower.
+  - Does Protect read as "shooting things near the ally"? Does the slower pacing fix the fly-by
+    complaint or just make everything slower? Does weapon focus look like a ship "committing"
+    rather than going quiet?
+  - Parked minors (non-blocking): `primary_weapons` (the old Weapon-identity ranker) is now dead
+    code, superseded by `primary_mounts`; `strength_of` ignores current HP and randomized
+    loadouts (acceptable per the spec's "placeholder balance metric" framing); `_update_dodge`
+    doesn't check whether the incoming projectile is still approaching (can jink from one that's
+    already passed); right-click mid-drag doesn't clear the drag state; refitting a corvette with
+    a Dominion heavy/titan engine already drops its turn rate below `RUN_MIN_TURN_RATE` (flips it
+    from RUN to PARK tactic) — pre-existing, not introduced by this plan.
 
 ## Combat camera and debug menu (built 2026-11-06, for playtest)
 - `CombatCamera`: mouse at the screen edge pans (48 px band, ramped, eased); arena is now 3200x3200

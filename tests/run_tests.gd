@@ -197,6 +197,12 @@ func _run_all() -> void:
 		print("FAIL [%s]: %s" % [jump_map_panel_test.resource_path, f])
 	total_failures += jump_map_panel_failures.size()
 
+	var systems_stations_panel_test = load("res://tests/test_systems_stations_panel.gd")
+	var systems_stations_panel_failures: Array[String] = await systems_stations_panel_test.run_async(self)
+	for f in systems_stations_panel_failures:
+		print("FAIL [%s]: %s" % [systems_stations_panel_test.resource_path, f])
+	total_failures += systems_stations_panel_failures.size()
+
 	var campaign_galaxy_state_test = load("res://tests/test_campaign_galaxy_state.gd")
 	var campaign_galaxy_state_failures: Array[String] = await campaign_galaxy_state_test.run_async(self)
 	for f in campaign_galaxy_state_failures:

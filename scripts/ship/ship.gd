@@ -117,11 +117,16 @@ func execute_order(order: Order) -> void:
 	if order.type != Order.Type.FLEE:
 		_flee_spool = 0.0
 	if order.type == Order.Type.HOLD_POSITION:
-		_hold_position_anchor = global_position
+		# Spawners place a ship after its _ready issues HOLD_POSITION, so latching the
+		# anchor here would freeze it at the pre-placement position; defer to the first
+		# _process_hold_position tick instead, same as HOLD's _hold_anchored latch.
+		_hold_anchored = false
 		_idle_target = null
 	if order.type == Order.Type.HOLD:
 		_hold_anchored = false
 		_loiter_timer = 0.0
+	if order.type == Order.Type.PROTECT:
+		_idle_target = null
 
 func flee_progress() -> float:
 	return clampf(_flee_spool / _flee_spool_time(), 0.0, 1.0)
@@ -388,6 +393,9 @@ func _process_hold(delta: float, candidates: Array) -> void:
 
 # Stays on the anchor and turns to the best enemy in reach; never moves toward one.
 func _process_hold_position(delta: float, candidates: Array) -> void:
+	if not _hold_anchored:
+		_hold_position_anchor = global_position
+		_hold_anchored = true
 	_retarget_timer -= delta
 	if _retarget_timer <= 0.0 or not _is_live_target(_idle_target):
 		var reach := attack_range()
@@ -407,7 +415,14 @@ func _process_hold_position(delta: float, candidates: Array) -> void:
 # Picks a new enemy to attack when an order's target is gone; falls back to
 # HOLD_POSITION (anchored where the ship currently is) if none remain.
 func _attack_or_fallback(candidates: Array) -> void:
-	var new_target := CombatTactics.pick_target(self, candidates, null)
+	# pick_target only checks is_instance_valid, which stays true until the free queue
+	# flushes; filter out a target queued for deletion this same tick so a ship doesn't
+	# re-issue an ATTACK_TARGET order on a corpse and skip a frame of real movement.
+	var live_candidates: Array = []
+	for candidate in candidates:
+		if _is_live_target(candidate):
+			live_candidates.append(candidate)
+	var new_target := CombatTactics.pick_target(self, live_candidates, null)
 	if new_target != null:
 		execute_order(Order.attack_target(new_target))
 	else:
@@ -429,16 +444,33 @@ func _process_protect(delta: float, candidates: Array) -> void:
 				in_reach.append(candidate)
 		_idle_target = CombatTactics.pick_target(self, in_reach, _idle_target)
 		_retarget_timer = CombatTactics.RETARGET_INTERVAL
-	var station := protectee.global_position
 	var face := global_position + Vector2.RIGHT.rotated(rotation) * 100.0
+	var station: Vector2
 	if _idle_target != null:
 		var toward_threat := _idle_target.global_position - protectee.global_position
 		var dir := toward_threat.normalized() if toward_threat.length() > 0.01 else Vector2.RIGHT
 		# A guard starting opposite the threat would steer straight through the protectee's
-		# own hull; nudge the station sideways so the approach curves around it instead.
+		# own hull; nudge the station sideways (scaled to both hulls' radii, not a flat
+		# guess) so the approach curves around it instead.
+		var clearance := _hit_radius_of(protectee) + hit_radius + ENGAGE_HULL_GAP
 		var side := 1.0 if get_instance_id() % 2 == 0 else -1.0
-		station = protectee.global_position + dir * PROTECT_STANDOFF + dir.orthogonal() * side * 70.0
+		station = protectee.global_position + dir * PROTECT_STANDOFF + dir.orthogonal() * side * clearance
 		face = _idle_target.global_position
+	else:
+		# No threat in reach: hold the guard's own current bearing from the protectee,
+		# not the protectee's bare position, so it doesn't fly into its ally's hull.
+		var own_bearing := global_position - protectee.global_position
+		var dir := own_bearing.normalized() if own_bearing.length() > 0.01 else Vector2.RIGHT.rotated(rotation)
+		station = protectee.global_position + dir * PROTECT_STANDOFF
+		# Face the station itself (not the guard's current, possibly stale, heading) so
+		# it actually turns to travel there instead of creeping sideways/backward at
+		# the reduced reverse-thrust speed indefinitely.
+		face = station
+	var protector_positions: Array[Vector2] = []
+	for ally in _live_allies():
+		if ally != self and ally.current_order != null and ally.current_order.type == Order.Type.PROTECT and ally.current_order.target_ship == protectee:
+			protector_positions.append(ally.global_position)
+	station += CombatTactics.separation_push(global_position, protector_positions, hit_radius * CombatTactics.SEPARATION_RADIUS_FACTOR) * CombatTactics.SEPARATION_STRENGTH
 	var result := engine.hold_station(global_position, rotation, face, station, delta)
 	rotation = result["rotation"]
 	velocity = result["velocity"]

@@ -4,6 +4,9 @@ extends Control
 signal flee_pressed
 signal formation_picked(type: Formation.Type)
 signal hold_pressed
+signal move_pressed
+signal attack_pressed
+signal protect_pressed
 
 const FORMATION_NAMES := {
 	Formation.Type.NONE: "Free",
@@ -15,6 +18,9 @@ const FORMATION_NAMES := {
 
 @onready var hold_button: Button = $Row/HoldButton
 @onready var flee_button: Button = $Row/FleeButton
+@onready var move_button: Button = $Row/MoveButton
+@onready var attack_button: Button = $Row/AttackButton
+@onready var protect_button: Button = $Row/ProtectButton
 @onready var formation_button: Button = $Row/FormationButton
 @onready var popup: Control = $Popup
 @onready var popup_buttons: Control = $Popup/Buttons
@@ -25,6 +31,9 @@ func _ready() -> void:
 	set_has_selection(false)
 	hold_button.pressed.connect(func(): hold_pressed.emit())
 	flee_button.pressed.connect(func(): flee_pressed.emit())
+	move_button.pressed.connect(func(): move_pressed.emit())
+	attack_button.pressed.connect(func(): attack_pressed.emit())
+	protect_button.pressed.connect(func(): protect_pressed.emit())
 	formation_button.pressed.connect(func(): popup.visible = not popup.visible)
 	var group := ButtonGroup.new()
 	# Hotkeys 1-5 follow the enum order.

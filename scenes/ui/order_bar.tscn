@@ -8,9 +8,9 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -200.0
+offset_left = -360.0
 offset_top = -50.0
-offset_right = 200.0
+offset_right = 360.0
 offset_bottom = -10.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -39,6 +39,21 @@ text = "Hold [H]"
 custom_minimum_size = Vector2(100, 0)
 focus_mode = 0
 text = "Flee [F]"
+
+[node name="MoveButton" type="Button" parent="Row"]
+custom_minimum_size = Vector2(100, 0)
+focus_mode = 0
+text = "Move [M]"
+
+[node name="AttackButton" type="Button" parent="Row"]
+custom_minimum_size = Vector2(100, 0)
+focus_mode = 0
+text = "Attack [A]"
+
+[node name="ProtectButton" type="Button" parent="Row"]
+custom_minimum_size = Vector2(100, 0)
+focus_mode = 0
+text = "Protect [P]"
 
 [node name="FormationButton" type="Button" parent="Row"]
 custom_minimum_size = Vector2(184, 0)

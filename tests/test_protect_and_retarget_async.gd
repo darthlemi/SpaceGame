@@ -12,6 +12,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await _check_protect_faces_threat(tree, failures)
 	await _check_attack_retargets_on_loss(tree, failures)
 	await _check_protect_falls_back_when_protectee_lost(tree, failures)
+	await _check_attack_retargets_when_hull_destroyed_mid_step(tree, failures)
 	return failures
 
 static func _spawn(tree: SceneTree, pos: Vector2, weapon: Weapon, group: StringName) -> Ship:
@@ -79,7 +80,7 @@ static func _check_attack_retargets_on_loss(tree: SceneTree, failures: Array[Str
 	target.queue_free()
 	await _run_for(tree, 0.5)
 	if attacker.current_order.type != Order.Type.ATTACK_TARGET or attacker.current_order.target_ship != backup:
-		failures.append("attack_retargets_on_loss: expected the attacker to retarget the remaining enemy, got %s" % [attacker.current_order.type, attacker.current_order.target_ship])
+		failures.append("attack_retargets_on_loss: expected the attacker to retarget the remaining enemy, got %s / %s" % [attacker.current_order.type, attacker.current_order.target_ship])
 	await _cleanup(tree, [backup, attacker])
 
 static func _check_protect_falls_back_when_protectee_lost(tree: SceneTree, failures: Array[String]) -> void:
@@ -93,3 +94,18 @@ static func _check_protect_falls_back_when_protectee_lost(tree: SceneTree, failu
 	if guard.current_order.type != Order.Type.ATTACK_TARGET or guard.current_order.target_ship != threat:
 		failures.append("protect_falls_back_when_protectee_lost: expected the guard to attack the remaining enemy, got %s / %s" % [guard.current_order.type, guard.current_order.target_ship])
 	await _cleanup(tree, [threat, guard])
+
+# Review Focus 1's exact scenario: the target dies from hull damage (queue_free called
+# from _on_hull_destroyed, mid-signal, not from the test directly) the same tick its
+# order is read. Must not SCRIPT ERROR on the stale reference, and must retarget cleanly.
+static func _check_attack_retargets_when_hull_destroyed_mid_step(tree: SceneTree, failures: Array[String]) -> void:
+	var target := await _spawn_dummy(tree, Vector2(700.0, 500.0), ENEMY_GROUP)
+	var backup := await _spawn_dummy(tree, Vector2(750.0, 540.0), ENEMY_GROUP)
+	var attacker := await _spawn(tree, Vector2(500.0, 500.0), Railgun, ALLY_GROUP)
+	attacker.execute_order(Order.attack_target(target))
+	await _run_for(tree, 0.1)
+	target.hull.apply_damage(target.hull.max_hp)
+	await _run_for(tree, 0.5)
+	if attacker.current_order.type != Order.Type.ATTACK_TARGET or attacker.current_order.target_ship != backup:
+		failures.append("attack_retargets_when_hull_destroyed_mid_step: expected the attacker to retarget the remaining enemy, got %s / %s" % [attacker.current_order.type, attacker.current_order.target_ship])
+	await _cleanup(tree, [backup, attacker])

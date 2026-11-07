@@ -15,6 +15,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var failures: Array[String] = []
 	failures.append_array(_formation_failures())
 	failures.append_array(_strength_and_anchor_failures())
+	failures.append_array(_oversized_fleet_strength_failures())
 	var scene: Node2D = CombatSceneScene.instantiate()
 	tree.root.add_child(scene)
 
@@ -43,8 +44,11 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	var spawn_positions: Array[Vector2] = []
 	for ship in scene.player_ships:
 		spawn_positions.append(ship.global_position)
-	await tree.physics_frame
-	await tree.physics_frame
+	# Two frames is too short to catch a ship that anchored HOLD_POSITION at the
+	# pre-placement origin instead of its spawn point (it still looks "near" for the
+	# first couple of frames before engine.hold_station pulls it there in earnest).
+	for i in 90:
+		await tree.physics_frame
 	for k in scene.player_ships.size():
 		var drift: float = scene.player_ships[k].global_position.distance_to(spawn_positions[k])
 		if drift >= 10.0:
@@ -939,6 +943,38 @@ static func _strength_and_anchor_failures() -> Array[String]:
 	var single: Array[Vector2] = [Vector2(5, 5)]
 	if scene_script.center_out_anchors(single) != single:
 		failures.append("center_out_anchors: expected a single anchor unchanged, got %s" % [scene_script.center_out_anchors(single)])
+	return failures
+
+# Review Focus 2's second half: a fleet bigger than the anchor count must put its
+# weakest ships in the rear rows, not just wherever they fell in ship_compositions order.
+static func _oversized_fleet_strength_failures() -> Array[String]:
+	var failures: Array[String] = []
+	var scene_script = load("res://scripts/combat/combat_scene.gd")
+	var comps: Array[Dictionary] = []
+	for i in 4:
+		var comp := ShipType.new_composition(ShipType.Kind.CORVETTE)
+		# Distinct, known strengths: comps[0] weakest .. comps[3] strongest.
+		for _d in i:
+			ShipType.set_equipped_path(comp, ShipType.SlotType.WEAPON, 0, "res://resources/weapons/heavy_beam.tres")
+		comps.append(comp)
+	var indices: Array[int] = [0, 1, 2, 3]
+	indices.shuffle()
+	var strengths: Dictionary = {}
+	for i in indices:
+		strengths[i] = scene_script.strength_of(comps[i])
+	indices.sort_custom(func(a: int, b: int) -> bool: return strengths[a] > strengths[b])
+	var anchors: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600)]
+	var spawn_points: Array[Vector2] = scene_script.formation_points(scene_script.center_out_anchors(anchors), indices.size(), 0.0)
+	for k in anchors.size():
+		if not anchors.has(spawn_points[k]):
+			failures.append("oversized_fleet_strength: expected the %d strongest ships on the anchors, point %d was %s" % [anchors.size(), k, spawn_points[k]])
+	for k in range(anchors.size(), indices.size()):
+		if anchors.has(spawn_points[k]):
+			failures.append("oversized_fleet_strength: expected the weaker ships behind the anchor line, point %d was still an anchor %s" % [k, spawn_points[k]])
+	# comps[0] (the weakest) must end up paired with a rear point, not an anchor.
+	var weakest_slot := indices.find(0)
+	if weakest_slot < anchors.size():
+		failures.append("oversized_fleet_strength: expected the weakest composition's slot %d behind the anchor line" % weakest_slot)
 	return failures
 
 static func kept_player_count_wrong(kept_hp: Array[float]) -> bool:

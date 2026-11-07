@@ -150,8 +150,8 @@ selection (`_on_left_release` / `_on_right_press`).
 New `Ship._process_protect(delta, candidates)`, parallel to
 `_process_hold_position`: holds a standoff distance from
 `current_order.target_ship` (reuse `ENGAGE_HULL_GAP`-style spacing, not a
-fixed number — tune during implementation) on the side away from the
-nearest threat, and autofires at whichever enemy is closest to the
+fixed number — tune during implementation) on the side toward the nearest
+threat, screening the protectee from it, and autofires at whichever enemy is closest to the
 protectee and in range, preferring PD weapons against incoming
 missiles/drones when the protectee itself is the thing being shot at (PD
 mounts already fire independently via `WeaponMount`'s own targeting, so

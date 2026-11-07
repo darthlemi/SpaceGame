@@ -9,6 +9,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await _check_formation_popup_opens_and_closes(tree, failures)
 	await _check_label_tracks_formation(tree, failures)
 	await _check_bar_inside_viewport_and_stops_mouse(tree, failures)
+	await _check_new_buttons_emit(tree, failures)
 	return failures
 
 static func _open(tree: SceneTree) -> OrderBar:
@@ -103,4 +104,20 @@ static func _check_bar_inside_viewport_and_stops_mouse(tree: SceneTree, failures
 			failures.append("order bar: popup button '%s' %s spills outside the popup %s" % [b.text, b.get_global_rect(), popup_rect])
 	if popup_rect.intersects(background.get_global_rect()):
 		failures.append("order bar: expected the popup above the bar, not overlapping it")
+	bar.get_parent().queue_free()
+
+static func _check_new_buttons_emit(tree: SceneTree, failures: Array[String]) -> void:
+	var bar := await _open(tree)
+	var move_btn: Button = bar.get_node("Row/MoveButton")
+	var attack_btn: Button = bar.get_node("Row/AttackButton")
+	var protect_btn: Button = bar.get_node("Row/ProtectButton")
+	var presses: Array[String] = []
+	bar.move_pressed.connect(func(): presses.append("move"))
+	bar.attack_pressed.connect(func(): presses.append("attack"))
+	bar.protect_pressed.connect(func(): presses.append("protect"))
+	move_btn.pressed.emit()
+	attack_btn.pressed.emit()
+	protect_btn.pressed.emit()
+	if presses != ["move", "attack", "protect"]:
+		failures.append("order bar: expected move_pressed, attack_pressed, protect_pressed in order, got %s" % [presses])
 	bar.get_parent().queue_free()

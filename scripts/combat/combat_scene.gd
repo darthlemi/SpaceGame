@@ -156,15 +156,28 @@ static func center_out_anchors(anchors: Array[Vector2]) -> Array[Vector2]:
 	for a in anchors:
 		centre += a
 	centre /= float(anchors.size())
-	var sorted := anchors.duplicate()
-	sorted.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.distance_to(centre) < b.distance_to(centre))
+	var order: Array[int] = []
+	for i in anchors.size():
+		order.append(i)
+	# Array.sort_custom isn't guaranteed stable, so tie-break equidistant anchors (e.g.
+	# two symmetric flanks) by original index explicitly rather than leaving it to
+	# whatever order the sort happens to produce.
+	order.sort_custom(func(a: int, b: int) -> bool:
+		var da := anchors[a].distance_to(centre)
+		var db := anchors[b].distance_to(centre)
+		return a < b if is_equal_approx(da, db) else da < db
+	)
+	var sorted: Array[Vector2] = []
+	for i in order:
+		sorted.append(anchors[i])
 	return sorted
 
 func _spawn_fleet_from_data(fleet_data: CampaignFleet, indices: Array[int], points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
-	indices.sort_custom(func(a: int, b: int) -> bool:
-		return strength_of(fleet_data.ship_compositions[a]) > strength_of(fleet_data.ship_compositions[b])
-	)
+	var strengths: Dictionary = {}
+	for i in indices:
+		strengths[i] = strength_of(fleet_data.ship_compositions[i])
+	indices.sort_custom(func(a: int, b: int) -> bool: return strengths[a] > strengths[b])
 	var spawn_points := formation_points(center_out_anchors(points), indices.size(), facing_rotation)
 	for k in indices.size():
 		var point: Vector2 = spawn_points[k]

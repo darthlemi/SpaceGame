@@ -445,6 +445,19 @@ task here is the one to use; it's a named, tunable `const`.
 
 ### Task 3: Fleet command bar and right-click-issues input scheme
 
+> **Deviation (during implementation, 2026-11-06):** the input scheme below
+> (left-click selects only, right-click always resolves the armed command,
+> right-click clears the selection) was replaced per user feedback after
+> the `OrderBar` buttons/signals (Steps 1-5) were already committed. The
+> design that was actually built: left-click only selects/deselects;
+> right-click is a smart default (attack an enemy under the cursor, else
+> move) when nothing is armed, or resolves the armed command (Move/Attack/
+> Protect) when one is; right-click never clears the selection — only a
+> left-click on empty space does. See the spec's updated "Input scheme"
+> section for the authoritative description; the pseudocode in Steps 6-11
+> below is the original (superseded) design and was not implemented as
+> written.
+
 **Files:**
 - Modify: `scenes\ui\order_bar.tscn` (3 new buttons), `scripts\ui\order_bar.gd`
   (3 new signals/wiring)

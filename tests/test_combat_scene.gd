@@ -339,8 +339,9 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(flag_scene) and not flag_scene.is_queued_for_deletion():
 		flag_scene.queue_free()
 
-	# Quick battle (no campaign): the first player ship starts selected. Clicks mirror the
-	# overworld: left selects an own ship or orders the selection, right clears it.
+	# Quick battle (no campaign): the first player ship starts selected. Left click only
+	# selects/deselects; right click is the smart action (attack an enemy under the cursor,
+	# move otherwise) and does not clear the selection -- only a left click on empty space does.
 	var click_scene: Node2D = CombatSceneScene.instantiate()
 	tree.root.add_child(click_scene)
 	await tree.process_frame
@@ -357,20 +358,28 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if commander.selected_ships != [second]:
 		failures.append("drag: expected an empty box to keep the current selection, got %s" % [commander.selected_ships])
 	var empty_point := Vector2(1000, 1100)
-	commander._on_left_release(empty_point, empty_point)
+	# _issue_smart_order/_issue_armed_command are what _on_right_press resolves into; called
+	# directly here since _on_right_press itself reads the live mouse position, which this
+	# bare scene-tree test can't drive.
+	commander._issue_smart_order(empty_point)
 	if commander.selected_ships != [second] or second.current_order == null or second.current_order.type != Order.Type.MOVE_TO or second.current_order.target_position != empty_point:
-		failures.append("left click: expected empty space to move the selection there and keep it selected")
+		failures.append("right click: expected empty space to move the selection there and keep it selected")
 	var enemy: Ship = click_scene.enemy_ships[0]
-	commander._on_left_release(enemy.global_position, enemy.global_position)
-	if second.current_order == null or second.current_order.type != Order.Type.ATTACK_TARGET or second.current_order.target_ship != enemy:
-		failures.append("left click: expected clicking an enemy to order the selection to attack it")
-	commander._on_right_press()
-	if not commander.selected_ships.is_empty():
-		failures.append("right click: expected the selection cleared, got %s" % [commander.selected_ships])
-	var first_order: Order = first.current_order
+	commander._issue_smart_order(enemy.global_position)
+	if commander.selected_ships != [second] or second.current_order == null or second.current_order.type != Order.Type.ATTACK_TARGET or second.current_order.target_ship != enemy:
+		failures.append("right click: expected clicking an enemy to order the selection to attack it and keep it selected")
+	commander.set_armed_command(Order.Type.PROTECT)
+	commander._issue_armed_command(first.global_position)
+	if second.current_order == null or second.current_order.type != Order.Type.PROTECT or second.current_order.target_ship != first:
+		failures.append("armed protect: expected the selection to protect the clicked ally")
 	commander._on_left_release(empty_point, empty_point)
-	if first.current_order != first_order or second.current_order.type != Order.Type.ATTACK_TARGET:
-		failures.append("left click: expected no orders with nothing selected")
+	if not commander.selected_ships.is_empty():
+		failures.append("left click: expected empty space to clear the selection")
+	var first_order: Order = first.current_order
+	var second_order: Order = second.current_order
+	commander._issue_smart_order(empty_point)
+	if first.current_order != first_order or second.current_order != second_order:
+		failures.append("right click: expected no orders with nothing selected")
 	if is_instance_valid(click_scene) and not click_scene.is_queued_for_deletion():
 		click_scene.queue_free()
 

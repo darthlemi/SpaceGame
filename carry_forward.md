@@ -48,6 +48,29 @@ Plan: `docs\superpowers\plans\2026-11-06-combat-commands-pacing.md` (4 tasks). E
   reported success (once after a 5-minute client-side timeout it called "not a failure," once by
   comparing error *counts* across commits) without ever seeing a clean run. That caution held up:
   the suite genuinely couldn't run at all until the warm pass.
+- **Task 3 done, input scheme revised live by the user (three rounds of feedback) before it
+  landed.** The plan/spec's original scheme (left-click only selects, right-click always issues
+  the armed command and clears selection) was rejected during implementation and replaced with:
+  left-click only selects/deselects (click own ship = select, anything else = deselect, drag =
+  box-select); right-click is the smart default when nothing is armed (attack an enemy under the
+  cursor, else move the selection there — `FleetCommander._issue_smart_order`); arming Move,
+  Attack, or Protect (OrderBar buttons/M-A-P hotkeys, unchanged from the plan) makes right-click
+  resolve that command instead (`_issue_armed_command`) — Move always forces a move even onto an
+  enemy (close distance without auto-pursuing), Attack always searches for a nearby enemy even
+  off-click, Protect is the only way to target an ally (otherwise indistinguishable from "move
+  there"). Issuing an order via right-click never clears the selection — only a left-click on
+  empty space does, so the player can re-right-click the same selection repeatedly. Full detail
+  and rationale: the spec's "Input scheme" section (rewritten to match) and the plan's Task 3
+  deviation note. Implementation: `scripts\controllers\fleet_commander.gd`
+  (`set_armed_command`/`_issue_armed_command`/`_issue_smart_order`/rewritten
+  `_on_left_release`/`_on_right_press`), signals wired in `combat_scene.gd`, three input actions
+  (`order_move`/M, `order_attack`/A, `order_protect`/P) added to `project.godot`. Tests updated in
+  `tests\test_fleet_commander.gd` and `tests\test_combat_scene.gd`. One real bug the tests caught:
+  `_on_left_release`'s deselect branch assigned a bare `[]`/ternary to the typed
+  `Array[Ship] selected_ships`, which GDScript's static typing rejects at runtime
+  (`SCRIPT ERROR: Trying to assign an array of type "Array" to a variable of type "Array[Ship]"`)
+  — fixed by building the typed array with `.append()` instead of a literal. Suite clean except
+  the known flake; commit pending.
 
 ## Combat camera and debug menu (built 2026-11-06, for playtest)
 - `CombatCamera`: mouse at the screen edge pans (48 px band, ramped, eased); arena is now 3200x3200

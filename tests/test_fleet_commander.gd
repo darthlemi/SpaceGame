@@ -12,6 +12,9 @@ static func run() -> Array[String]:
 	_check_order_flee_skips_fled(failures)
 	_check_set_formation_emits(failures)
 	_check_selection_changed(failures)
+	_check_armed_move_issues_command(failures)
+	_check_armed_protect_targets_ally(failures)
+	_check_left_click_selects_and_deselects(failures)
 	return failures
 
 static func _make_ship(pos: Vector2) -> Ship:
@@ -185,9 +188,10 @@ static func _check_selection_changed(failures: Array[String]) -> void:
 	commander.selection_changed.connect(func(has_selection: bool): seen.append(has_selection))
 	var picked: Array[Ship] = [ship]
 	commander.selected_ships = picked
-	commander._on_right_press()
+	var none: Array[Ship] = []
+	commander.selected_ships = none
 	if seen != [true, false]:
-		failures.append("selection_changed: expected true on select then false on right click, got %s" % [seen])
+		failures.append("selection_changed: expected true on select then false on clear, got %s" % [seen])
 	# A selection holding only fled ships reads as none.
 	var fled := _make_ship(Vector2(10, 0))
 	fled.has_fled = true
@@ -199,3 +203,110 @@ static func _check_selection_changed(failures: Array[String]) -> void:
 	commander.free()
 	ship.free()
 	fled.free()
+
+static func _check_armed_move_issues_command(failures: Array[String]) -> void:
+	var ship := _make_ship(Vector2(100, 100))
+	var commander := _selected_commander([ship])
+	commander.ships = [ship]
+	commander.set_armed_command(Order.Type.MOVE_TO)
+	# Calls the resolver directly, like the ATTACK_TARGET/PROTECT checks below:
+	# _on_right_press() itself reads get_global_mouse_position(), which needs a
+	# live viewport these bare-node unit tests don't have.
+	commander._issue_armed_command(Vector2(500, 500))
+	if ship.current_order == null or ship.current_order.type != Order.Type.MOVE_TO:
+		failures.append("armed_move: expected a MOVE_TO order issued, got %s" % [ship.current_order])
+	commander.free()
+	ship.free()
+
+static func _check_armed_protect_targets_ally(failures: Array[String]) -> void:
+	var protectee := _make_ship(Vector2(400, 400))
+	var ship := _make_ship(Vector2(100, 100))
+	var commander := _selected_commander([ship])
+	commander.ships = [ship, protectee]
+	commander.set_armed_command(Order.Type.PROTECT)
+	commander._issue_armed_command(protectee.global_position)
+	if ship.current_order == null or ship.current_order.type != Order.Type.PROTECT or ship.current_order.target_ship != protectee:
+		failures.append("armed_protect: expected a PROTECT order on the ally, got %s" % [ship.current_order])
+	commander.free()
+	ship.free()
+	protectee.free()
+
+static func _check_left_click_selects_and_deselects(failures: Array[String]) -> void:
+	var first := _make_ship(Vector2(100, 100))
+	var second := _make_ship(Vector2(200, 200))
+	var commander := _selected_commander([first])
+	commander.ships = [first, second]
+	commander._on_left_release(second.global_position, second.global_position)
+	if commander.selected_ships != [second]:
+		failures.append("left_click: expected clicking an own ship to select only it, got %s" % [commander.selected_ships])
+	commander._on_left_release(Vector2(900, 900), Vector2(900, 900))
+	if not commander.selected_ships.is_empty():
+		failures.append("left_click: expected clicking empty space to deselect, got %s" % [commander.selected_ships])
+	commander.free()
+	first.free()
+	second.free()
+
+static func run_async(tree: SceneTree) -> Array[String]:
+	var failures: Array[String] = []
+	await _check_armed_attack_targets_enemy(tree, failures)
+	await _check_unarmed_right_click_attacks_or_moves(tree, failures)
+	await _check_right_click_keeps_selection(tree, failures)
+	return failures
+
+static func _check_armed_attack_targets_enemy(tree: SceneTree, failures: Array[String]) -> void:
+	var enemy := _make_ship(Vector2(400, 400))
+	tree.root.add_child(enemy)
+	var ship := _make_ship(Vector2(100, 100))
+	tree.root.add_child(ship)
+	var commander := _selected_commander([ship])
+	tree.root.add_child(commander)
+	commander.ships = [ship]
+	commander.enemy_group = &"test_fc_enemies"
+	enemy.add_to_group(&"test_fc_enemies")
+	commander.set_armed_command(Order.Type.ATTACK_TARGET)
+	commander._issue_armed_command(enemy.global_position)
+	if ship.current_order == null or ship.current_order.type != Order.Type.ATTACK_TARGET or ship.current_order.target_ship != enemy:
+		failures.append("armed_attack: expected an ATTACK_TARGET order on the enemy, got %s" % [ship.current_order])
+	commander.queue_free()
+	ship.queue_free()
+	enemy.queue_free()
+	await tree.process_frame
+
+# Right-click's unarmed default: attack when the click lands on an enemy, move otherwise.
+static func _check_unarmed_right_click_attacks_or_moves(tree: SceneTree, failures: Array[String]) -> void:
+	var enemy := _make_ship(Vector2(400, 400))
+	tree.root.add_child(enemy)
+	var ship := _make_ship(Vector2(100, 100))
+	tree.root.add_child(ship)
+	var commander := _selected_commander([ship])
+	tree.root.add_child(commander)
+	commander.ships = [ship]
+	commander.enemy_group = &"test_fc_smart_enemies"
+	enemy.add_to_group(&"test_fc_smart_enemies")
+	commander._issue_smart_order(enemy.global_position)
+	if ship.current_order == null or ship.current_order.type != Order.Type.ATTACK_TARGET or ship.current_order.target_ship != enemy:
+		failures.append("unarmed_smart_order: expected an enemy under the click to be attacked, got %s" % [ship.current_order])
+	var empty_point := Vector2(900, 900)
+	commander._issue_smart_order(empty_point)
+	if ship.current_order == null or ship.current_order.type != Order.Type.MOVE_TO or ship.current_order.target_position != empty_point:
+		failures.append("unarmed_smart_order: expected empty space to move the selection there, got %s" % [ship.current_order])
+	commander.queue_free()
+	ship.queue_free()
+	enemy.queue_free()
+	await tree.process_frame
+
+# Issuing an order via right-click must not clear the selection -- only a left click on
+# empty space does that.
+static func _check_right_click_keeps_selection(tree: SceneTree, failures: Array[String]) -> void:
+	var ship := _make_ship(Vector2(100, 100))
+	tree.root.add_child(ship)
+	var commander := _selected_commander([ship])
+	tree.root.add_child(commander)
+	commander.ships = [ship]
+	commander.enemy_group = &"test_fc_keep_selection_enemies"
+	commander._issue_smart_order(Vector2(900, 900))
+	if commander.selected_ships != [ship]:
+		failures.append("right_click_keeps_selection: expected the selection to survive issuing an order, got %s" % [commander.selected_ships])
+	commander.queue_free()
+	ship.queue_free()
+	await tree.process_frame

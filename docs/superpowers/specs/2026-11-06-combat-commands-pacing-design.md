@@ -119,31 +119,42 @@ The five user-facing commands map onto existing/new order machinery:
 
 ### Input scheme
 
-Per the user's 2.2: left-click selects only (box-select and single-select,
-unchanged from today); right-click issues the **armed command** and clears
-selection. This replaces `FleetCommander`'s current split, where left-click
-on empty space issues a move/attack order and right-click only clears
-selection (`_on_left_release` / `_on_right_press`).
+Revised after playtesting the first pass (right-click-issues-armed-command,
+left-click-only-selects) against the user's feedback: that scheme made
+Attack/Move feel like a chore (arm a button before every click) and the
+original design's left-click ordering collided with left-click selecting.
+The settled scheme instead keeps left-click as pure selection and makes
+right-click the smart action, with the order bar's buttons as optional
+overrides/area-forcing rather than a required arm-then-click step:
 
-- `OrderBar` gains an "armed command" concept: five square buttons (Move,
-  Hold, Attack, Protect, Flee), mutually exclusive like the existing
-  formation popup's `ButtonGroup`, each togglable by its hotkey. Hold and
-  Flee keep emitting their existing immediate-fire signals too (they don't
-  need a target, so clicking the button can fire them directly at the
-  current selection, same as today) — Move/Attack/Protect need a
-  right-click in the arena to supply a position or target, so arming them
-  just sets the pending command; nothing happens until the right-click.
-- `FleetCommander._on_right_press()` becomes: if a command is armed and
-  there's a live selection, resolve the click point into that command's
-  order (position for Move; `ship_at_point` on the opposing group for
-  Attack; `ship_at_point` on the player's own group, excluding the
-  selection, for Protect) and issue it to every selected ship, then clear
-  the selection as before. If no command is armed, right-click keeps
-  today's clear-only behaviour (so old muscle memory/tests for "right
-  click deselects" still hold when nothing is armed).
-- `_on_left_release` drops its `_issue_order` branch entirely — a plain
-  click on empty space (not a drag, no ship under the cursor) does nothing,
-  since ordering now only happens via right-click.
+- **Left-click** only selects: box-select, single-select on an own ship, or
+  deselect on an empty-space/non-own-ship click (`_on_left_release`,
+  unchanged in spirit from before this spec, just no longer falls through
+  to issuing an order).
+- **Right-click** is the smart default with nothing armed: attack if the
+  click lands on an enemy, otherwise move the selection there
+  (`FleetCommander._issue_smart_order`). It does **not** clear the
+  selection — only a left-click on empty space does that, so the player can
+  issue several right-click orders to the same selection in a row.
+- `OrderBar` still gains an "armed command" concept for the three commands
+  that benefit from overriding the smart default: Move, Attack, Protect
+  (mutually exclusive like the formation popup's `ButtonGroup`, each
+  togglable by its hotkey). Hold and Flee keep firing immediately on click,
+  same as today.
+  - Move armed: right-click always issues a move to the clicked point, even
+    if it lands on an enemy — lets the player close distance without the
+    selection peeling off to attack/pursue.
+  - Attack armed: right-click always resolves to an attack search near the
+    clicked point (same `ship_at_point` radius as the smart default) rather
+    than falling back to a move when the click isn't exactly on a ship.
+  - Protect armed: right-click resolves to `ship_at_point` on the player's
+    own group (excluding the selection) and issues Protect — this is
+    Protect's only path in, since a left- or right-click on an ally with
+    nothing armed has no special meaning (right-click's smart default would
+    just move the selection there).
+- `FleetCommander._on_right_press()`: if a command is armed, resolve the
+  click into that command via `_issue_armed_command`; otherwise resolve it
+  via `_issue_smart_order`. Neither path touches the selection.
 
 ### Protect behaviour
 
@@ -237,10 +248,11 @@ to pre-solve here.
   compositions and anchor layouts → expected ordering.
 - `Ship._ready()` default order is `HOLD_POSITION`; a freshly spawned ship
   with an enemy out of range does not move over several physics frames.
-- Order-bar arm/fire: each of the five buttons toggles exclusively; Hold/
-  Flee fire immediately on click with a selection; Move/Attack/Protect only
-  fire on a subsequent right-click; right-click with nothing armed still
-  only clears selection.
+- Order-bar arm/fire: Move/Attack/Protect toggle exclusively and only fire
+  on a subsequent right-click; Hold/Flee fire immediately on click with a
+  selection. Right-click with nothing armed resolves the smart default
+  (attack an enemy under the cursor, move otherwise) and, either way, never
+  clears the selection; only a left-click on empty space does.
 - `Order.protect()` / `_process_protect`: a protected ship under simulated
   fire draws its guardian toward the threat side, within the standoff band.
 - Auto-retarget: an `ATTACK_TARGET` order whose target is freed mid-battle

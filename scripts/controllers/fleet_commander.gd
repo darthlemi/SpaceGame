@@ -24,6 +24,7 @@ var selected_ships: Array[Ship] = []:
 		_last_has_selection = _has_live_selection()
 		selection_changed.emit(_last_has_selection)
 var active_formation: Formation.Type = Formation.Type.NONE
+var armed_command: Order.Type = Order.Type.MOVE_TO
 
 signal formation_changed(type: Formation.Type)
 signal selection_changed(has_selection: bool)
@@ -31,6 +32,7 @@ signal selection_changed(has_selection: bool)
 var _last_has_selection: bool = false
 var _drag_start: Vector2 = Vector2.ZERO
 var _dragging: bool = false
+var _has_armed_command: bool = false
 
 func setup(p_ships: Array[Ship], p_enemy_group: StringName) -> void:
 	ships = p_ships
@@ -45,6 +47,10 @@ func order_hold() -> void:
 func set_formation(type: Formation.Type) -> void:
 	active_formation = type
 	formation_changed.emit(type)
+
+func set_armed_command(type: Order.Type) -> void:
+	armed_command = type
+	_has_armed_command = true
 
 func _process(_delta: float) -> void:
 	# A selected ship can jump out mid-battle; the bar must notice without a new selection.
@@ -68,6 +74,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		order_hold()
 	elif event.is_action_pressed("order_flee"):
 		order_flee()
+	elif event.is_action_pressed("order_move"):
+		set_armed_command(Order.Type.MOVE_TO)
+	elif event.is_action_pressed("order_attack"):
+		set_armed_command(Order.Type.ATTACK_TARGET)
+	elif event.is_action_pressed("order_protect"):
+		set_armed_command(Order.Type.PROTECT)
 	elif event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and _dragging:
@@ -104,7 +116,34 @@ func _order_live_selection(make_order: Callable) -> void:
 	for ship in selected_ships:
 		ship.execute_order(make_order.call())
 
-func _issue_order(world_pos: Vector2) -> void:
+func _issue_armed_command(world_pos: Vector2) -> void:
+	_prune_selection()
+	if selected_ships.is_empty():
+		return
+	match armed_command:
+		Order.Type.MOVE_TO:
+			# Forced move: goes to the clicked point even if it lands on an enemy, so the
+			# player can close distance without the selection peeling off to pursue/attack.
+			var destinations := _compute_destinations(world_pos)
+			for ship in selected_ships:
+				if destinations.has(ship):
+					ship.execute_order(Order.move_to(destinations[ship]))
+		Order.Type.ATTACK_TARGET:
+			var enemy_candidates: Array = get_tree().get_nodes_in_group(enemy_group)
+			var target_enemy := FleetCommander.ship_at_point(enemy_candidates, world_pos, click_target_radius)
+			if target_enemy != null:
+				for ship in selected_ships:
+					ship.execute_order(Order.attack_target(target_enemy))
+		Order.Type.PROTECT:
+			var protectee := FleetCommander.ship_at_point(ships, world_pos, click_target_radius)
+			if protectee != null:
+				for ship in selected_ships:
+					if ship != protectee:
+						ship.execute_order(Order.protect(protectee))
+
+# The right-click default with nothing armed: attack if the click lands on an enemy,
+# otherwise move the selection there.
+func _issue_smart_order(world_pos: Vector2) -> void:
 	_prune_selection()
 	if selected_ships.is_empty():
 		return
@@ -119,8 +158,8 @@ func _issue_order(world_pos: Vector2) -> void:
 		if destinations.has(ship):
 			ship.execute_order(Order.move_to(destinations[ship]))
 
-# Left click mirrors the overworld's click-to-move: a drag box-selects, a click on an
-# own ship selects it, and any other click orders the selection there.
+# Left click only selects: a drag box-selects, a click on an own ship selects only it, and
+# any other click (empty space, or on an enemy) deselects. Orders come from right-click.
 func _on_left_release(start: Vector2, end: Vector2) -> void:
 	if start.distance_to(end) >= drag_threshold:
 		# An empty box keeps the current selection rather than dropping it.
@@ -129,16 +168,22 @@ func _on_left_release(start: Vector2, end: Vector2) -> void:
 			selected_ships = boxed
 	else:
 		var picked := FleetCommander.ship_at_point(ships, end, select_radius)
+		var picked_ships: Array[Ship] = []
 		if picked != null:
-			var picked_ships: Array[Ship] = [picked]
-			selected_ships = picked_ships
-		else:
-			_issue_order(end)
+			picked_ships.append(picked)
+		selected_ships = picked_ships
 	queue_redraw()
 
+# Right click is the smart action: with nothing armed, it attacks an enemy under the
+# cursor or moves the selection there; with a command armed, that command's own
+# resolution (forced move, area attack, or protect) takes over instead. The selection
+# stays after issuing an order -- only a left click on empty space clears it.
 func _on_right_press() -> void:
-	var none: Array[Ship] = []
-	selected_ships = none
+	var world_pos: Vector2 = get_global_mouse_position()
+	if _has_armed_command:
+		_issue_armed_command(world_pos)
+	else:
+		_issue_smart_order(world_pos)
 	queue_redraw()
 
 func _compute_destinations(world_pos: Vector2) -> Dictionary:

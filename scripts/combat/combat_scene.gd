@@ -163,9 +163,9 @@ static func center_out_anchors(anchors: Array[Vector2]) -> Array[Vector2]:
 func _spawn_fleet_from_data(fleet_data: CampaignFleet, indices: Array[int], points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []
 	indices.sort_custom(func(a: int, b: int) -> bool:
-		return CombatScene.strength_of(fleet_data.ship_compositions[a]) > CombatScene.strength_of(fleet_data.ship_compositions[b])
+		return strength_of(fleet_data.ship_compositions[a]) > strength_of(fleet_data.ship_compositions[b])
 	)
-	var spawn_points := formation_points(CombatScene.center_out_anchors(points), indices.size(), facing_rotation)
+	var spawn_points := formation_points(center_out_anchors(points), indices.size(), facing_rotation)
 	for k in indices.size():
 		var point: Vector2 = spawn_points[k]
 		var comp: Dictionary = fleet_data.ship_compositions[indices[k]]

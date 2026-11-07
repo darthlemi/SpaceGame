@@ -922,22 +922,23 @@ static func _formation_failures() -> Array[String]:
 
 static func _strength_and_anchor_failures() -> Array[String]:
 	var failures: Array[String] = []
+	var scene_script = load("res://scripts/combat/combat_scene.gd")
 	var weak := ShipType.new_composition(ShipType.Kind.CORVETTE)
 	var strong := ShipType.new_composition(ShipType.Kind.CAPITAL)
 	ShipType.set_equipped_path(strong, ShipType.SlotType.WEAPON, 0, "res://resources/weapons/heavy_beam.tres")
-	if CombatScene.strength_of(strong) <= CombatScene.strength_of(weak):
+	if scene_script.strength_of(strong) <= scene_script.strength_of(weak):
 		failures.append("strength_of: expected the armed capital to score higher than the bare corvette")
 	var bare_corvette := ShipType.new_composition(ShipType.Kind.CORVETTE)
-	if not is_equal_approx(CombatScene.strength_of(bare_corvette), ShipType.BASE_STATS[ShipType.Kind.CORVETTE]["max_hp"]):
-		failures.append("strength_of: expected an unarmed hull to score exactly its max_hp, got %s" % CombatScene.strength_of(bare_corvette))
+	if not is_equal_approx(scene_script.strength_of(bare_corvette), ShipType.BASE_STATS[ShipType.Kind.CORVETTE]["max_hp"]):
+		failures.append("strength_of: expected an unarmed hull to score exactly its max_hp, got %s" % scene_script.strength_of(bare_corvette))
 
 	var line: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
-	var ordered := CombatScene.center_out_anchors(line)
+	var ordered := scene_script.center_out_anchors(line)
 	if ordered[0] != Vector2(1000, 1600):
 		failures.append("center_out_anchors: expected the middle point first, got %s" % [ordered])
 	var single: Array[Vector2] = [Vector2(5, 5)]
-	if CombatScene.center_out_anchors(single) != single:
-		failures.append("center_out_anchors: expected a single anchor unchanged, got %s" % [CombatScene.center_out_anchors(single)])
+	if scene_script.center_out_anchors(single) != single:
+		failures.append("center_out_anchors: expected a single anchor unchanged, got %s" % [scene_script.center_out_anchors(single)])
 	return failures
 
 static func kept_player_count_wrong(kept_hp: Array[float]) -> bool:

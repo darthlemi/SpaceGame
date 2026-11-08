@@ -376,13 +376,11 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
     choices, how campaign system backgrounds (one per `StarSystem`) get assigned their
     background, and whether combat backgrounds are picked per-system or from a shared pool.
     No design spec locked yet.
-  - **Separate asteroid iteration thread (2026-11-07, approved "good for now"):** a different
-    script, `variants.py` (ray-crater geometry, distinct from `bg_preview.py`'s `add_craters`),
-    built in **another session's OS temp scratchpad, not in this repo**:
-    `C:\Users\corbi\AppData\Local\Temp\claude\C--Users-corbi-Desktop-SpaceGame\e6e81089-25d1-44c7-a796-a1b6c927da15\scratchpad\asteroid\`
-    (`variants.py`, `build.py` the earlier single-preview predecessor, `asteroid.blend`). **This
-    is at risk of being lost** (OS temp, another session's folder) — copy it into
-    `art\blender\experiments\` before relying on it further.
+  - **Separate asteroid iteration thread (2026-11-07/08, approved "good for now"):** a different
+    script, `art\blender\experiments\asteroid_variants.py` (ray-crater geometry, distinct from
+    `bg_preview.py`'s `add_craters`; `asteroid_build.py` is its earlier single-preview
+    predecessor, `asteroid.blend` the saved scene) — now committed in the repo, no longer only in
+    a session temp scratchpad.
     - Material (`make_material`) retuned to the midpoint between `build.py`'s original softer
       noise/bump and a later, sharper pass: patch/rust noise scale and ramp widths, speckle
       mix, and bump strength all roughly halved back from the sharp version.
@@ -402,9 +400,21 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
       body size, small-crater centers use minimum-separation rejection against each other.
     - Approved by the user as-is. Latest contact sheet (all 24):
       https://claude.ai/code/artifact/5a018553-2ac6-4f14-b24a-df60f00f10f7
+    - Render settings then gained `film_transparent = True` + RGBA output (the first batch was
+      opaque black-background PNGs); all 24 re-rendered with alpha, confirmed with
+      `GetPixel` (corner alpha 0, body alpha 255). Alpha contact sheet (checker backdrop):
+      https://claude.ai/code/artifact/f71500bb-2bce-4801-bdd8-7e3de7f820ec
+    - The native 1600x2000 renders run ~1.3-1.6 MB each. A `_small` set (512px wide, `.NET`
+      `HighQualityBicubic` downsample of the full-res renders, not a re-render) was added
+      alongside the originals — 171-192 KB each, all under the 200 KB target. Originals
+      untouched. Both sets currently live only in the render output dir
+      (`...\renders\variants\` and its `small\` subfolder) under the OS temp scratchpad above,
+      not copied into the repo yet.
     - Open: not wired into any pipeline yet; still needs the "recipe"/placement decisions above;
       the companion small-rock material/crater recipe wasn't separately re-examined for the same
-      overlap bug (only the main body was) — check it if companions ever look fin-y.
+      overlap bug (only the main body was) — check it if companions ever look fin-y; the 24
+      full-size + 24 `_small` renders themselves still need to be copied from the temp scratchpad
+      into the repo (e.g. `art\blender\experiments\renders\`) before they're safe from loss.
 - **Blender pipeline spec:** `docs\superpowers\specs\2026-10-31-pxl-art-pipeline-design.md` is
   superseded for ships and has no replacement.
 

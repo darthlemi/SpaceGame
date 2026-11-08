@@ -376,6 +376,35 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
     choices, how campaign system backgrounds (one per `StarSystem`) get assigned their
     background, and whether combat backgrounds are picked per-system or from a shared pool.
     No design spec locked yet.
+  - **Separate asteroid iteration thread (2026-11-07, approved "good for now"):** a different
+    script, `variants.py` (ray-crater geometry, distinct from `bg_preview.py`'s `add_craters`),
+    built in **another session's OS temp scratchpad, not in this repo**:
+    `C:\Users\corbi\AppData\Local\Temp\claude\C--Users-corbi-Desktop-SpaceGame\e6e81089-25d1-44c7-a796-a1b6c927da15\scratchpad\asteroid\`
+    (`variants.py`, `build.py` the earlier single-preview predecessor, `asteroid.blend`). **This
+    is at risk of being lost** (OS temp, another session's folder) — copy it into
+    `art\blender\experiments\` before relying on it further.
+    - Material (`make_material`) retuned to the midpoint between `build.py`'s original softer
+      noise/bump and a later, sharper pass: patch/rust noise scale and ramp widths, speckle
+      mix, and bump strength all roughly halved back from the sharp version.
+    - Found and fixed a real bug in `build_rock`'s crater carving: overlapping craters summed
+      their bowl/rim displacement with no cap, so several bowls stacking could push a vertex
+      past the body's center (flipping that patch inside-out into a detached "fin" silhouette)
+      and several rim bulges stacking could do the same outward. Fixed with
+      `total_disp = max(-base_len*0.55, min(total_disp, base_len*0.12))`. Separately, the ray
+      crater's alternating-wedge shading (`cand_stripe`/`cand2`) read as a ring of "teeth"
+      around the crater mouth even heavily turned down, so it was removed outright — crater
+      floor/rim shading is now purely radial. Also tightened `facing_dir`'s bias and shrank the
+      big craters' angular radius (0.46/0.32 -> 0.38/0.27) so a wide crater can't reach the
+      grazing silhouette limb and project a crescent past the body outline.
+    - `ALL_VARIANTS` now generates **4 seeds per shape type** (6 types: round, elongated, round
+      cluster, elongated cluster, very elongated, many-companions = 24 renders), sized
+      0.70/0.92/1.18/1.45 (small -> large); crater depth/rim and small-crater count scale with
+      body size, small-crater centers use minimum-separation rejection against each other.
+    - Approved by the user as-is. Latest contact sheet (all 24):
+      https://claude.ai/code/artifact/5a018553-2ac6-4f14-b24a-df60f00f10f7
+    - Open: not wired into any pipeline yet; still needs the "recipe"/placement decisions above;
+      the companion small-rock material/crater recipe wasn't separately re-examined for the same
+      overlap bug (only the main body was) — check it if companions ever look fin-y.
 - **Blender pipeline spec:** `docs\superpowers\specs\2026-10-31-pxl-art-pipeline-design.md` is
   superseded for ships and has no replacement.
 

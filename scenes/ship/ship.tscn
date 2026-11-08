@@ -75,6 +75,7 @@ scale_amount_max = 5.0
 color = Color(0.3, 0.3, 0.3, 0.8)
 
 [node name="EngineTrail" type="CPUParticles2D" parent="VFX"]
+position = Vector2(-8, 0)
 emitting = false
 amount = 10
 lifetime = 0.4

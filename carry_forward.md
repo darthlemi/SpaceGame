@@ -197,46 +197,46 @@ Spec: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`. Plan
    - `CLUMP_RADIUS` 36 will overlap 10-ship fleets on the map;
    - combat has only 3 spawn points per side.
 
-## Systems and Stations menu (brainstormed 2026-11-05, NOT built, no spec or plan yet)
-Idea: remember what the player saw at each station on their last visit, and show it in a menu.
-Layout, text and sort behaviour are settled by the user; the mockup is the reference. Next step is
-to play the design back for sign-off, write the spec (`docs\superpowers\specs\`, builder check), then
-`superpowers:writing-plans`. **Do not build before the spec is approved.**
-- **Mockup (final, v24, committed):** `docs\superpowers\mockups\station-menu-final-v24.html`. Open
-  it in a browser, or serve it from the visual companion. Preview server: start it with the
-  brainstorming `scripts\start-server.sh --project-dir <repo>`; to screenshot, headless Edge works
-  (`--headless=new --screenshot`).
-- **Layout:** one screen on a 16:9 reference stage (1280x720), scaled to fit the window.
-  - Left: scrollable tree, scrollbar on the LEFT edge. Systems with a small `[+]`/`[-]` box, name,
-    and "Stations - x" under it; stations under an expanded system with a faction-coloured round dot.
-    Names may wrap if too long (fits normally).
-  - Right: scrollable detail panel for the selected station:
-    - header: station name, "System: <name>", faction badge (hugs its text; the mockup stretches it,
-      a CSS bug), "Visited: Day 42 (13 days ago)";
-    - three one-line stat boxes spanning the row: Population, Wealth, Reputation;
-    - Population is shown as a signed number, green `+` when growing, red `-` when declining
-      (stable: unspecified, suggest plain white, no sign);
-    - market, two groups PRODUCES and CONSUMES, each its own table with fixed-width columns
-      (Commodity 34%, Stock, Buy, Sell 22% each), every header and cell centred;
-    - Stock is signed and coloured: green `+n` over target, red `-n` short of it (stock minus
-      `Commodity.TARGET_STOCK`; my reading, the user hasn't said whether they want raw units);
-    - no status tags (Surplus/Deficit words were dropped), no Role column.
-  - Sorting: click a column header to sort that table only (each table independent). First click
-    ascending with an up arrow, second click descending with a down arrow; the arrow sits outside the
-    header text so it never shifts the centring. No sort on open.
-- **Left out on purpose:** Security (no such stat exists in the campaign scripts; user said remove for
-  now); faction-owned fine/reputation detail beyond the one number.
-- **Data facts (verified in code):** `BaseEconomy` has `stock`, `price_for`, `sell_price_for`,
-  `net_commodities()` (per-tick, static per station), `population`, `population_trend`,
-  `wealth_level()`; `BaseOverviewPanel` already shows population, wealth, produces, consumes and
-  reputation when docked. "Net / visit" was my invention and was dropped.
-- **Open questions:** how Day is counted (check for a game-day counter; none confirmed); the snapshot
-  is taken on docking and stored in `CampaignState` (save games don't exist yet, flag when saving is
-  built); which systems appear (visited only, per the user's "systems you visit"); whether the
-  discovered-but-unvisited jump-map systems should show; where the menu opens from; whether sort
-  state persists between visits.
-- **Mockup alignment caveat:** the browser rescales the mockup, so pixel alignment (toggle boxes, `+`
-  centring) is only truly settled in the Godot controls; SVG toggles were the scale-proof fix.
+## Systems and Stations menu (built 2026-11-07, commits `7906ffd`..`dbdebef`, for playtest)
+Spec: `docs\superpowers\specs\2026-11-07-systems-stations-menu-design.md`. Plan:
+`docs\superpowers\plans\2026-11-07-systems-stations-menu.md`. Built via
+`superpowers:subagent-driven-development` (3 tasks, all complete, final whole-branch review required
+one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superpowers\mockups\station-menu-final-v24.html`.
+- `CampaignState` gained `game_day()` and `station_snapshots: Dictionary` (population, wealth,
+  reputation, produces/consumes market rows), snapshotted per-station in `record_visit()` — same
+  moment the jump-map's per-system snapshot already fires.
+- `SystemsStationsPanel` (`scenes\ui\systems_stations_panel.tscn` / `scripts\ui\systems_stations_panel.gd`):
+  left tree of visited systems (expand/collapse, faction-coloured station dots), right detail panel
+  (header, population/wealth/reputation tiles, sortable PRODUCES/CONSUMES tables). Opens from a new
+  "Systems" button on the HUD (`fleet_status_bar.tscn`), modal-exclusive with Fleet/Jump
+  Map/engage/respawn exactly like the existing panels.
+- The final review caught (and a fix round resolved) a real bug: the new campaign-scene test never
+  freed its instantiated scene, which kept running `_physics_process` against a nulled `CampaignState`
+  for the rest of the suite (27 `SCRIPT ERROR` lines) — and surfaced the same missing-`await`-after-
+  `queue_free` bug, pre-existing on `main`, in three other campaign-scene tests
+  (`test_campaign_scene_trading.gd`, `test_campaign_scene_fleet_panel.gd`, `test_campaign_scene.gd`).
+  All four fixed the same way. Suite is now 0 `SCRIPT ERROR`, only the known long-run-sim flake.
+- **Open, for the user's playtest pass (mockup-fidelity gaps the plan didn't carry forward from the
+  signed-off mockup — not code bugs, a human visual pass was never performed since the build ran
+  headless):**
+  - the three stat tiles don't span the row (`systems_stations_panel.tscn`'s Tiles children lack
+    `size_flags_horizontal = 3`) — the mockup has them filling the row evenly;
+  - the PRODUCES/CONSUMES tables are fixed-width (~460px, left-aligned) inside the ~740px detail pane
+    rather than filling it — column *ratios* (34/22/22/22%) are right, the *fill* isn't;
+  - missing vs. the mockup: the "MARKET (AS LAST SEEN)" section header, green/red colouring + bar on
+    the PRODUCES/CONSUMES group labels, the badge's bordered box, a selected-station row highlight
+    (currently just white font colour, mockup has a gradient + left border), thousands separators on
+    population, and the spec's explicit left-edge tree scrollbar (currently Godot's default right-hand
+    one). Fold these into one follow-up pass rather than drip-feeding fixes.
+  - 5-widget HUD layout: `fleet_status_bar.tscn`'s button separation was tightened 16->8 to fit the new
+    Systems button without colliding with SpeedControls; layout tests pass (no overlap/spill) but the
+    visual tightness itself wasn't eyeballed.
+- Parked minors (non-blocking): `_build_station_row` doesn't clear a font-color override on the
+  non-selected path (harmless, tree rebuilds fully each time); the system-sort comparator re-resolves
+  `galaxy.system(id)` per comparison instead of once; no automated test for the Jump Map vs Systems
+  panel mutual exclusion (the guard is a one-line mirror of the tested Fleet case); re-pressing the
+  Systems button while already open silently resets tree/selection state (same shape as the
+  pre-existing Fleet button).
 
 ## Star systems: calls built as "my call", for the user to playtest
 - **Caught mid-warp:** never answered. Hostile contact during the countdown forces the engage
@@ -366,6 +366,12 @@ to play the design back for sign-off, write the spec (`docs\superpowers\specs\`,
     wired into the pipeline) are in
     `docs\superpowers\specs\2026-11-07-backgrounds-design.md` — read that before continuing
     this thread.
+  - **Cluster render approved as-is (2026-11-07):** `asteroids_v3_seed1` (the 3-rock
+    hero+escort cluster) is locked in, keep it unchanged. **Singles still need work:** the 4
+    `rock_single_seed*` renders (bigger, elongated foreground rocks) were reviewed and
+    rejected; the user will give a specific new prompt/direction for those before the next
+    iteration. Latest preview artifact:
+    https://claude.ai/code/artifact/5267b3c1-2c85-4804-aa85-edff863e2c44
   - Not yet decided: the "recipe" data format tying a background id to its tile/nebula/feature
     choices, how campaign system backgrounds (one per `StarSystem`) get assigned their
     background, and whether combat backgrounds are picked per-system or from a shared pool.

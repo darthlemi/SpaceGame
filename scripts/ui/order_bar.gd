@@ -28,6 +28,9 @@ const FORMATION_NAMES := {
 var _formation_buttons: Dictionary = {}
 
 func _ready() -> void:
+	# The order buttons must stay clickable while the tree is paused, matching
+	# FleetCommander's input handling.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_has_selection(false)
 	hold_button.pressed.connect(func(): hold_pressed.emit())
 	flee_button.pressed.connect(func(): flee_pressed.emit())

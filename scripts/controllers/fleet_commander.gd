@@ -35,6 +35,11 @@ var _drag_start: Vector2 = Vector2.ZERO
 var _dragging: bool = false
 var _has_armed_command: bool = false
 
+func _ready() -> void:
+	# The player must be able to select ships and issue orders while the tree is
+	# paused, with execution picking up once they unpause.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 func setup(p_ships: Array[Ship], p_enemy_group: StringName) -> void:
 	ships = p_ships
 	enemy_group = p_enemy_group

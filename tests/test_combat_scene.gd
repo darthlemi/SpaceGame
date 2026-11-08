@@ -904,6 +904,26 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if is_instance_valid(mixed_scene) and not mixed_scene.is_queued_for_deletion():
 		mixed_scene.queue_free()
 
+	# Commands given while paused must still land: the player can select ships and issue
+	# orders during a pause, with execution resuming once they unpause.
+	var paused_scene: Node2D = CombatSceneScene.instantiate()
+	tree.root.add_child(paused_scene)
+	await tree.process_frame
+	await tree.process_frame
+
+	var paused_selection: Array[Ship] = [paused_scene.player_ships[0]]
+	paused_scene.fleet_commander.selected_ships = paused_selection
+	tree.paused = true
+	var flee_key := InputEventKey.new()
+	flee_key.physical_keycode = KEY_F
+	flee_key.pressed = true
+	paused_scene.get_viewport().push_input(flee_key)
+	if paused_scene.player_ships[0].current_order.type != Order.Type.FLEE:
+		failures.append("pause_does_not_block_orders: expected order_flee to land while the tree was paused")
+	tree.paused = false
+	if is_instance_valid(paused_scene) and not paused_scene.is_queued_for_deletion():
+		paused_scene.queue_free()
+
 	return failures
 
 # Loaded (not preloaded) for the same autoload reason as the scene scripts in run_tests.gd.

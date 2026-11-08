@@ -13,17 +13,18 @@ var _expanded: Dictionary = {}
 var _selected_station: String = ""
 # "produces"/"consumes" -> {"sort_column": int, "ascending": bool}. -1 = unsorted.
 var _table_state: Dictionary = {}
+var _header_rule: StyleBoxFlat = null
 
 @onready var tree_container: VBoxContainer = $Body/TreeScroll/TreeContainer
 @onready var count_label: Label = $TopBar/CountLabel
 @onready var close_button: Button = $TopBar/CloseButton
 @onready var name_label: Label = $Body/DetailScroll/DetailContainer/Header/NameBox/NameLabel
 @onready var system_label: Label = $Body/DetailScroll/DetailContainer/Header/NameBox/SystemLabel
-@onready var badge_label: Label = $Body/DetailScroll/DetailContainer/Header/BadgeBox/BadgeLabel
+@onready var badge_label: Label = $Body/DetailScroll/DetailContainer/Header/BadgeBox/BadgeFrame/BadgeLabel
 @onready var visited_label: Label = $Body/DetailScroll/DetailContainer/Header/BadgeBox/VisitedLabel
-@onready var population_value_label: Label = $Body/DetailScroll/DetailContainer/Tiles/PopulationTile/PopulationValueLabel
-@onready var wealth_value_label: Label = $Body/DetailScroll/DetailContainer/Tiles/WealthTile/WealthValueLabel
-@onready var reputation_value_label: Label = $Body/DetailScroll/DetailContainer/Tiles/ReputationTile/ReputationValueLabel
+@onready var population_value_label: Label = $Body/DetailScroll/DetailContainer/Tiles/PopulationTile/PopulationBox/PopulationValueLabel
+@onready var wealth_value_label: Label = $Body/DetailScroll/DetailContainer/Tiles/WealthTile/WealthBox/WealthValueLabel
+@onready var reputation_value_label: Label = $Body/DetailScroll/DetailContainer/Tiles/ReputationTile/ReputationBox/ReputationValueLabel
 @onready var produces_table_container: VBoxContainer = $Body/DetailScroll/DetailContainer/ProducesTableContainer
 @onready var consumes_table_container: VBoxContainer = $Body/DetailScroll/DetailContainer/ConsumesTableContainer
 
@@ -113,9 +114,17 @@ func _build_system_row(sys: StarSystem, station_count: int) -> HBoxContainer:
 
 func _build_station_row(station: StationData) -> HBoxContainer:
 	var row := HBoxContainer.new()
-	var dot := ColorRect.new()
+	var dot := Panel.new()
 	dot.custom_minimum_size = Vector2(9, 9)
-	dot.color = CampaignFleetIcon.FACTION_COLORS.get(station.owner, CampaignFleetIcon.FACTION_COLORS[CampaignFleet.Faction.NEUTRAL])
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dot_style := StyleBoxFlat.new()
+	dot_style.bg_color = CampaignFleetIcon.FACTION_COLORS.get(station.owner, CampaignFleetIcon.FACTION_COLORS[CampaignFleet.Faction.NEUTRAL])
+	dot_style.corner_radius_top_left = 5
+	dot_style.corner_radius_top_right = 5
+	dot_style.corner_radius_bottom_left = 5
+	dot_style.corner_radius_bottom_right = 5
+	dot.add_theme_stylebox_override("panel", dot_style)
 	var button := Button.new()
 	button.flat = true
 	button.text = station.display_name
@@ -175,6 +184,14 @@ func _update_reputation_tile(snapshot: Dictionary) -> void:
 	var reputation = snapshot.get("reputation")
 	reputation_value_label.text = "-" if reputation == null else "%+d" % roundi(reputation)
 
+func _header_rule_style() -> StyleBoxFlat:
+	if _header_rule == null:
+		_header_rule = StyleBoxFlat.new()
+		_header_rule.bg_color = Color(0, 0, 0, 0)
+		_header_rule.border_width_bottom = 1
+		_header_rule.border_color = Color("#1a4e8a")
+	return _header_rule
+
 func _build_table(container: VBoxContainer, rows_data: Array, table_key: String) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
@@ -191,7 +208,10 @@ func _build_table(container: VBoxContainer, rows_data: Array, table_key: String)
 		header_button.text = COLUMN_LABELS[i] + arrow
 		header_button.pressed.connect(sort_table.bind(table_key, i))
 		header.add_child(header_button)
-	container.add_child(header)
+	var header_panel := PanelContainer.new()
+	header_panel.add_theme_stylebox_override("panel", _header_rule_style())
+	header_panel.add_child(header)
+	container.add_child(header_panel)
 	for row in _sorted_rows(rows_data, state):
 		container.add_child(_build_table_row(row))
 

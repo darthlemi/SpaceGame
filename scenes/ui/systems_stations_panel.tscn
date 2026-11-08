@@ -1,6 +1,20 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/systems_stations_panel.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/panel_frame.png" id="2"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_box"]
+texture = ExtResource("2")
+texture_margin_left = 15.0
+texture_margin_top = 15.0
+texture_margin_right = 15.0
+texture_margin_bottom = 15.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
 
 [node name="SystemsStationsPanel" type="Control"]
 offset_left = 10.0
@@ -68,7 +82,11 @@ size_flags_horizontal = 3
 
 [node name="BadgeBox" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Header"]
 
-[node name="BadgeLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Header/BadgeBox"]
+[node name="BadgeFrame" type="PanelContainer" parent="Body/DetailScroll/DetailContainer/Header/BadgeBox"]
+theme_override_styles/panel = SubResource("StyleBoxTexture_box")
+size_flags_horizontal = 8
+
+[node name="BadgeLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Header/BadgeBox/BadgeFrame"]
 text = ""
 horizontal_alignment = 2
 
@@ -79,36 +97,67 @@ horizontal_alignment = 2
 [node name="Tiles" type="HBoxContainer" parent="Body/DetailScroll/DetailContainer"]
 theme_override_constants/separation = 12
 
-[node name="PopulationTile" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Tiles"]
+[node name="PopulationTile" type="PanelContainer" parent="Body/DetailScroll/DetailContainer/Tiles"]
+theme_override_styles/panel = SubResource("StyleBoxTexture_box")
+size_flags_horizontal = 3
 
-[node name="PopulationKeyLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/PopulationTile"]
+[node name="PopulationBox" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Tiles/PopulationTile"]
+
+[node name="PopulationKeyLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/PopulationTile/PopulationBox"]
 text = "POPULATION"
 
-[node name="PopulationValueLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/PopulationTile"]
+[node name="PopulationValueLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/PopulationTile/PopulationBox"]
 text = "0"
 
-[node name="WealthTile" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Tiles"]
+[node name="WealthTile" type="PanelContainer" parent="Body/DetailScroll/DetailContainer/Tiles"]
+theme_override_styles/panel = SubResource("StyleBoxTexture_box")
+size_flags_horizontal = 3
 
-[node name="WealthKeyLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/WealthTile"]
+[node name="WealthBox" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Tiles/WealthTile"]
+
+[node name="WealthKeyLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/WealthTile/WealthBox"]
 text = "WEALTH"
 
-[node name="WealthValueLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/WealthTile"]
+[node name="WealthValueLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/WealthTile/WealthBox"]
 text = ""
 
-[node name="ReputationTile" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Tiles"]
+[node name="ReputationTile" type="PanelContainer" parent="Body/DetailScroll/DetailContainer/Tiles"]
+theme_override_styles/panel = SubResource("StyleBoxTexture_box")
+size_flags_horizontal = 3
 
-[node name="ReputationKeyLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/ReputationTile"]
+[node name="ReputationBox" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer/Tiles/ReputationTile"]
+
+[node name="ReputationKeyLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/ReputationTile/ReputationBox"]
 text = "REPUTATION"
 
-[node name="ReputationValueLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/ReputationTile"]
+[node name="ReputationValueLabel" type="Label" parent="Body/DetailScroll/DetailContainer/Tiles/ReputationTile/ReputationBox"]
 text = ""
 
-[node name="ProducesHeader" type="Label" parent="Body/DetailScroll/DetailContainer"]
+[node name="MarketHeader" type="Label" parent="Body/DetailScroll/DetailContainer"]
+text = "MARKET (AS LAST SEEN)"
+
+[node name="ProducesHeader" type="HBoxContainer" parent="Body/DetailScroll/DetailContainer"]
+theme_override_constants/separation = 8
+
+[node name="Bar" type="ColorRect" parent="Body/DetailScroll/DetailContainer/ProducesHeader"]
+custom_minimum_size = Vector2(3, 14)
+color = Color(0.372549, 0.878431, 0.541176, 1)
+
+[node name="Label" type="Label" parent="Body/DetailScroll/DetailContainer/ProducesHeader"]
 text = "PRODUCES"
+theme_override_colors/font_color = Color(0.372549, 0.878431, 0.541176, 1)
 
 [node name="ProducesTableContainer" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer"]
 
-[node name="ConsumesHeader" type="Label" parent="Body/DetailScroll/DetailContainer"]
+[node name="ConsumesHeader" type="HBoxContainer" parent="Body/DetailScroll/DetailContainer"]
+theme_override_constants/separation = 8
+
+[node name="Bar" type="ColorRect" parent="Body/DetailScroll/DetailContainer/ConsumesHeader"]
+custom_minimum_size = Vector2(3, 14)
+color = Color(1, 0.478431, 0.415686, 1)
+
+[node name="Label" type="Label" parent="Body/DetailScroll/DetailContainer/ConsumesHeader"]
 text = "CONSUMES"
+theme_override_colors/font_color = Color(1, 0.478431, 0.415686, 1)
 
 [node name="ConsumesTableContainer" type="VBoxContainer" parent="Body/DetailScroll/DetailContainer"]

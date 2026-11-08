@@ -313,6 +313,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.paused = false
 	campaign_state.reset()
 	delay_scene.queue_free()
+	await tree.process_frame
 
 	return failures
 

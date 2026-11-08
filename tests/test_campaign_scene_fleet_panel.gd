@@ -110,6 +110,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	tree.paused = false
 	Engine.time_scale = 1.0
 	modal_scene.queue_free()
+	await tree.process_frame
 	campaign_state.reset()
 
 	return failures

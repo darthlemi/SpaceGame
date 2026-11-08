@@ -133,6 +133,7 @@ func _refresh_detail() -> void:
 		badge_label.text = ""
 		visited_label.text = ""
 		population_value_label.text = "0"
+		population_value_label.remove_theme_color_override("font_color")
 		wealth_value_label.text = ""
 		reputation_value_label.text = ""
 		_build_table(produces_table_container, [], "produces")
@@ -184,7 +185,7 @@ func _build_table(container: VBoxContainer, rows_data: Array, table_key: String)
 		var header_button := Button.new()
 		header_button.flat = true
 		header_button.custom_minimum_size = Vector2(COLUMN_WIDTHS[i], 0)
-		var arrow := ""
+		var arrow := "  "
 		if state["sort_column"] == i:
 			arrow = " ^" if state["ascending"] else " v"
 		header_button.text = COLUMN_LABELS[i] + arrow

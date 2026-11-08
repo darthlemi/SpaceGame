@@ -259,6 +259,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 
 	campaign_state.reset()
 	scene.queue_free()
+	await tree.process_frame
 	return failures
 
 static func _move_to_system(scene: Node2D, icon: CampaignFleetIcon, system_id: String) -> void:

@@ -4,11 +4,16 @@ extends RefCounted
 const CATEGORIES := ["sparse", "light", "medium", "dense", "clustered"]
 const SEED_COUNT := 5
 
-static func pick(id: String) -> Dictionary:
-	var category: String = CATEGORIES[abs(hash(id)) % CATEGORIES.size()]
+# Narrowed pools so combat and the system view don't read as too busy. Callers can still
+# pass a custom pool (or CATEGORIES) if a future background wants the full spread.
+const COMBAT_CATEGORIES := ["sparse"]
+const SYSTEM_CATEGORIES := ["sparse", "medium"]
+
+static func pick(id: String, categories: Array = CATEGORIES) -> Dictionary:
+	var category: String = categories[abs(hash(id)) % categories.size()]
 	var seed_index: int = abs(hash(id + "_seed")) % SEED_COUNT + 1
 	return {"category": category, "seed": seed_index}
 
-static func base_texture_path(id: String) -> String:
-	var choice := pick(id)
+static func base_texture_path(id: String, categories: Array = CATEGORIES) -> String:
+	var choice := pick(id, categories)
 	return "res://assets/sprites/backgrounds/starfield/%s/%s_%02d.png" % [choice.category, choice.category, choice.seed]

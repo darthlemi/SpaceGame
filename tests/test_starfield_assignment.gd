@@ -26,4 +26,18 @@ static func run() -> Array[String]:
 	if path != expected:
 		failures.append("base_texture_path: expected %s, got %s" % [expected, path])
 
+	for i in range(20):
+		var combat_choice := StarfieldAssignmentScript.pick("combat_%d" % i, StarfieldAssignmentScript.COMBAT_CATEGORIES)
+		if combat_choice.category != "sparse":
+			failures.append("pick: combat pool expected sparse, got %s" % combat_choice.category)
+
+	var seen_system_categories := {}
+	for i in range(20):
+		var system_choice := StarfieldAssignmentScript.pick("system_pool_%d" % i, StarfieldAssignmentScript.SYSTEM_CATEGORIES)
+		if not StarfieldAssignmentScript.SYSTEM_CATEGORIES.has(system_choice.category):
+			failures.append("pick: system pool returned %s, outside SYSTEM_CATEGORIES" % system_choice.category)
+		seen_system_categories[system_choice.category] = true
+	if seen_system_categories.size() < 2:
+		failures.append("pick: expected both SYSTEM_CATEGORIES to appear across 20 ids, got only %s" % [seen_system_categories.keys()])
+
 	return failures

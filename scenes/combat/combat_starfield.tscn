@@ -1,9 +1,8 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/combat/combat_starfield.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/sprites/backgrounds/starfield/depth_layers/deep_background.png" id="2"]
 [ext_resource type="Texture2D" path="res://assets/sprites/backgrounds/starfield/depth_layers/mid_distance.png" id="3"]
-[ext_resource type="Texture2D" path="res://assets/sprites/backgrounds/starfield/depth_layers/foreground.png" id="4"]
 
 [node name="CombatStarfield" type="ParallaxBackground"]
 script = ExtResource("1")
@@ -40,13 +39,5 @@ region_enabled = true
 region_rect = Rect2(0, 0, 3200, 3200)
 texture_repeat = 2
 
-[node name="Foreground" type="ParallaxLayer" parent="."]
-motion_scale = Vector2(0.5, 0.5)
-motion_mirroring = Vector2(3200, 3200)
-
-[node name="Sprite2D" type="Sprite2D" parent="Foreground"]
-centered = false
-texture = ExtResource("4")
-region_enabled = true
-region_rect = Rect2(0, 0, 3200, 3200)
-texture_repeat = 2
+[node name="Scenery" type="ParallaxLayer" parent="."]
+motion_scale = Vector2(0.98, 0.98)

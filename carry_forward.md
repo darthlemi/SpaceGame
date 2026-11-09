@@ -1,7 +1,7 @@
-# Carry-Forward - SpaceGame 2026-11-07 (starting stock spread built, for playtest; combat AI and orders built, for playtest; combat commands/pacing plan complete, for playtest)
+# Carry-Forward - SpaceGame 2026-11-09 (backgrounds: starfield wired and tuned, combat scenery built, for playtest)
 
-Trimmed 2026-11-04 and 2026-11-07. Finished, committed work was removed; it lives in git history
-(`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
+Trimmed 2026-11-04, 2026-11-07 and 2026-11-09. Finished, committed work was removed; it lives in git
+history (`git log -p -- carry_forward.md`). Only the current thread, open items and durable rules remain.
 
 ## Combat commands, idle start, pacing (built 2026-11-06/07, for playtest)
 Spec: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`. Plan: `docs\superpowers\plans\2026-11-06-combat-commands-pacing.md`
@@ -77,34 +77,10 @@ Spec: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`. Plan
   at an industrial station; not measured for the other goods). Both factors are placeholders. NPC traders
   now arbitrage the same gaps from tick 0.
 - `data\galaxy.json` committed in the same change with the user's map editor edits (new system Dyrall,
-  moved systems, link changes). The tests stale from those edits were updated by hand and NOT re-run:
-  counts (27 / 43 / 76 link entries / 27 layers), deadreach and ashfall tier 4, new-game jump map shows
-  northgate not tollgate, round-trip raider starts at thornfield, tier-4 pirate check, the neutral-partner
-  check uses farhaven, trade range uses northgate (3 jumps from bastion). **Run the suite first thing.**
+  moved systems, link changes); the tests stale from those edits were fixed in commit `0cfd1d5`.
   `test_galaxy_data.gd` exempts `ironhold` from the pirate-needs-agriculture rule (TODO in the test):
-  Ironhold is now a pirate station with a population slot and no pirate farm in range; decide whether
-  to add agriculture there or relax the rule. User chose to leave the TODO in place for now (2026-11-06).
-  Test fixes are commit `0cfd1d5`.
-
-## Completed this session
-- Built the star systems plan (`docs\superpowers\plans\2026-11-04-star-systems-jumping.md`),
-  subagent-driven on `main`, commits `879dfac`..`a7683ed`:
-  - galaxy model and layout (`GalaxyData`, 26 systems, 37 stations, 40 links);
-  - per-station economies, quotas and respawn in `CampaignState`;
-  - one `SystemLayer` per system, `CampaignStation` replaces HomeBase/FactionBase;
-  - player jumping, the jump map, discovery and distress (`jump_controller.gd`);
-  - AI jumping (`NpcJumpPlanner`), NPC refuel, repair, dwell limits and retiring stranded fleets.
-- Verified:
-  - suite ~68 s, 0 `SCRIPT ERROR`, only the long-run-sim flake;
-  - perf, 62 fleets, non-headless: 1x avg 0.95 / max 3.27 ms, 5x avg 1.04 / max 3.13 ms (bar
-    8 / 33);
-  - 1 h probe, seeds 7 and 11: jump rate flat from ~20-30 min, no trader idles at home > 25 s,
-    worst pirate home empty 46%.
-- Probe script for the AI galaxy (not committed):
-  `C:\Users\c_dirks\AppData\Local\Temp\claude\7f8633d840d3c804\13cae86e-3352-415c-95d6-de4b935bbd38\scratchpad\probe\probe_galaxy.gd`
-  (`-- --dur=3600`). Copy it into `tests\` if it is wanted long term.
-- The 19 execution rulings were in `.superpowers\sdd\2026-11-04-star-systems-jumping\`, which was
-  wiped on 2026-11-05 (see "Combat AI and orders"). They are lost; git history is the record.
+  Ironhold is now a pirate station with a population slot and no pirate farm in range. User chose to
+  leave the TODO in place for now (2026-11-06) rather than add agriculture or relax the rule.
 
 ## Combat AI and orders (built 2026-11-05, plan `docs\superpowers\plans\2026-11-05-combat-ai-orders.md`)
 - Commits: `68b5701` (hull/loadout movement), `7e5bedc` + `0730356` (target scoring, edge range),
@@ -162,9 +138,9 @@ Spec: `docs\superpowers\specs\2026-11-06-combat-commands-pacing-design.md`. Plan
    many core stations still sit at 0 FUEL, since NPC refuels are free (no prices); neutral hubs
    (Aurum Bazaar, Freeport, Haven Exchange, Marrow Depot) make no fuel, so their fleets depend
    on hauls; the 3 and the quarry count are placeholders to tune.
-3. **Neutral patrols vs pirates: fixed 2026-11-05.** `_factions_hostile` now makes
-   NEUTRAL and PIRATE hostile, so neutral patrols hunt and skirmish pirates. Neutral haulers
-   (`TRADER`) are still never pirate prey: open question for the user.
+3. **Open question for the user:** neutral haulers (`TRADER`) are still never pirate prey, even
+   though neutral patrols now hunt and skirmish pirates (`_factions_hostile`, fixed 2026-11-05) —
+   is that the intended split?
 4. **Parked minors from the final review:**
    - `campaign_scene.gd` is at 412 lines, and `_icon_of` duplicates `_icon_for_fleet`;
    - the FUEL reserve is 0 at stations that burn no FUEL, so homes like Thornfield and Farhaven
@@ -216,18 +192,15 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
   `queue_free` bug, pre-existing on `main`, in three other campaign-scene tests
   (`test_campaign_scene_trading.gd`, `test_campaign_scene_fleet_panel.gd`, `test_campaign_scene.gd`).
   All four fixed the same way. Suite is now 0 `SCRIPT ERROR`, only the known long-run-sim flake.
-- **Open, for the user's playtest pass (mockup-fidelity gaps the plan didn't carry forward from the
-  signed-off mockup — not code bugs, a human visual pass was never performed since the build ran
-  headless):**
-  - the three stat tiles don't span the row (`systems_stations_panel.tscn`'s Tiles children lack
-    `size_flags_horizontal = 3`) — the mockup has them filling the row evenly;
-  - the PRODUCES/CONSUMES tables are fixed-width (~460px, left-aligned) inside the ~740px detail pane
-    rather than filling it — column *ratios* (34/22/22/22%) are right, the *fill* isn't;
-  - missing vs. the mockup: the "MARKET (AS LAST SEEN)" section header, green/red colouring + bar on
-    the PRODUCES/CONSUMES group labels, the badge's bordered box, a selected-station row highlight
-    (currently just white font colour, mockup has a gradient + left border), thousands separators on
-    population, and the spec's explicit left-edge tree scrollbar (currently Godot's default right-hand
-    one). Fold these into one follow-up pass rather than drip-feeding fixes.
+- **Restyled toward the mockup 2026-11-07 (`96ebb97`):** tiles now span the row, the "MARKET (AS LAST
+  SEEN)" header and green/red colour bars on the PRODUCES/CONSUMES group labels were added, the badge
+  got its bordered box, and the station-list dots were fixed (were stretching into full-row bars).
+- **Still open, for the user's playtest pass (remaining mockup-fidelity gaps):**
+  - the PRODUCES/CONSUMES tables are still fixed-width (`COLUMN_WIDTHS` 160/100/100/100 px) inside the
+    wider detail pane rather than filling it;
+  - a selected-station row is still just white font colour; the mockup wants a gradient + left border;
+  - no thousands separators on population; the tree still uses Godot's default right-hand scrollbar
+    instead of the spec's left-edge one.
   - 5-widget HUD layout: `fleet_status_bar.tscn`'s button separation was tightened 16->8 to fit the new
     Systems button without colliding with SpeedControls; layout tests pass (no overlap/spill) but the
     visual tightness itself wasn't eyeballed.
@@ -281,15 +254,11 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
   galaxy grows a lot.
 
 ## Repo state
-- **Unpushed:** `main` is 64 commits ahead of origin (`03e243d` onward). Push only when asked.
+- **Unpushed:** `main` is 20 commits ahead of origin (`b280a50` onward). Push only when asked.
 - **Two sessions on one tree:** on 2026-11-05 the combat and map editor sessions committed to `main`
   together; something wiped `.superpowers\sdd\` mid-run. When running parallel sessions, agents
   must never `git clean` / `stash` / `checkout .`, must redirect test output to unique files, and
-  must stage only their own hunks (`tests\run_tests.gd` still holds an unstaged reorder hunk from
-  the map editor session).
-- **Untracked root files:** `images.jpg` (the kitbash reference), `images.jpg.import`,
-  `MEMORY.md`, `token-efficient-execution.md`, and a screenshot of the menu mockup
-  (`Screenshot 2026-11-05 163940.png`). The user said to leave them alone.
+  must stage only their own hunks.
 - Never commit the `.import` churn or the CRLF-only noise in `project.godot` and
   `tests\test_campaign_scene_fleet_panel.gd`.
 

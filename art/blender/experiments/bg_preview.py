@@ -124,11 +124,78 @@ def planet_mat(name, base_hex, band_hex, emissive=False):
     bump.inputs["Strength"].default_value = 0.15
     nt.links.new(detail.outputs["Fac"], bump.inputs["Height"])
     nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
-    bsdf.inputs["Roughness"].default_value = 0.75
+    bsdf.inputs["Roughness"].default_value = 0.92
+    bsdf.inputs["Specular IOR Level"].default_value = 0.08
     if emissive:
         bsdf.inputs["Emission Strength"].default_value = 0.4
         nt.links.new(ramp.outputs["Color"], bsdf.inputs["Emission Color"])
     nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
+    return mat
+
+
+def atmo_disc_mat(name, glow_hex, planet_radius, outer_radius, strength, cap=0.7):
+    """Flat camera-facing halo disc, NOT a Fresnel-driven shell on the sphere itself.
+    Fresnel/view-angle glow on a sphere in ortho view fundamentally can't give a wide soft
+    haze: viewing angle is massively foreshortened near the silhouette, so almost the whole
+    visible disc maps to near-facing angles and the entire angular range that would produce
+    a gradient gets compressed into a sliver of screen pixels right at the rim -- it reads as
+    a thin ring no matter how the falloff curve is reshaped. A flat disc lying in the same
+    plane as the sphere's silhouette, graded by literal object-space radial distance, has no
+    such compression: a 1-unit-wide radius band is a genuinely 1-unit-wide band on screen.
+    Glow is 0 at the planet's own radius (so there's no seam at the surface) and fades
+    smoothly out to `cap` opacity by `outer_radius`."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    mat.blend_method = "BLEND"
+    nt = mat.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    trans = nt.nodes.new("ShaderNodeBsdfTransparent")
+    emis = nt.nodes.new("ShaderNodeEmission")
+    base = kb.hex_lin(glow_hex)
+    pale = tuple(min(1.0, c * 0.88 + 0.12) for c in base)
+    emis.inputs["Color"].default_value = (*pale, 1.0)
+    emis.inputs["Strength"].default_value = strength
+
+    coord = nt.nodes.new("ShaderNodeTexCoord")
+    radius = nt.nodes.new("ShaderNodeVectorMath")
+    radius.operation = "LENGTH"
+    nt.links.new(coord.outputs["Object"], radius.inputs[0])
+
+    # Wobble the radius with low-frequency noise so the glow's outer edge is an irregular,
+    # cloud-like boundary instead of a perfect circle.
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 2.4
+    noise.inputs["Detail"].default_value = 3.5
+    nt.links.new(coord.outputs["Object"], noise.inputs["Vector"])
+    wobble = nt.nodes.new("ShaderNodeMath")
+    wobble.operation = "SUBTRACT"
+    wobble.inputs[1].default_value = 0.5
+    nt.links.new(noise.outputs["Fac"], wobble.inputs[0])
+    wobble_scale = nt.nodes.new("ShaderNodeMath")
+    wobble_scale.operation = "MULTIPLY"
+    wobble_scale.inputs[1].default_value = (outer_radius - planet_radius) * 0.5
+    nt.links.new(wobble.outputs["Value"], wobble_scale.inputs[0])
+    perturbed_r = nt.nodes.new("ShaderNodeMath")
+    perturbed_r.operation = "ADD"
+    nt.links.new(radius.outputs["Value"], perturbed_r.inputs[0])
+    nt.links.new(wobble_scale.outputs["Value"], perturbed_r.inputs[1])
+
+    maprange = nt.nodes.new("ShaderNodeMapRange")
+    maprange.interpolation_type = "SMOOTHSTEP"
+    maprange.clamp = True
+    maprange.inputs["From Min"].default_value = planet_radius
+    maprange.inputs["From Max"].default_value = outer_radius
+    maprange.inputs["To Min"].default_value = cap
+    maprange.inputs["To Max"].default_value = 0.0
+    nt.links.new(perturbed_r.outputs["Value"], maprange.inputs["Value"])
+
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(maprange.outputs["Result"], mix.inputs["Fac"])
+    nt.links.new(trans.outputs["BSDF"], mix.inputs[1])
+    nt.links.new(emis.outputs["Emission"], mix.inputs[2])
+    nt.links.new(mix.outputs["Shader"], out.inputs["Surface"])
     return mat
 
 
@@ -154,29 +221,17 @@ def render_planet(path, base_hex, band_hex, res=512, emissive=False, ring=False)
     bpy.ops.object.shade_smooth()
     sphere.data.materials.append(planet_mat("planet", base_hex, band_hex, emissive))
 
-    # Thin fresnel-driven glow shell for a soft atmosphere edge.
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=3.08, location=(0, 0, 0), segments=96, ring_count=48)
-    atmo = bpy.context.active_object
-    bpy.ops.object.shade_smooth()
-    atmo_mat = bpy.data.materials.new("atmo")
-    atmo_mat.use_nodes = True
-    atmo_mat.blend_method = "BLEND"
-    nt = atmo_mat.node_tree
-    for n in list(nt.nodes):
-        nt.nodes.remove(n)
-    out = nt.nodes.new("ShaderNodeOutputMaterial")
-    trans = nt.nodes.new("ShaderNodeBsdfTransparent")
-    emis = nt.nodes.new("ShaderNodeEmission")
-    emis.inputs["Color"].default_value = (*kb.hex_lin(band_hex), 1.0)
-    emis.inputs["Strength"].default_value = 2.0
-    fres = nt.nodes.new("ShaderNodeFresnel")
-    fres.inputs["IOR"].default_value = 2.2
-    mix = nt.nodes.new("ShaderNodeMixShader")
-    nt.links.new(fres.outputs["Fac"], mix.inputs["Fac"])
-    nt.links.new(trans.outputs["BSDF"], mix.inputs[1])
-    nt.links.new(emis.outputs["Emission"], mix.inputs[2])
-    nt.links.new(mix.outputs["Shader"], out.inputs["Surface"])
-    atmo.data.materials.append(atmo_mat)
+    # Layered haze: flat camera-facing discs (see atmo_disc_mat) graded by literal radial
+    # distance, not Fresnel/view-angle -- avoids the ortho-sphere foreshortening that made
+    # every earlier Fresnel-based attempt read as a thin ring. Camera looks straight down -Z
+    # from above, so a disc in the default XY plane (normal +Z) faces it directly and its
+    # ortho projection is a perfect circle matching the sphere's silhouette exactly.
+    outer_radius, strength = 3.9, 0.42
+    bpy.ops.mesh.primitive_circle_add(radius=outer_radius, fill_type="NGON",
+                                       vertices=96, location=(0, 0, 0.01))
+    disc = bpy.context.active_object
+    disc.data.materials.append(
+        atmo_disc_mat("atmo", band_hex, 3.0, outer_radius, strength, cap=0.55))
 
     if ring:
         bpy.ops.mesh.primitive_torus_add(location=(0, 0, 0), major_radius=4.6, minor_radius=0.15,
@@ -196,6 +251,7 @@ def render_planet(path, base_hex, band_hex, res=512, emissive=False, ring=False)
 
     key = bpy.data.lights.new("key", "SUN")
     key.energy = 3.0
+    key.angle = math.radians(20.0)
     key_o = bpy.data.objects.new("key", key)
     key_o.rotation_euler = (math.radians(-50), math.radians(-30), 0)
     scene.collection.objects.link(key_o)
@@ -478,12 +534,15 @@ def main():
     args = parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
 
-    # Clusters approved; now a few singular larger/rockier bodies for foreground placement.
-    for seed, elong in ((1, 1.0), (2, 1.6), (3, 2.1), (4, 1.3)):
-        render_single_rock(os.path.join(args.out_dir, f"rock_single_seed{seed}.png"),
-                            seed=seed, elongation=elong)
-    # Re-check craters read fine at cluster scale too, not just the big singles.
-    render_asteroid_cluster(os.path.join(args.out_dir, "asteroids_v3_seed1.png"), seed=1)
+    # Hazy-atmosphere re-pass on the 4 approved planet/moon samples (layered shells
+    # replacing the single tight Fresnel rim -- see atmo_haze_mat).
+    for name, base_hex, band_hex, kwargs in (
+            ("planet_gas_purple", "#4a2f6e", "#8a6fc9", {}),
+            ("planet_gas_red_ring", "#6e2f1f", "#c96a3f", {"ring": True}),
+            ("planet_gas_red", "#6e2f1f", "#c96a3f", {}),
+            ("planet_earthlike", "#1f4f7a", "#3f8a52", {}),
+            ("moon_icy", "#9fb3c2", "#e8f2f7", {"emissive": False})):
+        render_planet(os.path.join(args.out_dir, f"{name}.png"), base_hex, band_hex, **kwargs)
 
     print("done:", args.out_dir)
 

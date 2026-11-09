@@ -339,40 +339,51 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
   stay pixel-identical at their defaults.
 - **Freighter variants** (`freighter_cargo`, `freighter_fuel`): ask whether still wanted.
 - **Neon glow:** Godot 2D glow (WorldEnvironment with HDR 2D). Engine flames become a VFX.
-- **Background art (brainstormed 2026-11-06, NOT built, no spec/plan yet):** no starfield or
-  nebula yet; zoomed out, combat is plain grey. Scope agreed with the user: 30 campaign
-  (system) backgrounds + 30 combat backgrounds, start small. Approach agreed: shared tileable
+- **Background art (brainstormed 2026-11-06):** starfield is now built and wired into both
+  scenes (see below); nebula tint and the planet/asteroid placement library are still
+  unbuilt. Scope agreed with the user: 30 campaign (system) backgrounds + 30 combat
+  backgrounds, start small. Approach agreed: shared tileable
   starfield + subtle nebula-tint layers (soft localized color blobs, never a flat full-screen
   wash — the user was explicit about this), composited with a small library of standalone
   planet/moon/asteroid renders placed once per background at a fixed spot/scale (not baked as
   60 unique giant images). Combat arena is 3200x3200 with a pannable/zoomable camera
   (`CombatCamera`); campaign has no camera (fixed 1152x648 view) — this is why tiling/parallax
   was chosen over one big bespoke image per background.
-  - **Starfield: built 2026-11-08, approved, not yet wired into any scene.** Generator
-    `art\blender\starfield_generator.py` (run `blender --background --python
+  - **Starfield: built 2026-11-08, approved, and wired into both scenes 2026-11-08.** Design
+    spec `docs\superpowers\specs\2026-11-08-starfield-wiring-design.md`. Decided this round:
+    density category + seed are picked by a deterministic hash of the system id
+    (`scripts\background\starfield_assignment.gd`, `StarfieldAssignment.pick`/
+    `base_texture_path`) — no stored data, and combat reuses the same id as the system it's
+    fought at (`CampaignState.player_fleet.system_id`), so a battle's background matches that
+    system's map view. Assets copied from `art\blender\Starfield\` into
+    `assets\sprites\backgrounds\starfield\` (lower-cased category folders +
+    `depth_layers\`); the Blender output dir stays the source of truth. Campaign
+    (`campaign_scene.tscn`/`.gd`): a `Background` `TextureRect` (`STRETCH_TILE`), first child,
+    updated in `show_system()`. Combat (`combat_scene.tscn`/`.gd`, new
+    `scenes\combat\combat_starfield.tscn` + `combat_starfield.gd`): a `ParallaxBackground`
+    with 4 `ParallaxLayer`s (Base ~1.0, Deep ~0.9, Mid ~0.75, Foreground ~0.5 `motion_scale`,
+    tuning values not rigorously tuned yet), first child, `setup()` called from `_ready()`.
+    **Found and fixed a real tiling bug along the way:** a single un-tiled `Sprite2D` per
+    layer only covers one 1024x1024 tile, leaving the rest of the 3200x3200 arena as bare
+    grey canvas once the camera pans/zooms off it (caught via an in-engine screenshot, not by
+    the test suite). Fixed by giving each layer's `Sprite2D` `region_enabled` +
+    `region_rect` sized to the full arena (3200x3200) + `texture_repeat = 2` (GPU-tiles the
+    1024px texture within that region), plus `motion_mirroring` matching the same 3200x3200
+    so panning wraps seamlessly beyond it. `StarfieldAssignment` has a unit test
+    (`tests\test_starfield_assignment.gd`); the full suite is a clean run (only the known
+    `test_campaign_long_run_sim.gd` pirate-targeting flake) after also guarding against
+    `CampaignState.player_fleet == null` (a real standalone-skirmish test fixture has no
+    player fleet set at all).
+  - **Nebula-tint layers and the planet/asteroid placement library are still separate,
+    unbuilt pieces — out of scope for the starfield-wiring round above.** The recipe/
+    assignment format for those (once their art is locked) is still undecided.
+  - Generator (kept for reference, regenerate from here if the starfield art itself needs to
+    change): `art\blender\starfield_generator.py`, run via `blender --background --python
     art\blender\starfield_generator.py`; pure `bpy`+numpy pixel authoring, no Cycles render —
-    stars are stamped as Gaussian-falloff dots with a per-star reach that wraps toroidally at the
-    tile edges, so every tile is seamlessly self-tileable, not just "blended"). Output in
-    `art\blender\Starfield\`: 25 opaque 1024x1024 base tiles (5 seeds x5 density categories
-    Sparse/Light/Medium/Dense/Clustered), 3 transparent 1024x1024 parallax layers in
-    `Depth_Layers\` (Deep_Background ~800 tiny dim stars, Mid_Distance ~250 stars with more
-    color/glow, Foreground ~60 large bright stars), plus `Previews\` (contact sheet, per-category
-    reps, per-layer and combined-layer previews, a 4x4/4096px composite, a seamless-tiling proof)
-    and a copy of the script under `Scripts\`. All generation knobs (seed, count, size range,
-    brightness, color weights, cluster count/size, glow, background tint, resolution) are config
-    dicts at the top of the script.
-    - **To implement in-game:** these are meant for Godot's `ParallaxBackground` /
-      `ParallaxLayer` nodes — one `ParallaxLayer` per depth tier (Deep_Background,
-      Mid_Distance, Foreground) with increasing `motion_scale` (Deep slowest/near-1,
-      Foreground fastest/lowest scale) so camera movement parallaxes them apart; each layer's
-      `TextureRect`/`Sprite2D` should have texture repeat/tiling on, since the tiles wrap
-      seamlessly. The 25 opaque base tiles are the simpler option for static (non-parallax)
-      backgrounds, e.g. a single tiled `TextureRect` behind the campaign system view, picking a
-      density category to match the system's "busyness".
-    - Not yet decided (same open question as the rest of this thread): the recipe/assignment
-      format tying a background id to its tile/nebula/feature choices, and whether combat vs.
-      campaign each get their own pick or share one. Nebula-tint layers and the planet/asteroid
-      placement library are still separate, unbuilt pieces of this same background system.
+    stars are stamped as Gaussian-falloff dots with a per-star reach that wraps toroidally at
+    the tile edges, so every tile is seamlessly self-tileable. All generation knobs (seed,
+    count, size range, brightness, color weights, cluster count/size, glow, background tint,
+    resolution) are config dicts at the top of the script.
   - **Planets/moons: style approved.** Smooth Cycles spheres (not low-poly faceted, which would
     match the ship/station kit but read badly for round bodies), `shade_smooth` + ~128
     segments/64 rings, layered noise (coarse band noise x fine detail, bump-mapped), plus a

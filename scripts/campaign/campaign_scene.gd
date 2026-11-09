@@ -108,6 +108,7 @@ func show_system(system_id: String) -> void:
 	ids.sort()
 	for i in ids.size():
 		layers[ids[i]].set_current(ids[i] == system_id, Vector2(SYSTEM_SPACING * (i + 1), 0))
+	$Background.texture = load(StarfieldAssignment.base_texture_path(system_id))
 
 func _build_layers() -> void:
 	var ids: Array = CampaignState.galaxy.systems.keys()

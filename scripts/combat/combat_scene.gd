@@ -11,6 +11,7 @@ const FORMATION_ROW_WIDTH := 5
 @export var player_spawn_points: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
 @export var enemy_spawn_points: Array[Vector2] = [Vector2(2200, 1400), Vector2(2200, 1600), Vector2(2200, 1800)]
 
+@onready var combat_starfield: CombatStarfield = $CombatStarfield
 @onready var fleet_commander: FleetCommander = $FleetCommander
 @onready var combat_camera: CombatCamera = $CombatCamera
 @onready var result_label: Label = $UILayer/ResultLabel
@@ -32,6 +33,7 @@ func _ready() -> void:
 		escape_rng = RandomNumberGenerator.new()
 		escape_rng.randomize()
 	result_label.visible = false
+	combat_starfield.setup(CampaignState.player_fleet.system_id if CampaignState.player_fleet != null else "")
 	if CampaignState.active_enemy_fleet != null:
 		_player_spawned_indices = CrewRules.deploy_indices(CampaignState.player_fleet.ship_compositions)
 		_enemy_spawned_indices = CrewRules.deploy_indices(CampaignState.active_enemy_fleet.ship_compositions)

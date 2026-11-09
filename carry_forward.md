@@ -348,6 +348,31 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
   60 unique giant images). Combat arena is 3200x3200 with a pannable/zoomable camera
   (`CombatCamera`); campaign has no camera (fixed 1152x648 view) — this is why tiling/parallax
   was chosen over one big bespoke image per background.
+  - **Starfield: built 2026-11-08, approved, not yet wired into any scene.** Generator
+    `art\blender\starfield_generator.py` (run `blender --background --python
+    art\blender\starfield_generator.py`; pure `bpy`+numpy pixel authoring, no Cycles render —
+    stars are stamped as Gaussian-falloff dots with a per-star reach that wraps toroidally at the
+    tile edges, so every tile is seamlessly self-tileable, not just "blended"). Output in
+    `art\blender\Starfield\`: 25 opaque 1024x1024 base tiles (5 seeds x5 density categories
+    Sparse/Light/Medium/Dense/Clustered), 3 transparent 1024x1024 parallax layers in
+    `Depth_Layers\` (Deep_Background ~800 tiny dim stars, Mid_Distance ~250 stars with more
+    color/glow, Foreground ~60 large bright stars), plus `Previews\` (contact sheet, per-category
+    reps, per-layer and combined-layer previews, a 4x4/4096px composite, a seamless-tiling proof)
+    and a copy of the script under `Scripts\`. All generation knobs (seed, count, size range,
+    brightness, color weights, cluster count/size, glow, background tint, resolution) are config
+    dicts at the top of the script.
+    - **To implement in-game:** these are meant for Godot's `ParallaxBackground` /
+      `ParallaxLayer` nodes — one `ParallaxLayer` per depth tier (Deep_Background,
+      Mid_Distance, Foreground) with increasing `motion_scale` (Deep slowest/near-1,
+      Foreground fastest/lowest scale) so camera movement parallaxes them apart; each layer's
+      `TextureRect`/`Sprite2D` should have texture repeat/tiling on, since the tiles wrap
+      seamlessly. The 25 opaque base tiles are the simpler option for static (non-parallax)
+      backgrounds, e.g. a single tiled `TextureRect` behind the campaign system view, picking a
+      density category to match the system's "busyness".
+    - Not yet decided (same open question as the rest of this thread): the recipe/assignment
+      format tying a background id to its tile/nebula/feature choices, and whether combat vs.
+      campaign each get their own pick or share one. Nebula-tint layers and the planet/asteroid
+      placement library are still separate, unbuilt pieces of this same background system.
   - **Planets/moons: style approved.** Smooth Cycles spheres (not low-poly faceted, which would
     match the ship/station kit but read badly for round bodies), `shade_smooth` + ~128
     segments/64 rings, layered noise (coarse band noise x fine detail, bump-mapped), plus a

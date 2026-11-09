@@ -8,8 +8,8 @@ const SHIP_SPACING := 120.0
 # Ships per extra row; rows go behind the anchor line, so 20 per side fit the arena.
 const FORMATION_ROW_WIDTH := 5
 
-@export var player_spawn_points: Array[Vector2] = [Vector2(1000, 1400), Vector2(1000, 1600), Vector2(1000, 1800)]
-@export var enemy_spawn_points: Array[Vector2] = [Vector2(2200, 1400), Vector2(2200, 1600), Vector2(2200, 1800)]
+@export var player_spawn_points: Array[Vector2] = [Vector2(500, 1400), Vector2(500, 1600), Vector2(500, 1800)]
+@export var enemy_spawn_points: Array[Vector2] = [Vector2(2700, 1400), Vector2(2700, 1600), Vector2(2700, 1800)]
 
 @onready var combat_starfield: CombatStarfield = $CombatStarfield
 @onready var fleet_commander: FleetCommander = $FleetCommander

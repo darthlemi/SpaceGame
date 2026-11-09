@@ -411,7 +411,29 @@ one fix round — commit `dbdebef`). Mockup (reference, final v24): `docs\superp
   - Not yet decided: the "recipe" data format tying a background id to its tile/nebula/feature
     choices, how campaign system backgrounds (one per `StarSystem`) get assigned their
     background, and whether combat backgrounds are picked per-system or from a shared pool.
-    No design spec locked yet.
+    No design spec locked yet. **Resolved for combat only, see below; campaign/system-view
+    planet/asteroid placement is still unbuilt.**
+  - **Combat scenery: built and wired 2026-11-09.** `scripts\background\combat_scenery.gd`
+    (`class_name CombatScenery`) answers the recipe-format question above, for combat only: 5
+    hand-authored `RECIPES`, each an `Array` of placement `Dictionary`s (`{type, texture,
+    position, scale, radius}`), picked via `pick(id)` using the same
+    `abs(hash(id)) % N` pattern as `StarfieldAssignment.pick`. Hand-placed rather than
+    procedural — only 5 backdrops, so curating by eye beat a collision solver. `combat_starfield
+    .tscn`/`.gd` replaced the one-off test `Planet`/`Foreground` layer with an empty `Scenery`
+    `ParallaxLayer` (`motion_scale` 0.98, topmost); `setup()` instantiates one `Sprite2D` per
+    placement from `CombatScenery.pick(system_id)` into it. The approved asteroid renders
+    (24 `_small` variants + the `asteroids_v3_seed1` cluster) and planet/moon samples
+    (earthlike, gas_red, gas_red_ring, moon_icy, gas_purple) are now safely copied into
+    `assets\sprites\backgrounds\{asteroids,planets}\` — no longer only sitting in old session
+    scratchpads. `tests\test_combat_scenery.gd` enforces determinism plus a geometric
+    overlap invariant: same-type pairs (planet-planet, asteroid-asteroid) must never have
+    `distance < radius_a + radius_b`; planet-asteroid pairs are exempt (asteroids are allowed
+    to sit close to a planet). Every body is also checked against a hardcoded ship-box rect so
+    scenery never reads as part of the fight. All 5 recipes screenshot-verified visually
+    (non-headless `--script` via a `SubViewport` sized to the full 3200x3200 arena — the
+    window itself gets clamped to the monitor's usable height, so render into a `SubViewport`
+    instead of relying on `get_viewport()` on the main window for anything taller than screen
+    resolution).
   - **Separate asteroid iteration thread (2026-11-07/08, approved "good for now"):** a different
     script, `art\blender\experiments\asteroid_variants.py` (ray-crater geometry, distinct from
     `bg_preview.py`'s `add_craters`; `asteroid_build.py` is its earlier single-preview

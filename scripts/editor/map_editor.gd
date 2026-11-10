@@ -19,6 +19,10 @@ var selected_system: String = ""
 var selected_station: String = ""
 
 var canvas: MapCanvas
+var station_canvas: StationCanvas
+var scenery_canvas: SceneryCanvas
+var scenery_editor: SceneryEditor
+var system_tab: HBoxContainer
 var errors_list: ItemList
 var station_list: ItemList
 var station_box: StationEditor
@@ -124,6 +128,7 @@ func select_system(id: String) -> void:
 	_rebuild_system_fields()
 	_rebuild_station_list()
 	_rebuild_station_box()
+	_refresh_system_tab()
 
 func select_station(id: String) -> void:
 	var index := model.station_index(id)
@@ -181,6 +186,47 @@ func _build_ui() -> void:
 	preset_scroll.add_child(preset_editor)
 	tabs.add_child(preset_scroll)
 	tabs.set_tab_title(1, "Presets")
+	system_tab = HBoxContainer.new()
+	system_tab.name = "System"
+	tabs.add_child(system_tab)
+	tabs.set_tab_title(2, "System")
+	var system_subtabs := TabContainer.new()
+	system_subtabs.name = "SystemSubtabs"
+	system_subtabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	system_tab.add_child(system_subtabs)
+
+	var stations_subtab := HBoxContainer.new()
+	stations_subtab.name = "Stations"
+	system_subtabs.add_child(stations_subtab)
+	station_canvas = StationCanvas.new()
+	station_canvas.name = "StationCanvas"
+	station_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	station_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	station_canvas.custom_minimum_size = Vector2(300.0, 200.0)
+	station_canvas.station_selected.connect(select_station)
+	station_canvas.station_moved.connect(_on_station_canvas_moved)
+	stations_subtab.add_child(station_canvas)
+
+	var scenery_subtab := HBoxContainer.new()
+	scenery_subtab.name = "Scenery"
+	system_subtabs.add_child(scenery_subtab)
+	scenery_canvas = SceneryCanvas.new()
+	scenery_canvas.name = "SceneryCanvas"
+	scenery_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scenery_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scenery_canvas.custom_minimum_size = Vector2(300.0, 200.0)
+	scenery_canvas.scenery_selected.connect(func(index: int): scenery_editor.select_item(index))
+	scenery_canvas.scenery_moved.connect(_on_scenery_canvas_moved)
+	scenery_subtab.add_child(scenery_canvas)
+	var scenery_editor_scroll := ScrollContainer.new()
+	scenery_editor_scroll.name = "SceneryEditorScroll"
+	scenery_editor_scroll.custom_minimum_size.x = INSPECTOR_WIDTH
+	scenery_editor_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	scenery_editor = SceneryEditor.new()
+	scenery_editor.name = "SceneryEditorBox"
+	scenery_editor.edited.connect(_on_scenery_edited)
+	scenery_editor_scroll.add_child(scenery_editor)
+	scenery_subtab.add_child(scenery_editor_scroll)
 	_confirm = ConfirmationDialog.new()
 	_confirm.confirmed.connect(_on_confirmed)
 	add_child(_confirm)
@@ -294,6 +340,7 @@ func _refresh_all() -> void:
 	_rebuild_system_fields()
 	_rebuild_station_list()
 	_rebuild_station_box()
+	_refresh_system_tab()
 	_rebuild_preset_editor()
 	_update_dirty()
 	validate()
@@ -343,6 +390,24 @@ func _rebuild_station_box() -> void:
 		station_box.visible = false
 		return
 	station_box.bind(model, selected_station)
+
+func _refresh_system_tab() -> void:
+	station_canvas.set_system(model.doc, selected_system)
+	_refresh_scenery_tab()
+
+func _refresh_scenery_tab() -> void:
+	if selected_system == "":
+		scenery_canvas.set_scenery([], null)
+		return
+	scenery_editor.bind(model, selected_system)
+	var entry := {}
+	for sys in model.doc["systems"]:
+		if sys["id"] == selected_system:
+			entry = sys
+	var background_choice := StarfieldAssignment.pick(selected_system, StarfieldAssignment.SYSTEM_CATEGORIES, entry.get("background", {}))
+	var background_path := StarfieldAssignment.base_texture_path(selected_system, StarfieldAssignment.SYSTEM_CATEGORIES, entry.get("background", {}))
+	var background_texture: Texture2D = load(background_path) if ResourceLoader.exists(background_path) else null
+	scenery_canvas.set_scenery(entry.get("scenery", []), background_texture)
 
 func _rebuild_preset_editor() -> void:
 	preset_editor.bind(model)
@@ -397,6 +462,20 @@ func _on_add_requested(map: Vector2) -> void:
 	var id := model.add_system(NEW_SYSTEM_NAME, map)
 	_after_edit(false)
 	select_system(id)
+
+func _on_station_canvas_moved(id: String, pos: Vector2) -> void:
+	model.set_station_field(id, "pos", pos)
+	_after_edit(selected_station == id)
+	station_canvas.refresh()
+
+func _on_scenery_canvas_moved(index: int, pos: Vector2) -> void:
+	model.set_scenery_field(selected_system, index, "pos", pos)
+	model.dirty = true
+	_update_dirty()
+
+func _on_scenery_edited() -> void:
+	_refresh_scenery_tab()
+	_update_dirty()
 
 func _on_presets_edited() -> void:
 	_after_edit(false)

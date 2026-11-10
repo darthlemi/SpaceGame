@@ -28,6 +28,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	_check_links(editor, failures)
 	_check_add_mode(editor, failures)
 	_check_lists(editor, failures)
+	_check_system_tab(editor, failures)
 	await _check_station_editor(tree, editor, failures)
 	_check_presets_tab(editor, failures)
 	_check_vector_row(editor, failures)
@@ -305,6 +306,30 @@ static func _check_rename_and_failed_save(editor: MapEditor, failures: Array[Str
 	if editor.save() or not editor.model.dirty or editor.status_label.text.find("failed") < 0:
 		failures.append("save: a failed write must return false, keep dirty and say so, got '%s' dirty=%s" % [editor.status_label.text, editor.model.dirty])
 	editor.save_path = good_path
+
+static func _check_system_tab(editor: MapEditor, failures: Array[String]) -> void:
+	editor.load_document(Validator.doc())
+	editor.select_system("b")
+	if not editor.station_canvas.station_points.has("post_b"):
+		failures.append("system tab: expected the station canvas to show post_b, got %s" % [editor.station_canvas.station_points.keys()])
+
+	var start: Vector2 = editor.station_canvas.station_points["post_b"]
+	editor.station_canvas.handle_press(start, MOUSE_BUTTON_LEFT)
+	if editor.selected_station != "post_b":
+		failures.append("system tab: expected clicking the station canvas to select post_b, got '%s'" % editor.selected_station)
+	editor.station_canvas.handle_drag(start + Vector2(30.0, 10.0))
+	editor.station_canvas.handle_release()
+	var moved: Array = editor.model.doc["stations"][editor.model.station_index("post_b")]["pos"]
+	if Vector2(moved[0], moved[1]) == Vector2(300.0, 250.0):
+		failures.append("system tab: expected the drag to move post_b's pos, stayed at %s" % [moved])
+
+	editor.scenery_editor.set_background("dense", 2)
+	if editor.scenery_canvas.items.is_empty() and editor.model.doc["systems"][1].get("background", {}) != {"category": "dense", "seed": 2}:
+		failures.append("system tab: expected the background edit to reach the model")
+	editor.scenery_editor.randomize()
+	if editor.scenery_canvas.items.is_empty():
+		failures.append("system tab: expected the scenery canvas to refresh with the randomized items")
+	editor.load_document(Validator.doc())
 
 static func _check_station_canvas_standalone(failures: Array[String]) -> void:
 	var canvas := StationCanvas.new()

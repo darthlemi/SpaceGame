@@ -152,6 +152,7 @@ func _rebuild() -> void:
 	layer_option.name = "Layer"
 	for layer in LAYERS:
 		layer_option.add_item(layer)
+	layer_option.item_selected.connect(func(i: int): pick_layer(layer_option.get_item_text(i)))
 	add_child(layer_option)
 
 	thumbnail_grid = GridContainer.new()

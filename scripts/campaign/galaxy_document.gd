@@ -11,12 +11,14 @@ const FLOAT_DECIMALS := 4
 const REQUIRED_KEYS := ["version", "start_system", "presets", "systems", "links", "stations"]
 const DOC_KEYS := ["version", "start_system", "presets", "systems", "links", "stations"]
 const PRESET_KEYS := ["kind", "produces", "consumes", "housing"]
-const SYSTEM_KEYS := ["id", "name", "map", "tier", "extra"]
+const SYSTEM_KEYS := ["id", "name", "map", "tier", "background", "scenery", "extra"]
 const STATION_KEYS := ["name", "system", "owner", "pos", "art", "slots", "stock", "quota", "extra"]
 const SLOT_KEYS := ["preset", "overrides"]
 const OVERRIDE_KEYS := ["produces", "consumes", "housing"]
+const BACKGROUND_KEYS := ["category", "seed"]
+const SCENERY_ITEM_KEYS := ["type", "texture", "pos", "scale", "layer"]
 # Keys whose numbers are integers in the document (parse_string returns every number as float).
-const INT_KEYS := ["version", "tier"]
+const INT_KEYS := ["version", "tier", "seed"]
 
 static func station_id(name: String) -> String:
 	return name.to_lower().replace(" ", "_")
@@ -94,6 +96,10 @@ static func _key_order(context: String) -> Array:
 			return SLOT_KEYS
 		"overrides":
 			return OVERRIDE_KEYS
+		"background":
+			return BACKGROUND_KEYS
+		"scenery_item":
+			return SCENERY_ITEM_KEYS
 	return []
 
 # Context of a child value, from the parent's context and the child's key.
@@ -117,6 +123,11 @@ static func _child_context(context: String, key: String) -> String:
 		"slot":
 			if key == "overrides":
 				return "overrides"
+		"system":
+			if key == "background":
+				return "background"
+			if key == "scenery":
+				return "scenery_item"
 	return ""
 
 static func _emit(value, depth: int, context: String, key: String) -> String:

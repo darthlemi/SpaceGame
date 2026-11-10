@@ -11,6 +11,7 @@ static func run() -> Array[String]:
 	_check_parse_errors(failures)
 	_check_save_file(failures)
 	_check_real_file(failures)
+	_check_background_and_scenery(failures)
 	return failures
 
 static func _doc() -> Dictionary:
@@ -150,3 +151,35 @@ static func _check_save_file(failures: Array[String]) -> void:
 	if GalaxyDocument.load_file(TMP_PATH)["doc"].get("start_system", "") != "wexford":
 		failures.append("save_file: the edit was not written")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PATH))
+
+static func _check_background_and_scenery(failures: Array[String]) -> void:
+	var doc := {
+		"version": 1, "start_system": "a", "presets": {},
+		"systems": [{"id": "a", "name": "A", "map": [0.5, 0.5], "extra": {},
+			"background": {"category": "medium", "seed": 3},
+			"scenery": [
+				{"type": "planet", "texture": "planet_gas_purple.png", "pos": [160.0, 90.0], "scale": 3.5, "layer": "mid_distance"},
+				{"type": "asteroid", "texture": "v1_round_a.png", "pos": [860.0, 520.0], "scale": 1.3, "layer": "foreground"},
+			]},
+			{"id": "b", "name": "B", "map": [0.2, 0.2], "extra": {}},
+		],
+		"links": [["a", "b"]], "stations": [],
+	}
+	var text := GalaxyDocument.serialize(doc)
+	var parsed := GalaxyDocument.parse(text)
+	if not parsed["ok"]:
+		failures.append("background/scenery: expected a valid parse, got %s" % parsed["error"])
+		return
+	var back: Dictionary = parsed["doc"]
+	var sys_a: Dictionary = back["systems"][0]
+	if sys_a.get("background", {}) != {"category": "medium", "seed": 3}:
+		failures.append("background/scenery: expected background to round-trip, got %s" % [sys_a.get("background")])
+	if sys_a.get("scenery", []).size() != 2 or sys_a["scenery"][0]["texture"] != "planet_gas_purple.png" \
+			or sys_a["scenery"][1]["layer"] != "foreground":
+		failures.append("background/scenery: expected scenery to round-trip, got %s" % [sys_a.get("scenery")])
+	var sys_b: Dictionary = back["systems"][1]
+	if sys_b.has("background") or sys_b.has("scenery"):
+		failures.append("background/scenery: expected a system without them to stay absent, got %s" % [sys_b])
+	# A system with background/scenery, re-serialized, must not change (no-rewrite contract).
+	if GalaxyDocument.serialize(back) != text:
+		failures.append("background/scenery: expected a stable re-serialize")

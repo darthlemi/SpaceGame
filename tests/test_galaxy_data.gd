@@ -75,6 +75,7 @@ static func run() -> Array[String]:
 			failures.append("pirate station %s: a population slot with no agriculture starves" % st.id)
 	_check_optional_keys(failures)
 	_check_background_and_scenery(failures)
+	_check_scenery_assets_exist(failures)
 	return failures
 
 static func _check_optional_keys(failures: Array[String]) -> void:
@@ -99,3 +100,16 @@ static func _check_background_and_scenery(failures: Array[String]) -> void:
 	var without := GalaxyData._make_system({"id": "y2", "name": "Y2", "map": [0.0, 0.0]})
 	if not without.background_override.is_empty() or not without.scenery.is_empty():
 		failures.append("background/scenery: expected empty defaults when absent, got %s / %s" % [without.background_override, without.scenery])
+
+static func _check_scenery_assets_exist(failures: Array[String]) -> void:
+	var doc := GalaxyDocument.load_file()
+	if not doc["ok"]:
+		failures.append("scenery assets: could not load galaxy.json: %s" % doc["error"])
+		return
+	var folder_by_type := {"planet": "planets", "asteroid": "asteroids"}
+	for sys in doc["doc"]["systems"]:
+		for item in sys.get("scenery", []):
+			var folder: String = folder_by_type.get(item.get("type", ""), "")
+			var path := "res://assets/sprites/backgrounds/%s/%s" % [folder, item.get("texture", "")]
+			if folder == "" or not ResourceLoader.exists(path):
+				failures.append("scenery assets: system %s has a missing texture %s" % [sys["id"], path])

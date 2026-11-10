@@ -194,11 +194,22 @@ static func _check_scenery_layering(tree: SceneTree, campaign_state, failures: A
 	tree.root.add_child(layer)
 	var behind := layer.add_scenery({"type": "planet", "texture": "planet_gas_purple.png", "pos": [100.0, 100.0], "scale": 3.0, "layer": "mid_distance"})
 	var front := layer.add_scenery({"type": "asteroid", "texture": "v1_round_a.png", "pos": [200.0, 200.0], "scale": 1.5, "layer": "foreground"})
+	# add_scenery offsets world positions by the same centering SceneryCanvas's viewport outline
+	# uses (see system_layer.gd's SCENERY_SPACE/SCENERY_VIEWPORT), so the resulting sprite
+	# position is the recipe's world pos minus that offset, not the raw world pos.
+	var offset: Vector2 = (SystemLayer.SCENERY_SPACE - SystemLayer.SCENERY_VIEWPORT) / 2.0
 	if behind == null or front == null:
 		failures.append("scenery layering: expected both sprites created")
-	elif behind.position != Vector2(100.0, 100.0) or front.position != Vector2(200.0, 200.0):
-		failures.append("scenery layering: expected sprites at their recipe position, got %s / %s" % [behind.position, front.position])
+	elif behind.position != Vector2(100.0, 100.0) - offset or front.position != Vector2(200.0, 200.0) - offset:
+		failures.append("scenery layering: expected sprites at their recipe position minus the viewport-centering offset, got %s / %s" % [behind.position, front.position])
 	elif layer.get_children().find(front) <= layer.get_children().find(behind):
 		failures.append("scenery layering: expected the foreground sprite added after the mid_distance one")
+	# (1600, 1600) is the center of SceneryCanvas's drawn viewport outline in its 3200x3200
+	# world space, matching MapEditModel.NEW_SCENERY_POS -- a scenery item placed there (the
+	# default for a freshly-placed item) must render at the center of the actual visible
+	# 1152x648 screen, not at raw world coordinates.
+	var centered := layer.add_scenery({"type": "planet", "texture": "planet_gas_purple.png", "pos": [1600.0, 1600.0], "scale": 1.0, "layer": "foreground"})
+	if centered == null or centered.position.distance_to(Vector2(576.0, 324.0)) >= 1.0:
+		failures.append("scenery layering: expected a scenery item placed at the editor's viewport-outline center to render near screen center (576, 324), got %s" % [centered.position if centered != null else null])
 	layer.queue_free()
 	await tree.process_frame

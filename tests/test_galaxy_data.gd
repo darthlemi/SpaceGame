@@ -74,6 +74,7 @@ static func run() -> Array[String]:
 		if roles.has(EconomyRole.RoleType.POPULATION) and not roles.has(EconomyRole.RoleType.AGRICULTURE):
 			failures.append("pirate station %s: a population slot with no agriculture starves" % st.id)
 	_check_optional_keys(failures)
+	_check_background_and_scenery(failures)
 	return failures
 
 static func _check_optional_keys(failures: Array[String]) -> void:
@@ -86,3 +87,15 @@ static func _check_optional_keys(failures: Array[String]) -> void:
 	var st := GalaxyData._make_station(entry, GalaxyData.default_presets())
 	if st.starting_stock.get(Commodity.Type.ORE, -1.0) != 7.0:
 		failures.append("optional stock: expected starting ORE 7 from the data, got %s" % [st.starting_stock])
+
+static func _check_background_and_scenery(failures: Array[String]) -> void:
+	var with_both := GalaxyData._make_system({"id": "z", "name": "Z", "map": [0.0, 0.0],
+		"background": {"category": "dense", "seed": 2},
+		"scenery": [{"type": "planet", "texture": "planet_gas_purple.png", "pos": [100.0, 100.0], "scale": 3.0, "layer": "foreground"}]})
+	if with_both.background_override != {"category": "dense", "seed": 2}:
+		failures.append("background: expected the override carried onto StarSystem, got %s" % [with_both.background_override])
+	if with_both.scenery.size() != 1 or with_both.scenery[0]["texture"] != "planet_gas_purple.png":
+		failures.append("scenery: expected one planet carried onto StarSystem, got %s" % [with_both.scenery])
+	var without := GalaxyData._make_system({"id": "y2", "name": "Y2", "map": [0.0, 0.0]})
+	if not without.background_override.is_empty() or not without.scenery.is_empty():
+		failures.append("background/scenery: expected empty defaults when absent, got %s / %s" % [without.background_override, without.scenery])

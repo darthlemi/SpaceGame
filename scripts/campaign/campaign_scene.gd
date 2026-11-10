@@ -108,7 +108,8 @@ func show_system(system_id: String) -> void:
 	ids.sort()
 	for i in ids.size():
 		layers[ids[i]].set_current(ids[i] == system_id, Vector2(SYSTEM_SPACING * (i + 1), 0))
-	$Background.texture = load(StarfieldAssignment.base_texture_path(system_id, StarfieldAssignment.SYSTEM_CATEGORIES))
+	var sys: StarSystem = CampaignState.galaxy.systems[system_id]
+	$Background.texture = load(StarfieldAssignment.base_texture_path(system_id, StarfieldAssignment.SYSTEM_CATEGORIES, sys.background_override))
 
 func _build_layers() -> void:
 	var ids: Array = CampaignState.galaxy.systems.keys()
@@ -121,6 +122,10 @@ func _build_layers() -> void:
 		layers[system_id] = layer
 	for station in CampaignState.galaxy.stations:
 		station_nodes[station.id] = layer_for(station.system_id).add_station(station)
+	for system_id in ids:
+		var sys: StarSystem = CampaignState.galaxy.systems[system_id]
+		for item in sys.scenery:
+			layer_for(system_id).add_scenery(item)
 
 func _behavior_for_fleet(fleet: CampaignFleet) -> CampaignFleetIcon.BehaviorType:
 	if fleet.role == CampaignFleet.Role.TRADER:

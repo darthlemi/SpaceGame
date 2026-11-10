@@ -51,6 +51,8 @@ static func _make_system(entry: Dictionary) -> StarSystem:
 	sys.display_name = entry["name"]
 	sys.map_position = Vector2(entry["map"][0], entry["map"][1])
 	sys.tier_override = int(entry.get("tier", 0))
+	sys.background_override = entry.get("background", {})
+	sys.scenery = entry.get("scenery", [])
 	return sys
 
 static func _make_station(entry: Dictionary, presets: Dictionary) -> StationData:

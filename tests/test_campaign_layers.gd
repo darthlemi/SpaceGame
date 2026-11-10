@@ -11,6 +11,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	await _check_respawn_returns_to_home_system(tree, campaign_state, failures)
 	await _check_trading_round_trip(tree, campaign_state, failures)
 	await _check_hidden_layers_keep_running(tree, campaign_state, failures)
+	await _check_scenery_layering(tree, campaign_state, failures)
 	tree.paused = false
 	campaign_state.reset()
 	return failures
@@ -187,3 +188,17 @@ static func _check_hidden_layers_keep_running(tree: SceneTree, campaign_state, f
 			failures.append("hidden layers: expected no engine trails emitting in a hidden layer")
 			break
 	await _close_scene(tree, campaign_state, scene)
+
+static func _check_scenery_layering(tree: SceneTree, campaign_state, failures: Array[String]) -> void:
+	var layer := SystemLayer.new()
+	tree.root.add_child(layer)
+	var behind := layer.add_scenery({"type": "planet", "texture": "planet_gas_purple.png", "pos": [100.0, 100.0], "scale": 3.0, "layer": "mid_distance"})
+	var front := layer.add_scenery({"type": "asteroid", "texture": "v1_round_a.png", "pos": [200.0, 200.0], "scale": 1.5, "layer": "foreground"})
+	if behind == null or front == null:
+		failures.append("scenery layering: expected both sprites created")
+	elif behind.position != Vector2(100.0, 100.0) or front.position != Vector2(200.0, 200.0):
+		failures.append("scenery layering: expected sprites at their recipe position, got %s / %s" % [behind.position, front.position])
+	elif layer.get_children().find(front) <= layer.get_children().find(behind):
+		failures.append("scenery layering: expected the foreground sprite added after the mid_distance one")
+	layer.queue_free()
+	await tree.process_frame

@@ -10,6 +10,16 @@ static func run() -> Array[String]:
 	if first != second:
 		failures.append("pick: expected deterministic result for the same id, got %s then %s" % [first, second])
 
+	var overridden := StarfieldAssignmentScript.pick("sol", StarfieldAssignmentScript.CATEGORIES, {"category": "dense", "seed": 2})
+	if overridden != {"category": "dense", "seed": 2}:
+		failures.append("pick: expected an explicit override to win outright, got %s" % [overridden])
+	var overridden_path := StarfieldAssignmentScript.base_texture_path("sol", StarfieldAssignmentScript.CATEGORIES, {"category": "dense", "seed": 2})
+	if overridden_path != "res://assets/sprites/backgrounds/starfield/dense/dense_02.png":
+		failures.append("base_texture_path: expected the override path, got %s" % overridden_path)
+	var empty_override := StarfieldAssignmentScript.pick("sol", StarfieldAssignmentScript.CATEGORIES, {})
+	if empty_override != first:
+		failures.append("pick: expected an empty override to fall back to the hash, got %s vs %s" % [empty_override, first])
+
 	var seen_categories := {}
 	for i in range(30):
 		var choice := StarfieldAssignmentScript.pick("system_%d" % i)

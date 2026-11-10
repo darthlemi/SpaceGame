@@ -56,6 +56,7 @@ func _run_all() -> void:
 		preload("res://tests/test_jump_rules.gd"),
 		preload("res://tests/test_editor_fields.gd"),
 		preload("res://tests/test_scenery_randomizer.gd"),
+		preload("res://tests/test_scenery_canvas.gd"),
 		preload("res://tests/test_danger_tier.gd"),
 		preload("res://tests/test_fleet_budget.gd"),
 		preload("res://tests/test_npc_jump_planner.gd"),

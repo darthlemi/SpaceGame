@@ -109,29 +109,25 @@ static func _check_bar_inside_viewport_and_stops_mouse(tree: SceneTree, failures
 
 static func _check_new_buttons_emit(tree: SceneTree, failures: Array[String]) -> void:
 	var bar := await _open(tree)
-	var move_btn: Button = bar.get_node("Row/MoveButton")
 	var attack_btn: Button = bar.get_node("Row/AttackButton")
 	var protect_btn: Button = bar.get_node("Row/ProtectButton")
 	var presses: Array[String] = []
-	bar.move_pressed.connect(func(): presses.append("move"))
 	bar.attack_pressed.connect(func(): presses.append("attack"))
 	bar.protect_pressed.connect(func(): presses.append("protect"))
-	move_btn.pressed.emit()
 	attack_btn.pressed.emit()
 	protect_btn.pressed.emit()
-	if presses != ["move", "attack", "protect"]:
-		failures.append("order bar: expected move_pressed, attack_pressed, protect_pressed in order, got %s" % [presses])
+	if presses != ["attack", "protect"]:
+		failures.append("order bar: expected attack_pressed, protect_pressed in order, got %s" % [presses])
 	bar.get_parent().queue_free()
 
 static func _check_show_armed_tracks_pressed_state(tree: SceneTree, failures: Array[String]) -> void:
 	var bar := await _open(tree)
-	var move_btn: Button = bar.get_node("Row/MoveButton")
 	var attack_btn: Button = bar.get_node("Row/AttackButton")
 	var protect_btn: Button = bar.get_node("Row/ProtectButton")
 	bar.show_armed(true, Order.Type.ATTACK_TARGET)
-	if move_btn.button_pressed or not attack_btn.button_pressed or protect_btn.button_pressed:
-		failures.append("order bar: expected only Attack pressed when ATTACK_TARGET is armed, got move=%s attack=%s protect=%s" % [move_btn.button_pressed, attack_btn.button_pressed, protect_btn.button_pressed])
+	if not attack_btn.button_pressed or protect_btn.button_pressed:
+		failures.append("order bar: expected only Attack pressed when ATTACK_TARGET is armed, got attack=%s protect=%s" % [attack_btn.button_pressed, protect_btn.button_pressed])
 	bar.show_armed(false, Order.Type.ATTACK_TARGET)
-	if move_btn.button_pressed or attack_btn.button_pressed or protect_btn.button_pressed:
-		failures.append("order bar: expected all three cleared when nothing is armed, got move=%s attack=%s protect=%s" % [move_btn.button_pressed, attack_btn.button_pressed, protect_btn.button_pressed])
+	if attack_btn.button_pressed or protect_btn.button_pressed:
+		failures.append("order bar: expected both cleared when nothing is armed, got attack=%s protect=%s" % [attack_btn.button_pressed, protect_btn.button_pressed])
 	bar.get_parent().queue_free()

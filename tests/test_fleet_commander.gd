@@ -14,8 +14,8 @@ static func run() -> Array[String]:
 	_check_order_flee_skips_fled(failures)
 	_check_set_formation_emits(failures)
 	_check_selection_changed(failures)
-	_check_armed_move_issues_command(failures)
 	_check_armed_protect_targets_ally(failures)
+	_check_armed_attack_falls_back_to_move(failures)
 	_check_left_click_selects_and_deselects(failures)
 	_check_rearming_same_command_unarms(failures)
 	_check_arming_different_command_swaps(failures)
@@ -208,20 +208,6 @@ static func _check_selection_changed(failures: Array[String]) -> void:
 	ship.free()
 	fled.free()
 
-static func _check_armed_move_issues_command(failures: Array[String]) -> void:
-	var ship := _make_ship(Vector2(100, 100))
-	var commander := _selected_commander([ship])
-	commander.ships = [ship]
-	commander.set_armed_command(Order.Type.MOVE_TO)
-	# Calls the resolver directly, like the ATTACK_TARGET/PROTECT checks below:
-	# _on_right_press() itself reads get_global_mouse_position(), which needs a
-	# live viewport these bare-node unit tests don't have.
-	commander._issue_armed_command(Vector2(500, 500))
-	if ship.current_order == null or ship.current_order.type != Order.Type.MOVE_TO:
-		failures.append("armed_move: expected a MOVE_TO order issued, got %s" % [ship.current_order])
-	commander.free()
-	ship.free()
-
 static func _check_armed_protect_targets_ally(failures: Array[String]) -> void:
 	var protectee := _make_ship(Vector2(400, 400))
 	var ship := _make_ship(Vector2(100, 100))
@@ -231,9 +217,26 @@ static func _check_armed_protect_targets_ally(failures: Array[String]) -> void:
 	commander._issue_armed_command(protectee.global_position)
 	if ship.current_order == null or ship.current_order.type != Order.Type.PROTECT or ship.current_order.target_ship != protectee:
 		failures.append("armed_protect: expected a PROTECT order on the ally, got %s" % [ship.current_order])
+	if commander._has_armed_command:
+		failures.append("armed_protect: expected Protect to disarm itself after issuing an order")
 	commander.free()
 	ship.free()
 	protectee.free()
+
+static func _check_armed_attack_falls_back_to_move(failures: Array[String]) -> void:
+	var ship := _make_ship(Vector2(100, 100))
+	var commander := _selected_commander([ship])
+	commander.ships = [ship]
+	commander.enemy_group = &"test_fc_armed_fallback_enemies"
+	commander.set_armed_command(Order.Type.ATTACK_TARGET)
+	var empty_point := Vector2(900, 900)
+	commander._issue_armed_command(empty_point)
+	if ship.current_order == null or ship.current_order.type != Order.Type.MOVE_TO or ship.current_order.target_position != empty_point:
+		failures.append("armed_attack_fallback: expected a click with no enemy under it to move there, got %s" % [ship.current_order])
+	if commander._has_armed_command:
+		failures.append("armed_attack_fallback: expected Attack to disarm itself even when it fell back to a move")
+	commander.free()
+	ship.free()
 
 static func _check_left_click_selects_and_deselects(failures: Array[String]) -> void:
 	var first := _make_ship(Vector2(100, 100))
@@ -254,21 +257,21 @@ static func _check_rearming_same_command_unarms(failures: Array[String]) -> void
 	var commander := FleetCommander.new()
 	var seen: Array = []
 	commander.armed_command_changed.connect(func(has_command: bool, type: Order.Type): seen.append([has_command, type]))
-	commander.set_armed_command(Order.Type.MOVE_TO)
+	commander.set_armed_command(Order.Type.ATTACK_TARGET)
 	if not commander._has_armed_command:
-		failures.append("set_armed_command: expected arming MOVE_TO to set _has_armed_command true")
-	commander.set_armed_command(Order.Type.MOVE_TO)
+		failures.append("set_armed_command: expected arming ATTACK_TARGET to set _has_armed_command true")
+	commander.set_armed_command(Order.Type.ATTACK_TARGET)
 	if commander._has_armed_command:
 		failures.append("set_armed_command: expected re-arming the same command to un-arm it")
-	if seen != [[true, Order.Type.MOVE_TO], [false, Order.Type.MOVE_TO]]:
+	if seen != [[true, Order.Type.ATTACK_TARGET], [false, Order.Type.ATTACK_TARGET]]:
 		failures.append("set_armed_command: expected armed_command_changed(true) then (false), got %s" % [seen])
 	commander.free()
 
 static func _check_arming_different_command_swaps(failures: Array[String]) -> void:
 	var commander := FleetCommander.new()
-	commander.set_armed_command(Order.Type.MOVE_TO)
 	commander.set_armed_command(Order.Type.ATTACK_TARGET)
-	if not commander._has_armed_command or commander.armed_command != Order.Type.ATTACK_TARGET:
+	commander.set_armed_command(Order.Type.PROTECT)
+	if not commander._has_armed_command or commander.armed_command != Order.Type.PROTECT:
 		failures.append("set_armed_command: expected arming a different command to swap cleanly, got has=%s type=%s" % [commander._has_armed_command, commander.armed_command])
 	commander.free()
 
@@ -299,12 +302,15 @@ static func _check_armed_attack_targets_enemy(tree: SceneTree, failures: Array[S
 	commander._issue_armed_command(enemy.global_position)
 	if ship.current_order == null or ship.current_order.type != Order.Type.ATTACK_TARGET or ship.current_order.target_ship != enemy:
 		failures.append("armed_attack: expected an ATTACK_TARGET order on the enemy, got %s" % [ship.current_order])
+	if commander._has_armed_command:
+		failures.append("armed_attack: expected Attack to disarm itself after landing on the enemy")
 	commander.queue_free()
 	ship.queue_free()
 	enemy.queue_free()
 	await tree.process_frame
 
 # Right-click's unarmed default: attack when the click lands on an enemy, move otherwise.
+# Attacking this way must never arm the Attack button.
 static func _check_unarmed_right_click_attacks_or_moves(tree: SceneTree, failures: Array[String]) -> void:
 	var enemy := _spawn_ship(tree, Vector2(400, 400))
 	var ship := _spawn_ship(tree, Vector2(100, 100))
@@ -316,6 +322,8 @@ static func _check_unarmed_right_click_attacks_or_moves(tree: SceneTree, failure
 	commander._issue_smart_order(enemy.global_position)
 	if ship.current_order == null or ship.current_order.type != Order.Type.ATTACK_TARGET or ship.current_order.target_ship != enemy:
 		failures.append("unarmed_smart_order: expected an enemy under the click to be attacked, got %s" % [ship.current_order])
+	if commander._has_armed_command:
+		failures.append("unarmed_smart_order: expected a smart-attack click to leave Attack unarmed")
 	var empty_point := Vector2(900, 900)
 	commander._issue_smart_order(empty_point)
 	if ship.current_order == null or ship.current_order.type != Order.Type.MOVE_TO or ship.current_order.target_position != empty_point:

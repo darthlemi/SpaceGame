@@ -3,10 +3,29 @@ extends Node2D
 
 # Weapon frustums on selected ships: #ffb347 lines and a red hatch, both at 20% opacity.
 const FRUSTUM_COLOR := Color(1.0, 0.702, 0.278, 0.2)
+const FRUSTUM_LINE_WIDTH := 3.0
 const FRUSTUM_DASH := 6.0
 const FRUSTUM_HATCH_COLOR := Color(1.0, 0.231, 0.231, 0.06)
+const FRUSTUM_HATCH_WIDTH := 1.0
 const FRUSTUM_HATCH_SPACING := 20.0
 const FRUSTUM_SEGMENTS := 32
+
+# Selection brackets: 4 corner Ls fit around the ship's own hit radius.
+const SELECT_COLOR := Color(0.2, 1.0, 0.4)
+const SELECT_LINE_WIDTH := 2.0
+const SELECT_PADDING := 6.0
+const SELECT_ARM_FRACTION := 0.35
+const DRAG_BOX_LINE_WIDTH := 2.0
+
+# Order-direction arrows: a faint pulsing chevron chain from ship to its order's destination.
+const ARROW_COLOR := Color(0.2, 1.0, 0.4, 0.12)
+const ARROW_LINE_WIDTH := 1.5
+const ARROW_SPACING := 48.0
+const ARROW_SIZE := 14.0
+const ARROW_SIZE_PULSE := 0.25  # fraction of ARROW_SIZE added/removed at the pulse's peak
+const ARROW_MIN_DISTANCE := 32.0
+const ARROW_PULSE_SPEED := 0.7  # cycles per second, travelling from ship to destination
+const ARROW_PULSE_PHASE := 0.9  # radians of phase shift between consecutive chevrons
 
 @export var select_radius: float = 24.0
 @export var click_target_radius: float = 24.0
@@ -24,7 +43,7 @@ var selected_ships: Array[Ship] = []:
 		_last_has_selection = _has_live_selection()
 		selection_changed.emit(_last_has_selection)
 var active_formation: Formation.Type = Formation.Type.NONE
-var armed_command: Order.Type = Order.Type.MOVE_TO
+var armed_command: Order.Type = Order.Type.ATTACK_TARGET
 
 signal formation_changed(type: Formation.Type)
 signal selection_changed(has_selection: bool)
@@ -91,8 +110,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		order_hold()
 	elif event.is_action_pressed("order_flee"):
 		order_flee()
-	elif event.is_action_pressed("order_move"):
-		set_armed_command(Order.Type.MOVE_TO)
 	elif event.is_action_pressed("order_attack"):
 		set_armed_command(Order.Type.ATTACK_TARGET)
 	elif event.is_action_pressed("order_protect"):
@@ -133,33 +150,36 @@ func _order_live_selection(make_order: Callable) -> void:
 	for ship in selected_ships:
 		ship.execute_order(make_order.call())
 
+# Armed Attack/Protect are one-shot: whatever this click resolves to (a hit on the armed
+# command's own target type, or a plain move if the click didn't land on one), the command
+# disarms afterward so the button un-presses and the next right-click goes back to smart.
 func _issue_armed_command(world_pos: Vector2) -> void:
 	_prune_selection()
 	if selected_ships.is_empty():
 		return
+	var issued := false
 	match armed_command:
-		Order.Type.MOVE_TO:
-			# Forced move: goes to the clicked point even if it lands on an enemy, so the
-			# player can close distance without the selection peeling off to pursue/attack.
-			var destinations := _compute_destinations(world_pos)
-			for ship in selected_ships:
-				if destinations.has(ship):
-					ship.execute_order(Order.move_to(destinations[ship]))
 		Order.Type.ATTACK_TARGET:
 			var enemy_candidates: Array = get_tree().get_nodes_in_group(enemy_group)
 			var target_enemy := FleetCommander.ship_at_point(enemy_candidates, world_pos, click_target_radius)
 			if target_enemy != null:
 				for ship in selected_ships:
 					ship.execute_order(Order.attack_target(target_enemy))
+				issued = true
 		Order.Type.PROTECT:
 			var protectee := FleetCommander.ship_at_point(ships, world_pos, click_target_radius)
 			if protectee != null:
 				for ship in selected_ships:
 					if ship != protectee:
 						ship.execute_order(Order.protect(protectee))
+				issued = true
+	if not issued:
+		_move_selection_to(world_pos)
+	_clear_armed_command()
 
 # The right-click default with nothing armed: attack if the click lands on an enemy,
-# otherwise move the selection there.
+# otherwise move the selection there. Never arms the Attack button -- that only reflects
+# an explicit arm via the button or hotkey.
 func _issue_smart_order(world_pos: Vector2) -> void:
 	_prune_selection()
 	if selected_ships.is_empty():
@@ -170,6 +190,9 @@ func _issue_smart_order(world_pos: Vector2) -> void:
 		for ship in selected_ships:
 			ship.execute_order(Order.attack_target(target_enemy))
 		return
+	_move_selection_to(world_pos)
+
+func _move_selection_to(world_pos: Vector2) -> void:
 	var destinations := _compute_destinations(world_pos)
 	for ship in selected_ships:
 		if destinations.has(ship):
@@ -192,9 +215,10 @@ func _on_left_release(start: Vector2, end: Vector2) -> void:
 	queue_redraw()
 
 # Right click is the smart action: with nothing armed, it attacks an enemy under the
-# cursor or moves the selection there; with a command armed, that command's own
-# resolution (forced move, area attack, or protect) takes over instead. The selection
-# stays after issuing an order -- only a left click on empty space clears it.
+# cursor or moves the selection there; with Attack or Protect armed, that command's own
+# resolution takes over instead (falling back to a move, and disarming, if the click
+# doesn't land on a valid target). The selection stays after issuing an order -- only a
+# left click on empty space clears it.
 func _on_right_press() -> void:
 	var world_pos: Vector2 = get_global_mouse_position()
 	if _has_armed_command:
@@ -225,16 +249,24 @@ func _group_facing(world_pos: Vector2) -> Vector2:
 	return delta.normalized() if delta.length() > 0.01 else Vector2.RIGHT
 
 func _draw() -> void:
+	var zoom_scale := _camera_zoom_scale()
 	for ship in selected_ships:
 		if is_instance_valid(ship) and not ship.has_fled:
-			_draw_frustums(ship)
-			draw_arc(ship.global_position, select_radius, 0, TAU, 24, Color(0.2, 1.0, 0.4), 2.0)
+			_draw_frustums(ship, zoom_scale)
+			_draw_selection_bracket(ship, zoom_scale)
+			_draw_order_arrows(ship, zoom_scale)
 	if _dragging:
 		var rect := Rect2(_drag_start, Vector2.ZERO).expand(get_global_mouse_position())
-		draw_rect(rect, Color(0.2, 1.0, 0.4, 0.3), false, 2.0)
+		draw_rect(rect, Color(0.2, 1.0, 0.4, 0.3), false, DRAG_BOX_LINE_WIDTH / zoom_scale)
+
+# Line widths are drawn in world space, so they thin out to nothing as the camera zooms
+# out; dividing by zoom keeps every overlay stroke a constant width on screen.
+func _camera_zoom_scale() -> float:
+	var camera := get_viewport().get_camera_2d()
+	return camera.zoom.x if camera != null else 1.0
 
 # Mirrors WeaponMount.can_engage: the arc is centred on the mount's facing.
-func _draw_frustums(ship: Ship) -> void:
+func _draw_frustums(ship: Ship, zoom_scale: float) -> void:
 	for mount in FleetCommander.frustum_mounts(ship.weapon_mounts):
 		var origin := mount.global_position
 		var facing := mount.global_rotation
@@ -243,14 +275,85 @@ func _draw_frustums(ship: Ship) -> void:
 		var polygon := FleetCommander.frustum_polygon(origin, facing, arc, reach, FRUSTUM_SEGMENTS)
 		var hatch := FleetCommander.hatch_segments(polygon, FRUSTUM_HATCH_SPACING)
 		if not hatch.is_empty():
-			draw_multiline(hatch, FRUSTUM_HATCH_COLOR, 1.0)
+			draw_multiline(hatch, FRUSTUM_HATCH_COLOR, FRUSTUM_HATCH_WIDTH / zoom_scale)
+		var line_width := FRUSTUM_LINE_WIDTH / zoom_scale
 		if arc >= 360.0:
-			draw_arc(origin, reach, 0.0, TAU, FRUSTUM_SEGMENTS * 2, FRUSTUM_COLOR, 3.0)
+			draw_arc(origin, reach, 0.0, TAU, FRUSTUM_SEGMENTS * 2, FRUSTUM_COLOR, line_width)
 			continue
 		var half := deg_to_rad(arc) * 0.5
-		draw_dashed_line(origin, polygon[1], FRUSTUM_COLOR, 2.0, FRUSTUM_DASH)
-		draw_dashed_line(origin, polygon[polygon.size() - 1], FRUSTUM_COLOR, 2.0, FRUSTUM_DASH)
-		draw_arc(origin, reach, facing - half, facing + half, FRUSTUM_SEGMENTS, FRUSTUM_COLOR, 3.0)
+		draw_dashed_line(origin, polygon[1], FRUSTUM_COLOR, line_width, FRUSTUM_DASH / zoom_scale)
+		draw_dashed_line(origin, polygon[polygon.size() - 1], FRUSTUM_COLOR, line_width, FRUSTUM_DASH / zoom_scale)
+		draw_arc(origin, reach, facing - half, facing + half, FRUSTUM_SEGMENTS, FRUSTUM_COLOR, line_width)
+
+# 4 L-shaped corner brackets sized to the ship's own hit radius, so bigger hulls get
+# bigger brackets instead of everyone sharing one fixed circle.
+func _draw_selection_bracket(ship: Ship, zoom_scale: float) -> void:
+	var half := ship.get_hit_radius() + SELECT_PADDING
+	var arm := half * SELECT_ARM_FRACTION
+	var segments := FleetCommander.bracket_segments(ship.global_position, half, arm)
+	draw_multiline(segments, SELECT_COLOR, SELECT_LINE_WIDTH / zoom_scale)
+
+# A faint pulsing chevron chain from the ship to its current order's destination (a move
+# point, or an attack/protect target's live position). The pulse travels from the ship-end
+# chevron to the destination-end one, looping, so the direction reads at a glance.
+func _draw_order_arrows(ship: Ship, zoom_scale: float) -> void:
+	var dest: Variant = FleetCommander.order_destination(ship.current_order)
+	if dest == null:
+		return
+	var from: Vector2 = ship.global_position
+	var to: Vector2 = dest
+	var delta := to - from
+	var distance := delta.length()
+	if distance < ARROW_MIN_DISTANCE:
+		return
+	var dir := delta / distance
+	var perp := dir.rotated(PI / 2.0)
+	var count := maxi(1, floori(distance / ARROW_SPACING))
+	var line_width := ARROW_LINE_WIDTH / zoom_scale
+	var now := Time.get_ticks_msec() / 1000.0
+	for i in count:
+		var t := (i + 1.0) / (count + 1.0)
+		var pos := from + delta * t
+		var phase := now * ARROW_PULSE_SPEED * TAU - i * ARROW_PULSE_PHASE
+		var pulse := (sin(phase) + 1.0) * 0.5
+		var color := ARROW_COLOR
+		color.a *= 0.3 + 0.7 * pulse
+		var size := ARROW_SIZE * (1.0 + ARROW_SIZE_PULSE * (pulse * 2.0 - 1.0))
+		var tip := pos + dir * size * 0.5
+		var base_a := pos - dir * size * 0.5 + perp * size * 0.4
+		var base_b := pos - dir * size * 0.5 - perp * size * 0.4
+		draw_line(tip, base_a, color, line_width)
+		draw_line(tip, base_b, color, line_width)
+
+# The point a ship's current order is steering it toward, or null if the order has no
+# destination to point at (hold/flee) or its target is no longer live.
+static func order_destination(order: Order) -> Variant:
+	if order == null:
+		return null
+	match order.type:
+		Order.Type.MOVE_TO:
+			return order.target_position
+		Order.Type.ATTACK_TARGET, Order.Type.PROTECT:
+			var target := order.target_ship
+			if is_instance_valid(target) and not target.is_queued_for_deletion() and not (target is Ship and target.has_fled):
+				return target.global_position
+			return null
+		_:
+			return null
+
+# Corner-bracket segments as from/to pairs for draw_multiline: an L at each corner of a
+# box of half-size `half` centred on `center`, with arms of length `arm`.
+static func bracket_segments(center: Vector2, half: float, arm: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var corner_signs: Array[Vector2] = [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
+	for s in corner_signs:
+		var corner := center + s * half
+		var inward := -s
+		points.append(corner)
+		points.append(corner + Vector2(inward.x * arm, 0))
+		points.append(corner)
+		points.append(corner + Vector2(0, inward.y * arm))
+	return points
 
 # Mounts whose firing area is worth showing: armed and not destroyed.
 static func frustum_mounts(mounts: Array[WeaponMount]) -> Array[WeaponMount]:

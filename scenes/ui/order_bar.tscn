@@ -40,11 +40,6 @@ custom_minimum_size = Vector2(100, 0)
 focus_mode = 0
 text = "Flee [F]"
 
-[node name="MoveButton" type="Button" parent="Row"]
-custom_minimum_size = Vector2(100, 0)
-focus_mode = 0
-text = "Move [M]"
-
 [node name="AttackButton" type="Button" parent="Row"]
 custom_minimum_size = Vector2(100, 0)
 focus_mode = 0

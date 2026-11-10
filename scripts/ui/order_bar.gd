@@ -4,7 +4,6 @@ extends Control
 signal flee_pressed
 signal formation_picked(type: Formation.Type)
 signal hold_pressed
-signal move_pressed
 signal attack_pressed
 signal protect_pressed
 
@@ -18,7 +17,6 @@ const FORMATION_NAMES := {
 
 @onready var hold_button: Button = $Row/HoldButton
 @onready var flee_button: Button = $Row/FleeButton
-@onready var move_button: Button = $Row/MoveButton
 @onready var attack_button: Button = $Row/AttackButton
 @onready var protect_button: Button = $Row/ProtectButton
 @onready var formation_button: Button = $Row/FormationButton
@@ -34,12 +32,11 @@ func _ready() -> void:
 	set_has_selection(false)
 	hold_button.pressed.connect(func(): hold_pressed.emit())
 	flee_button.pressed.connect(func(): flee_pressed.emit())
-	move_button.pressed.connect(func(): move_pressed.emit())
 	attack_button.pressed.connect(func(): attack_pressed.emit())
 	protect_button.pressed.connect(func(): protect_pressed.emit())
 	formation_button.pressed.connect(func(): popup.visible = not popup.visible)
 	var order_group := ButtonGroup.new()
-	for button in [move_button, attack_button, protect_button]:
+	for button in [attack_button, protect_button]:
 		button.toggle_mode = true
 		button.button_group = order_group
 	var group := ButtonGroup.new()
@@ -66,11 +63,10 @@ func show_formation(type: Formation.Type) -> void:
 	for key in _formation_buttons:
 		_formation_buttons[key].set_pressed_no_signal(key == type)
 
-# Keeps the Move/Attack/Protect buttons' pressed state in sync with the commander's armed
-# command. has_command false clears all three (set_pressed_no_signal skips the group, so
+# Keeps the Attack/Protect buttons' pressed state in sync with the commander's armed
+# command. has_command false clears both (set_pressed_no_signal skips the group, so
 # each button needs clearing by hand).
 func show_armed(has_command: bool, type: Order.Type) -> void:
-	move_button.set_pressed_no_signal(has_command and type == Order.Type.MOVE_TO)
 	attack_button.set_pressed_no_signal(has_command and type == Order.Type.ATTACK_TARGET)
 	protect_button.set_pressed_no_signal(has_command and type == Order.Type.PROTECT)
 

@@ -42,7 +42,7 @@ func _ready() -> void:
 	else:
 		player_ships = _spawn_fleet(player_spawn_points, PLAYER_GROUP, ENEMY_GROUP, 0.0)
 		enemy_ships = _spawn_fleet(enemy_spawn_points, ENEMY_GROUP, PLAYER_GROUP, PI)
-	combat_camera.focus(_spawn_centre())
+	combat_camera.focus(_fleet_centroid(player_ships))
 	var blips := OffscreenBlips.new()
 	blips.camera = combat_camera
 	blips.friendly_group = PLAYER_GROUP
@@ -71,7 +71,6 @@ func _ready() -> void:
 	fleet_commander.setup(player_ships, ENEMY_GROUP)
 	order_bar.hold_pressed.connect(fleet_commander.order_hold)
 	order_bar.flee_pressed.connect(fleet_commander.order_flee)
-	order_bar.move_pressed.connect(fleet_commander.set_armed_command.bind(Order.Type.MOVE_TO))
 	order_bar.attack_pressed.connect(fleet_commander.set_armed_command.bind(Order.Type.ATTACK_TARGET))
 	order_bar.protect_pressed.connect(fleet_commander.set_armed_command.bind(Order.Type.PROTECT))
 	order_bar.formation_picked.connect(fleet_commander.set_formation)
@@ -91,16 +90,6 @@ func _ready() -> void:
 	debug_menu.add_campaign_sections()
 	# An unarmed side loses before a shot is fired.
 	_check_battle_end()
-
-# Midpoint between the two fleets' spawn areas, where the fight opens.
-func _spawn_centre() -> Vector2:
-	var points := player_spawn_points + enemy_spawn_points
-	if points.is_empty():
-		return combat_camera.arena_size / 2.0
-	var total := Vector2.ZERO
-	for point in points:
-		total += point
-	return total / float(points.size())
 
 func _spawn_fleet(points: Array[Vector2], own_group: StringName, opposing_group: StringName, facing_rotation: float) -> Array[Ship]:
 	var spawned: Array[Ship] = []

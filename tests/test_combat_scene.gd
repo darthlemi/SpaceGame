@@ -368,6 +368,14 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	commander._issue_smart_order(enemy.global_position)
 	if commander.selected_ships != [second] or second.current_order == null or second.current_order.type != Order.Type.ATTACK_TARGET or second.current_order.target_ship != enemy:
 		failures.append("right click: expected clicking an enemy to order the selection to attack it and keep it selected")
+	if commander._has_armed_command:
+		failures.append("right click: expected a smart-attack click to leave Attack unarmed")
+	commander.set_armed_command(Order.Type.ATTACK_TARGET)
+	commander._issue_armed_command(enemy.global_position)
+	if second.current_order == null or second.current_order.type != Order.Type.ATTACK_TARGET or second.current_order.target_ship != enemy:
+		failures.append("armed attack: expected the selection to attack the clicked enemy")
+	if commander._has_armed_command:
+		failures.append("armed attack: expected Attack to disarm itself after landing on the enemy")
 	commander.set_armed_command(Order.Type.PROTECT)
 	commander._issue_armed_command(first.global_position)
 	if second.current_order == null or second.current_order.type != Order.Type.PROTECT or second.current_order.target_ship != first:

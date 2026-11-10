@@ -24,6 +24,7 @@ static func run_async(tree: SceneTree) -> Array[String]:
 	if editor.canvas.size.x < 100.0:
 		failures.append("setup: expected the canvas to have a size, got %s" % editor.canvas.size)
 	_check_drag(editor, failures)
+	_check_station_canvas_standalone(failures)
 	_check_links(editor, failures)
 	_check_add_mode(editor, failures)
 	_check_lists(editor, failures)
@@ -304,3 +305,28 @@ static func _check_rename_and_failed_save(editor: MapEditor, failures: Array[Str
 	if editor.save() or not editor.model.dirty or editor.status_label.text.find("failed") < 0:
 		failures.append("save: a failed write must return false, keep dirty and say so, got '%s' dirty=%s" % [editor.status_label.text, editor.model.dirty])
 	editor.save_path = good_path
+
+static func _check_station_canvas_standalone(failures: Array[String]) -> void:
+	var canvas := StationCanvas.new()
+	canvas.size = Vector2(1152, 648)
+	var doc := Validator.doc()
+	canvas.set_system(doc, "b")
+	if not canvas.station_points.has("post_b"):
+		failures.append("station canvas: expected post_b plotted, got %s" % [canvas.station_points.keys()])
+		return
+	var start: Vector2 = canvas.station_points["post_b"]
+	var moved_signals: Array = []
+	canvas.station_moved.connect(func(id: String, pos: Vector2): moved_signals.append([id, pos]))
+	var selected_signals: Array[String] = []
+	canvas.station_selected.connect(func(id: String): selected_signals.append(id))
+	canvas.handle_press(start, MOUSE_BUTTON_LEFT)
+	if selected_signals != ["post_b"] or canvas.selected != "post_b":
+		failures.append("station canvas: expected post_b selected on press, got %s" % [selected_signals])
+	canvas.handle_drag(start + Vector2(50.0, 20.0))
+	if moved_signals.size() != 1 or moved_signals[0][0] != "post_b":
+		failures.append("station canvas: expected a station_moved signal for post_b, got %s" % [moved_signals])
+	canvas.handle_release()
+	canvas.handle_drag(start + Vector2(500.0, 500.0))
+	if moved_signals.size() != 1:
+		failures.append("station canvas: expected a drag after release to be ignored")
+	canvas.queue_free()

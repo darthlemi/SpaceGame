@@ -172,8 +172,9 @@ static func _check_background_and_scenery(failures: Array[String]) -> void:
 		return
 	var back: Dictionary = parsed["doc"]
 	var sys_a: Dictionary = back["systems"][0]
-	if sys_a.get("background", {}) != {"category": "medium", "seed": 3}:
-		failures.append("background/scenery: expected background to round-trip, got %s" % [sys_a.get("background")])
+	var background: Dictionary = sys_a.get("background", {})
+	if background.get("category", "") != "medium" or int(background.get("seed", -1)) != 3:
+		failures.append("background/scenery: expected background to round-trip, got %s" % [background])
 	if sys_a.get("scenery", []).size() != 2 or sys_a["scenery"][0]["texture"] != "planet_gas_purple.png" \
 			or sys_a["scenery"][1]["layer"] != "foreground":
 		failures.append("background/scenery: expected scenery to round-trip, got %s" % [sys_a.get("scenery")])

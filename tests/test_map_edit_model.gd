@@ -12,6 +12,7 @@ static func run() -> Array[String]:
 	_check_slots(failures)
 	_check_stock_quota_presets(failures)
 	_check_unknown_keys(failures)
+	_check_background_and_scenery(failures)
 	return failures
 
 static func _model() -> MapEditModel:
@@ -205,3 +206,40 @@ static func _check_slot_keys(failures: Array[String]) -> void:
 	slot = m.doc["stations"][1]["slots"][0]
 	if typeof(slot) != TYPE_DICTIONARY or slot["preset"] != "agriculture" or slot.get("note", "") != "keep":
 		failures.append("set_slot_preset: expected the new preset with the unknown key kept, got %s" % [slot])
+
+static func _check_background_and_scenery(failures: Array[String]) -> void:
+	var model := _model()
+
+	model.set_background("b", "dense", 4)
+	if model.doc["systems"][1].get("background", {}) != {"category": "dense", "seed": 4} or not model.dirty:
+		failures.append("set_background: expected it stored and the model dirty, got %s" % [model.doc["systems"][1].get("background")])
+	model.clear_background("b")
+	if model.doc["systems"][1].has("background"):
+		failures.append("clear_background: expected the key removed")
+
+	var index := model.add_scenery("b", "planet", "planet_gas_purple.png", "mid_distance")
+	var scenery: Array = model.doc["systems"][1]["scenery"]
+	if index != 0 or scenery.size() != 1 or scenery[0]["type"] != "planet" or scenery[0]["layer"] != "mid_distance":
+		failures.append("add_scenery: expected one planet entry, got %s" % [scenery])
+	if typeof(scenery[0]["pos"]) != TYPE_ARRAY or scenery[0]["scale"] <= 0.0:
+		failures.append("add_scenery: expected a default pos and positive scale, got %s" % [scenery[0]])
+
+	model.set_scenery_field("b", 0, "scale", 5.0)
+	if model.doc["systems"][1]["scenery"][0]["scale"] != 5.0:
+		failures.append("set_scenery_field: expected scale 5.0, got %s" % [model.doc["systems"][1]["scenery"][0]])
+	model.set_scenery_field("b", 0, "pos", Vector2(100.0, 200.0))
+	if model.doc["systems"][1]["scenery"][0]["pos"] != [100.0, 200.0]:
+		failures.append("set_scenery_field: expected pos [100, 200], got %s" % [model.doc["systems"][1]["scenery"][0]["pos"]])
+
+	model.add_scenery("b", "asteroid", "v1_round_a.png", "foreground")
+	if not model.remove_scenery("b", 0) or model.doc["systems"][1]["scenery"].size() != 1 \
+			or model.doc["systems"][1]["scenery"][0]["type"] != "asteroid":
+		failures.append("remove_scenery: expected the planet removed and the asteroid left, got %s" % [model.doc["systems"][1]["scenery"]])
+	if model.remove_scenery("b", 99):
+		failures.append("remove_scenery: expected an out-of-range index refused")
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	model.randomize_scenery("b", rng, ["planet_gas_purple.png"], ["v1_round_a.png"])
+	if not model.doc["systems"][1].has("background") or model.doc["systems"][1]["scenery"].is_empty():
+		failures.append("randomize_scenery: expected a fresh background and non-empty scenery, got %s" % [model.doc["systems"][1]])

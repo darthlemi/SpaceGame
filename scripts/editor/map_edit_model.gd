@@ -133,6 +133,66 @@ func unlink(a: String, b: String) -> bool:
 	_touch()
 	return true
 
+# --- background & scenery ---
+
+const NEW_SCENERY_POS := [1600.0, 1600.0]
+const NEW_SCENERY_SCALE := {"planet": 3.5, "asteroid": 1.5}
+
+func set_background(system_id: String, category: String, seed: int) -> void:
+	var i := _system_index(system_id)
+	if i < 0:
+		return
+	doc["systems"][i]["background"] = {"category": category, "seed": seed}
+	_touch()
+
+func clear_background(system_id: String) -> void:
+	var i := _system_index(system_id)
+	if i < 0:
+		return
+	doc["systems"][i].erase("background")
+	_touch()
+
+func _scenery_of(system_id: String) -> Array:
+	var i := _system_index(system_id)
+	if i < 0:
+		return []
+	if not doc["systems"][i].has("scenery"):
+		doc["systems"][i]["scenery"] = []
+	return doc["systems"][i]["scenery"]
+
+func add_scenery(system_id: String, type: String, texture: String, layer: String) -> int:
+	var scenery := _scenery_of(system_id)
+	if _system_index(system_id) < 0:
+		return -1
+	scenery.append({"type": type, "texture": texture, "pos": NEW_SCENERY_POS.duplicate(),
+		"scale": NEW_SCENERY_SCALE.get(type, 1.0), "layer": layer})
+	_touch()
+	return scenery.size() - 1
+
+func set_scenery_field(system_id: String, index: int, key: String, value) -> void:
+	var scenery := _scenery_of(system_id)
+	if index < 0 or index >= scenery.size():
+		return
+	scenery[index][key] = _vec_to_array(value)
+	_touch()
+
+func remove_scenery(system_id: String, index: int) -> bool:
+	var scenery := _scenery_of(system_id)
+	if index < 0 or index >= scenery.size():
+		return false
+	scenery.remove_at(index)
+	_touch()
+	return true
+
+func randomize_scenery(system_id: String, rng: RandomNumberGenerator, planet_textures: Array, asteroid_textures: Array) -> void:
+	var i := _system_index(system_id)
+	if i < 0:
+		return
+	var generated := SceneryRandomizer.generate(rng, planet_textures, asteroid_textures)
+	doc["systems"][i]["background"] = generated["background"]
+	doc["systems"][i]["scenery"] = generated["scenery"]
+	_touch()
+
 # --- stations ---
 
 func _unique_station_name(base: String) -> String:

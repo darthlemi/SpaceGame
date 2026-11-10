@@ -329,6 +329,21 @@ static func _check_system_tab(editor: MapEditor, failures: Array[String]) -> voi
 	editor.scenery_editor.randomize()
 	if editor.scenery_canvas.items.is_empty():
 		failures.append("system tab: expected the scenery canvas to refresh with the randomized items")
+
+	# scale_spin.value_changed -> SceneryEditor.set_selected_scale -> edited.emit() ->
+	# MapEditor._on_scenery_edited must never rebuild the whole SceneryEditor panel, or every
+	# keystroke/arrow-click on the live SpinBox would tear down the very control emitting the
+	# signal. Drive set_selected_scale twice through the same scale_spin node reference and
+	# confirm it's still the same live instance both times.
+	editor.scenery_editor.select_item(0)
+	var spin_before := editor.scenery_editor.scale_spin
+	editor.scenery_editor.set_selected_scale(2.0)
+	if not is_instance_valid(spin_before) or editor.scenery_editor.scale_spin != spin_before:
+		failures.append("system tab: expected scale_spin to survive one edit as the same instance")
+	editor.scenery_editor.set_selected_scale(3.3)
+	if not is_instance_valid(spin_before) or editor.scenery_editor.scale_spin != spin_before:
+		failures.append("system tab: expected scale_spin to survive a second edit as the same instance")
+
 	editor.load_document(Validator.doc())
 
 static func _check_station_canvas_standalone(failures: Array[String]) -> void:

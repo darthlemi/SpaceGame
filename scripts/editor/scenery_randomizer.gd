@@ -23,9 +23,11 @@ static func generate(rng: RandomNumberGenerator, planet_textures: Array, asteroi
 	}
 	var scenery: Array = []
 	for i in rng.randi_range(1, 2):
-		scenery.append(_place(rng, "planet", planet_textures, PLANET_SCALE_MIN, PLANET_SCALE_MAX, PLANET_BASE_RADIUS, scenery))
+		if not planet_textures.is_empty():
+			scenery.append(_place(rng, "planet", planet_textures, PLANET_SCALE_MIN, PLANET_SCALE_MAX, PLANET_BASE_RADIUS, scenery))
 	for i in rng.randi_range(1, 4):
-		scenery.append(_place(rng, "asteroid", asteroid_textures, ASTEROID_SCALE_MIN, ASTEROID_SCALE_MAX, ASTEROID_BASE_RADIUS, scenery))
+		if not asteroid_textures.is_empty():
+			scenery.append(_place(rng, "asteroid", asteroid_textures, ASTEROID_SCALE_MIN, ASTEROID_SCALE_MAX, ASTEROID_BASE_RADIUS, scenery))
 	return {"background": background, "scenery": scenery}
 
 static func _place(rng: RandomNumberGenerator, type: String, textures: Array, scale_min: float, scale_max: float, base_radius: float, placed: Array) -> Dictionary:

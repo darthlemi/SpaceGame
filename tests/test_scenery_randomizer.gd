@@ -54,4 +54,34 @@ static func run() -> Array[String]:
 	var result2 := SceneryRandomizer.generate(repeat, planets, asteroids)
 	if result2 != result:
 		failures.append("generate: expected the same seed to reproduce the same result")
+
+	# Test empty texture arrays: should not crash, just skip placing items of that type.
+	var rng_empty := RandomNumberGenerator.new()
+	rng_empty.seed = 99
+
+	# Empty planets: should produce zero planets.
+	var result_no_planets := SceneryRandomizer.generate(rng_empty, [], asteroids)
+	var planet_count_empty := 0
+	for item in result_no_planets["scenery"]:
+		if item["type"] == "planet":
+			planet_count_empty += 1
+	if planet_count_empty != 0:
+		failures.append("generate: empty planet_textures should produce zero planets, got %d" % planet_count_empty)
+
+	# Empty asteroids: should produce zero asteroids.
+	rng_empty.seed = 99
+	var result_no_asteroids := SceneryRandomizer.generate(rng_empty, planets, [])
+	var asteroid_count_empty := 0
+	for item in result_no_asteroids["scenery"]:
+		if item["type"] == "asteroid":
+			asteroid_count_empty += 1
+	if asteroid_count_empty != 0:
+		failures.append("generate: empty asteroid_textures should produce zero asteroids, got %d" % asteroid_count_empty)
+
+	# Both empty: should produce no scenery items.
+	rng_empty.seed = 99
+	var result_no_scenery := SceneryRandomizer.generate(rng_empty, [], [])
+	if result_no_scenery["scenery"].size() != 0:
+		failures.append("generate: both empty texture arrays should produce zero scenery, got %d items" % result_no_scenery["scenery"].size())
+
 	return failures

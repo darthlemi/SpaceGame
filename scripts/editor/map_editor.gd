@@ -400,11 +400,17 @@ func _refresh_scenery_tab() -> void:
 		scenery_canvas.set_scenery([], null)
 		return
 	scenery_editor.bind(model, selected_system)
+	_refresh_scenery_canvas()
+
+# Canvas-only refresh: unlike _refresh_scenery_tab, this never rebinds scenery_editor, so it's
+# safe to call from inside a signal the editor's own controls emitted (e.g. scale_spin's
+# value_changed, or a live drag on scenery_canvas itself) without destroying a control mid-
+# interaction.
+func _refresh_scenery_canvas() -> void:
 	var entry := {}
 	for sys in model.doc["systems"]:
 		if sys["id"] == selected_system:
 			entry = sys
-	var background_choice := StarfieldAssignment.pick(selected_system, StarfieldAssignment.SYSTEM_CATEGORIES, entry.get("background", {}))
 	var background_path := StarfieldAssignment.base_texture_path(selected_system, StarfieldAssignment.SYSTEM_CATEGORIES, entry.get("background", {}))
 	var background_texture: Texture2D = load(background_path) if ResourceLoader.exists(background_path) else null
 	scenery_canvas.set_scenery(entry.get("scenery", []), background_texture)
@@ -470,20 +476,11 @@ func _on_station_canvas_moved(id: String, pos: Vector2) -> void:
 
 func _on_scenery_canvas_moved(index: int, pos: Vector2) -> void:
 	model.set_scenery_field(selected_system, index, "pos", pos)
-	_refresh_scenery_tab()
+	_refresh_scenery_canvas()
 	_update_dirty()
 
-# Canvas-only refresh: unlike _refresh_scenery_tab, this never rebinds scenery_editor, so it's
-# safe to call from inside a signal that control itself emitted (e.g. scale_spin.value_changed)
-# without destroying the control mid-interaction.
 func _on_scenery_edited() -> void:
-	var entry := {}
-	for sys in model.doc["systems"]:
-		if sys["id"] == selected_system:
-			entry = sys
-	var background_path := StarfieldAssignment.base_texture_path(selected_system, StarfieldAssignment.SYSTEM_CATEGORIES, entry.get("background", {}))
-	var background_texture: Texture2D = load(background_path) if ResourceLoader.exists(background_path) else null
-	scenery_canvas.set_scenery(entry.get("scenery", []), background_texture)
+	_refresh_scenery_canvas()
 	_update_dirty()
 
 func _on_presets_edited() -> void:

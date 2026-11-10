@@ -344,6 +344,30 @@ static func _check_system_tab(editor: MapEditor, failures: Array[String]) -> voi
 	if not is_instance_valid(spin_before) or editor.scenery_editor.scale_spin != spin_before:
 		failures.append("system tab: expected scale_spin to survive a second edit as the same instance")
 
+	# SceneryCanvas.handle_drag emits scenery_moved on every mouse-motion frame of a drag, not
+	# just on release. _on_scenery_canvas_moved must use the same canvas-only refresh as
+	# _on_scenery_edited (not the heavier _refresh_scenery_tab, which rebinds and rebuilds the
+	# whole SceneryEditor panel), or every motion frame mid-drag would reset
+	# folder_option/layer_option/scale_spin to their defaults. Drive the signal handler directly
+	# (as the canvas would, repeatedly, during one drag) and confirm the panel's own controls and
+	# selection state survive untouched.
+	editor.scenery_editor.pick_folder("asteroids")
+	editor.scenery_editor.pick_layer("foreground")
+	var folder_before: String = editor.scenery_editor._selected_folder
+	var folder_option_before := editor.scenery_editor.folder_option
+	var layer_option_before := editor.scenery_editor.layer_option
+	var scale_spin_before := editor.scenery_editor.scale_spin
+	var layer_index_before: int = layer_option_before.selected
+	var scale_value_before: float = scale_spin_before.value
+	editor._on_scenery_canvas_moved(0, Vector2(500.0, 500.0))
+	editor._on_scenery_canvas_moved(0, Vector2(520.0, 510.0))
+	editor._on_scenery_canvas_moved(0, Vector2(540.0, 520.0))
+	if editor.scenery_editor.folder_option != folder_option_before or editor.scenery_editor.layer_option != layer_option_before or editor.scenery_editor.scale_spin != scale_spin_before:
+		failures.append("system tab: expected a scenery drag to leave the SceneryEditor's controls as the same instances (no rebuild)")
+	elif editor.scenery_editor._selected_folder != folder_before or layer_option_before.selected != layer_index_before or scale_spin_before.value != scale_value_before:
+		failures.append("system tab: expected a scenery drag to leave folder/layer/scale selection unchanged, got folder='%s' (want '%s') layer_idx=%d (want %d) scale=%s (want %s)" % [
+			editor.scenery_editor._selected_folder, folder_before, layer_option_before.selected, layer_index_before, scale_spin_before.value, scale_value_before])
+
 	editor.load_document(Validator.doc())
 
 static func _check_station_canvas_standalone(failures: Array[String]) -> void:

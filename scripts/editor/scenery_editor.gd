@@ -60,10 +60,11 @@ func place_selected() -> void:
 	_rebuild()
 
 func select_item(index: int) -> void:
-	_selected_index = index
 	var entry := _entry()
 	if entry.is_empty() or index < 0 or index >= entry.get("scenery", []).size():
+		_selected_index = -1
 		return
+	_selected_index = index
 	scale_spin.value = float(entry["scenery"][index].get("scale", 1.0))
 
 func set_selected_scale(value: float) -> void:

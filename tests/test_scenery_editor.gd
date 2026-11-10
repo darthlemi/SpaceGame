@@ -37,5 +37,12 @@ static func run() -> Array[String]:
 	if not model.doc["systems"][1].has("background") or model.doc["systems"][1]["scenery"].is_empty():
 		failures.append("randomize: expected a fresh background and scenery, got %s" % [model.doc["systems"][1]])
 
+	var before_oob: Array = model.doc["systems"][1]["scenery"].duplicate(true)
+	editor.select_item(99)
+	editor.set_selected_scale(7.0)
+	editor.delete_selected()
+	if model.doc["systems"][1]["scenery"] != before_oob:
+		failures.append("select_item/out-of-range: expected a stale/invalid index to leave scenery untouched, got %s" % [model.doc["systems"][1]["scenery"]])
+
 	editor.queue_free()
 	return failures

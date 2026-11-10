@@ -137,13 +137,25 @@ static func choices_for(spec: Dictionary, doc: Dictionary) -> Array:
 		"owners":
 			return CampaignFleet.Faction.keys()
 		"art":
-			var names: Array = []
-			for file in DirAccess.get_files_at(ART_DIR):
-				if file.ends_with(".png"):
-					names.append(file.get_basename())
-			names.sort()
-			return names
+			return scan_png_basenames(ART_DIR)
 	return []
+
+# Scan a directory for .png files and return sorted basenames (without .png extension).
+static func scan_png_basenames(dir: String) -> Array:
+	var names: Array = []
+	for file in DirAccess.get_files_at(dir):
+		if file.ends_with(".png"):
+			names.append(file.get_basename())
+	names.sort()
+	return names
+
+# Scan a directory for subdirectories and return sorted names.
+static func scan_subfolders(dir: String) -> Array:
+	var names: Array = []
+	for folder in DirAccess.get_directories_at(dir):
+		names.append(folder)
+	names.sort()
+	return names
 
 # A Commodity x (produces, consumes) grid of spin boxes named Produces_<NAME> / Consumes_<NAME>.
 # Callbacks get (commodity name, amount) on a user edit.

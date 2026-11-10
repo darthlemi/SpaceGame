@@ -14,7 +14,6 @@ const BACKDROP_COLOR := Color(0.02, 0.03, 0.06, 1.0)
 const VIEWPORT_OUTLINE_COLOR := Color(0.4, 0.8, 1.0, 0.5)
 const PICK_RADIUS := 24.0
 const SELECTED_COLOR := Color(0.4, 0.8, 1.0, 1.0)
-const FOLDER_BY_TYPE := {"planet": "planets", "asteroid": "asteroids"}
 
 var selected_index: int = -1
 var items: Array = []
@@ -28,7 +27,7 @@ func set_scenery(scenery: Array, background_texture: Texture2D) -> void:
 	_background_texture = background_texture
 	_textures.clear()
 	for item in items:
-		var folder: String = FOLDER_BY_TYPE.get(item.get("type", ""), "")
+		var folder: String = SceneryFolder.type_to_folder(item.get("type", ""))
 		var path := "res://assets/sprites/backgrounds/%s/%s" % [folder, item.get("texture", "")]
 		_textures.append(load(path) if folder != "" and ResourceLoader.exists(path) else null)
 	queue_redraw()

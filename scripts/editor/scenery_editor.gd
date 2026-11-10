@@ -10,8 +10,6 @@ signal edited
 const BACKGROUNDS_DIR := "res://assets/sprites/backgrounds"
 const LAYERS := ["deep_background", "mid_distance", "foreground"]
 const SEED_COUNT := 5
-# Singular type name stored in the document, keyed by the plural folder name on disk.
-const TYPE_BY_FOLDER := {"planets": "planet", "asteroids": "asteroid"}
 
 var model: MapEditModel = null
 var system_id: String = ""
@@ -53,7 +51,7 @@ func pick_layer(layer: String) -> void:
 func place_selected() -> void:
 	if model == null or _selected_folder == "" or _selected_texture == "":
 		return
-	var type: String = TYPE_BY_FOLDER.get(_selected_folder, _selected_folder.trim_suffix("s"))
+	var type: String = SceneryFolder.folder_to_type(_selected_folder)
 	var layer := layer_option.get_item_text(layer_option.selected) if layer_option.selected >= 0 else LAYERS[0]
 	model.add_scenery(system_id, type, _selected_texture, layer)
 	edited.emit()
@@ -140,7 +138,7 @@ func _rebuild() -> void:
 	folder_option.name = "Folder"
 	var folders := EditorFields.scan_subfolders(BACKGROUNDS_DIR)
 	for folder in folders:
-		if TYPE_BY_FOLDER.has(folder):
+		if SceneryFolder.is_scenery_folder(folder):
 			folder_option.add_item(folder)
 	folder_option.item_selected.connect(func(i): pick_folder(folder_option.get_item_text(i)))
 	add_child(folder_option)
